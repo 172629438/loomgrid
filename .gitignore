@@ -50,6 +50,9 @@ tmp/
 *.pdf
 *.html
 !README.md
+!assets/*.png
+!assets/*.ico
+!assets/*.webp
 
 # 编辑器 / 系统
 .vscode/
@@ -59,7 +62,9 @@ tmp/
 Thumbs.db
 desktop.ini
 
-# 本地配置
-config.local.*
-*.local.json
-.env
+# 构建产物
+build/
+dist/
+*.spec
+build_*.log
+build_*.err.log
