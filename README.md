@@ -71,7 +71,7 @@ LoomGrid 是一个面向**工商业储能售前**的桌面工具：读进客户�
 
 ### 直接用（不装环境）
 
-到 [Releases](../../releases) 下载对应版本的 `.exe`，双击运行。
+到 [Releases](https://github.com/172629438/loomgrid/releases) 下载对应版本的 `.exe`，双击运行。
 
 | 版本 | 说明 | 适合 |
 |---|---|---|

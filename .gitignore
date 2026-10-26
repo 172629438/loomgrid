@@ -68,3 +68,4 @@ dist/
 *.spec
 build_*.log
 build_*.err.log
+build_logs/
