@@ -22,10 +22,24 @@ BUILD = os.path.join(ROOT, "build")
 LOGS = os.path.join(ROOT, "build_logs")
 
 EXCLUDES = [
+    # 未使用的重型第三方库
     "torch", "torchvision", "torchaudio", "tensorflow",
     "IPython", "jedi", "notebook", "ipykernel", "jupyter_client",
     "pytest", "tkinter", "PyQt5", "PyQt6", "PySide2",
     "numba", "llvmlite", "sqlalchemy", "psycopg2",
+    # PySide6 里没直接用到的模块（PyInstaller 会顺手全收，体积和耗时急剧上升）
+    # QtWebEngine = 整个 Chromium，单它就让 exe 超 100 MB 且打包卡 20 分钟以上。
+    # 主程序的 QWebEngineView 是懒加载 + try/except（L20783/20796），
+    # 缺失时只会弹「需要安装 PySide6-WebEngine」，不影响其他功能。
+    "PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineCore",
+    "PySide6.QtWebEngineQuick", "PySide6.QtWebChannel",
+    "PySide6.QtDataVisualization", "PySide6.QtCharts",
+    "PySide6.Qt3DCore", "PySide6.Qt3DRender", "PySide6.Qt3DInput",
+    "PySide6.Qt3DAnimation", "PySide6.Qt3DExtras", "PySide6.Qt3DLogic",
+    "PySide6.QtMultimedia", "PySide6.QtMultimediaWidgets",
+    "PySide6.QtQuick", "PySide6.QtQml", "PySide6.QtQuickWidgets",
+    "PySide6.QtBluetooth", "PySide6.QtNfc", "PySide6.QtPositioning",
+    "PySide6.QtSerialPort", "PySide6.QtTest", "PySide6.QtHelp",
 ]
 
 GROUPS = {
