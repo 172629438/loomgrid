@@ -171,6 +171,33 @@ python examples/quickstart.py
 2. **哪里多了** —— 哪个动效看着热闹但干扰操作，该删
 3. **哪里该有却没有** —— 状态切换太硬、缺少反馈的地方
 
+### 这些动效该怎么看
+
+花里胡哨本身不是问题，**分寸**才是。工具类软件和展示类产品是两套标准：后者要让人「哇」，前者要让人「顺」。顺的标准是——用户感觉不到动画存在，只觉得操作不卡。
+
+按这个标准，上面那 13 个组件分成三层：
+
+<table>
+<tr><th width="18%">层级</th><th width="40%">组件</th><th>理由</th></tr>
+<tr>
+<td><b>必要</b><br><sub>替用户理解状态</sub></td>
+<td><code>CircularProgressBar</code> <code>ToastManager</code> <code>DropOverlay</code> <code>RippleButton</code> <code>AnimatedDialog</code></td>
+<td>进度必须可见、结果必须有反馈、拖放目标必须高亮、点击必须确认。这些不是装饰，是在替用户回答「刚才那下成了吗」。</td>
+</tr>
+<tr>
+<td><b>可接受</b><br><sub>但必须有刹车</sub></td>
+<td><code>SplashAnimation</code> <code>TourOverlay</code> <code>BlueprintTransition</code> <code>MappingProgressTransition</code></td>
+<td>启动画面超过 1.5 秒就该砍；引导层必须 ESC 能退；页面切换控制在 250ms 内——超过 300ms 人会觉得「卡了一下」而不是「有个过渡」。</td>
+</tr>
+<tr>
+<td><b>容易过度</b><br><sub>纯装饰，建议可关</sub></td>
+<td><code>ParticleOverlay</code> <code>HslAnimator</code> <code>WindowAnimator</code></td>
+<td>粒子背景在静态分析时持续吃 GPU，笔记本上会听见风扇；色彩循环看久了晕；窗口淡入第一次觉得高级，第二次启动就嫌慢。</td>
+</tr>
+</table>
+
+**一条铁律，比上面所有建议都重要**：任何一帧动画期间，用户的操作必须能被接收。动效阻塞输入是工具类软件最致命的错——人不会觉得好看，只会觉得卡死。
+
 对工具类软件来说，动效的分寸很难拿。这个分寸我一个人把不住，需要更多人的眼睛。
 
 ---
