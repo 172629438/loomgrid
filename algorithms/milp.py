@@ -5,17 +5,58 @@ MILP Capacity Planning
 
 基于 OR-Tools CBC 的混合整数线性规划容量规划，支持多设备选型、需量电费与更换周期。
 
-本文件由 Load Curve Studio (LoomGrid) 主程序剥离而来，保留原始逻辑，仅去除 GUI 依赖。
+本文件由 LoomGrid 主程序剥离而来，保留原始逻辑，仅去除 GUI 依赖。
 原始出处：负荷曲线批量生成Ultra.py v3.2
 
 依赖：numpy / pandas
-
 """
 
+from __future__ import annotations
 import math
 import numpy as np
-from typing import List, Dict, Optional, Tuple
+import sys
+import os
+import re
+import json
+import copy
+import time
+import io
+import logging
+import atexit
+import subprocess
+import traceback
+import gc
+import random
+import ctypes
+from typing import List, Any
+import urllib.request
+import urllib.parse
+import calendar
+import logging.handlers
+import multiprocessing as mp
+import threading
+import shutil
+import tempfile
+import csv
+from datetime import datetime, time as dt_time, date, timedelta
+from collections import OrderedDict, defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from dataclasses import dataclass, field
+import threading as _threading
+import hashlib, functools, threading
+import json as _json
+from contextlib import contextmanager, suppress
+from enum import Enum
+from loguru import logger as log
+from functools import lru_cache
+import types as _types
+import sys as _sys
+from dataclasses import dataclass
 import pandas as pd
+import sys as __sys
+import pandas as pd
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional, Tuple
 
 
 class MilpDevice:
@@ -80,122 +121,11 @@ def _no_storage_benefit(df: pd.DataFrame, demands_price: dict) -> float:
     )
 
 
-def bridge_ultra_to_milp(monthly_data: dict, province: str = None,
-                          strategy_periods: dict = None,
-                          peak_price: float = 1.1, valley_price: float = 0.27,
-                          flat_price: float = 0.7, fit_price: float = 0.41,
-                          pv_data: dict = None,
-                          tariff_periods: dict = None) -> pd.DataFrame:
-    """
-    将 Ultra 月度负荷数据桥接为 MILP 要求的 8760h DataFrame.
-
-    monthly_data: {month_str: {'load_array': (n_days, n_pts), 'time_labels': [...], 'date_labels': [...]}}
-    strategy_periods: {month: [(start_h, end_h, type), ...]} 分时电价时段
-    pv_data: {month_str: array(n_days, n_pts)} 光伏发电数据(kW), None→全零
-    返回: 含 produce/consume/FiT/price/month/hour 列的 DataFrame
-    """
-    rows = []
-    for month_str, data in sorted(monthly_data.items()):
-        arr = np.asarray(data.get('load_array', []))
-        dates = data.get('date_labels', [])
-        if arr.size == 0:
-            continue
-        m = int(month_str.split('-')[1]) if '-' in month_str else 1
-        n_pts = arr.shape[1]
-        n_days = arr.shape[0]
-
-        # 获取当月光伏数据
-        pv_arr = None
-        if pv_data:
-            pv_key = month_str
-            if pv_key not in pv_data:
-                # 尝试匹配月份数字
-                for k in pv_data:
-                    if str(m) in str(k):
-                        pv_key = k
-                        break
-            if pv_key in pv_data:
-                pv_arr = np.asarray(pv_data[pv_key])
-
-        # 获取当月时段: tariff_periods(尖峰平谷,优先) / strategy_periods(充放电,兼容)
-        month_periods = strategy_periods.get(str(m), []) if strategy_periods else []
-        month_tariff = tariff_periods.get(str(m), []) if tariff_periods else []
-
-        def _iter_period_slots(items):
-            """v3.2fix: 兼容 (start,end,type) 元组与 {'start','end','type'} 字典两种时段格式."""
-            for _it in items or []:
-                if isinstance(_it, dict):
-                    yield _it.get('start', 0.0), _it.get('end', 0.0), _it.get('type', '')
-                else:
-                    try:
-                        yield _it[0], _it[1], _it[2]
-                    except (TypeError, IndexError):
-                        continue
-
-        def _price_of_type(p_type) -> float:
-            ts = str(getattr(p_type, 'value', p_type)).lower()
-            if 'peak' in ts or '尖' in ts or ts == '2':
-                return peak_price
-            if 'valley' in ts or '谷' in ts or ts == '4':
-                return valley_price
-            return flat_price
-
-        def _get_price(hour: float) -> float:
-            """根据分时电价时段确定该小时的电价. v3.2fix: 支持字典/元组与跨午夜时段."""
-            src = month_tariff or month_periods
-            if not src:
-                return peak_price if (9 <= hour < 15 or 17 <= hour < 22) else valley_price
-            for p_start, p_end, p_type in _iter_period_slots(src):
-                try:
-                    s, e = float(p_start), float(p_end)
-                except (TypeError, ValueError):
-                    continue
-                if s <= e:
-                    if s <= hour < e:
-                        return _price_of_type(p_type)
-                else:  # 跨午夜时段, 如 23:00-06:00
-                    if hour >= s or hour < e:
-                        return _price_of_type(p_type)
-            return flat_price  # 默认平段
-
-        for d_idx in range(n_days):
-            # 日期解析
-            raw_date = dates[d_idx] if d_idx < len(dates) else None
-            if raw_date is None:
-                dt_str = f"2024-{m:02d}-{d_idx+1:02d}"
-            elif hasattr(raw_date, 'strftime'):
-                dt_str = raw_date.strftime('%Y-%m-%d')
-            else:
-                dt_str = str(raw_date)[:10]
-
-            for t_idx in range(n_pts):
-                h = t_idx * (24.0 / n_pts)
-                load = float(arr[d_idx, t_idx])
-                if np.isnan(load):
-                    load = 0.0
-                # 光伏: 优先用pv_data, 其次从负负荷提取
-                pv = 0.0
-                if pv_arr is not None and d_idx < pv_arr.shape[0] and t_idx < pv_arr.shape[1]:
-                    pv = float(pv_arr[d_idx, t_idx])
-                    if np.isnan(pv):
-                        pv = 0.0
-                elif load < 0:
-                    pv = -load
-                    load = 0.0  # 负值全部归光伏
-
-                rows.append({
-                    'datetime': dt_str,
-                    'consume': max(0, load),
-                    'produce': max(0, pv),
-                    'FiT': fit_price,
-                    'price': _get_price(h),
-                    'month': m,
-                    'hour': int(h),
-                })
-    df = pd.DataFrame(rows)
-    if 'datetime' in df.columns and len(df) > 0:
-        df['datetime'] = pd.to_datetime(df['datetime'])
-    return df
+def _safe_soc_normalize(soc_raw: np.ndarray, capacity_kwh: float) -> np.ndarray:
+    """安全归一化SOC: capacity>0时除以容量, 否则返回零数组."""
+    if capacity_kwh > 1e-8:
+        return soc_raw / capacity_kwh
+    return np.zeros_like(soc_raw)
 
 
 def solve_milp_capacity(df: pd.DataFrame, config: MilpConfig) -> MilpResult:
@@ -360,3 +290,121 @@ def solve_milp_capacity(df: pd.DataFrame, config: MilpConfig) -> MilpResult:
         result.status = 'infeasible'
 
     return result
+
+
+def bridge_ultra_to_milp(monthly_data: dict, province: str = None,
+                          strategy_periods: dict = None,
+                          peak_price: float = 1.1, valley_price: float = 0.27,
+                          flat_price: float = 0.7, fit_price: float = 0.41,
+                          pv_data: dict = None,
+                          tariff_periods: dict = None) -> pd.DataFrame:
+    """
+    将 Ultra 月度负荷数据桥接为 MILP 要求的 8760h DataFrame.
+
+    monthly_data: {month_str: {'load_array': (n_days, n_pts), 'time_labels': [...], 'date_labels': [...]}}
+    strategy_periods: {month: [(start_h, end_h, type), ...]} 分时电价时段
+    pv_data: {month_str: array(n_days, n_pts)} 光伏发电数据(kW), None→全零
+    返回: 含 produce/consume/FiT/price/month/hour 列的 DataFrame
+    """
+    rows = []
+    for month_str, data in sorted(monthly_data.items()):
+        arr = np.asarray(data.get('load_array', []))
+        dates = data.get('date_labels', [])
+        if arr.size == 0:
+            continue
+        m = int(month_str.split('-')[1]) if '-' in month_str else 1
+        n_pts = arr.shape[1]
+        n_days = arr.shape[0]
+
+        # 获取当月光伏数据
+        pv_arr = None
+        if pv_data:
+            pv_key = month_str
+            if pv_key not in pv_data:
+                # 尝试匹配月份数字
+                for k in pv_data:
+                    if str(m) in str(k):
+                        pv_key = k
+                        break
+            if pv_key in pv_data:
+                pv_arr = np.asarray(pv_data[pv_key])
+
+        # 获取当月时段: tariff_periods(尖峰平谷,优先) / strategy_periods(充放电,兼容)
+        month_periods = strategy_periods.get(str(m), []) if strategy_periods else []
+        month_tariff = tariff_periods.get(str(m), []) if tariff_periods else []
+
+        def _iter_period_slots(items):
+            """v3.2fix: 兼容 (start,end,type) 元组与 {'start','end','type'} 字典两种时段格式."""
+            for _it in items or []:
+                if isinstance(_it, dict):
+                    yield _it.get('start', 0.0), _it.get('end', 0.0), _it.get('type', '')
+                else:
+                    try:
+                        yield _it[0], _it[1], _it[2]
+                    except (TypeError, IndexError):
+                        continue
+
+        def _price_of_type(p_type) -> float:
+            ts = str(getattr(p_type, 'value', p_type)).lower()
+            if 'peak' in ts or '尖' in ts or ts == '2':
+                return peak_price
+            if 'valley' in ts or '谷' in ts or ts == '4':
+                return valley_price
+            return flat_price
+
+        def _get_price(hour: float) -> float:
+            """根据分时电价时段确定该小时的电价. v3.2fix: 支持字典/元组与跨午夜时段."""
+            src = month_tariff or month_periods
+            if not src:
+                return peak_price if (9 <= hour < 15 or 17 <= hour < 22) else valley_price
+            for p_start, p_end, p_type in _iter_period_slots(src):
+                try:
+                    s, e = float(p_start), float(p_end)
+                except (TypeError, ValueError):
+                    continue
+                if s <= e:
+                    if s <= hour < e:
+                        return _price_of_type(p_type)
+                else:  # 跨午夜时段, 如 23:00-06:00
+                    if hour >= s or hour < e:
+                        return _price_of_type(p_type)
+            return flat_price  # 默认平段
+
+        for d_idx in range(n_days):
+            # 日期解析
+            raw_date = dates[d_idx] if d_idx < len(dates) else None
+            if raw_date is None:
+                dt_str = f"2024-{m:02d}-{d_idx+1:02d}"
+            elif hasattr(raw_date, 'strftime'):
+                dt_str = raw_date.strftime('%Y-%m-%d')
+            else:
+                dt_str = str(raw_date)[:10]
+
+            for t_idx in range(n_pts):
+                h = t_idx * (24.0 / n_pts)
+                load = float(arr[d_idx, t_idx])
+                if np.isnan(load):
+                    load = 0.0
+                # 光伏: 优先用pv_data, 其次从负负荷提取
+                pv = 0.0
+                if pv_arr is not None and d_idx < pv_arr.shape[0] and t_idx < pv_arr.shape[1]:
+                    pv = float(pv_arr[d_idx, t_idx])
+                    if np.isnan(pv):
+                        pv = 0.0
+                elif load < 0:
+                    pv = -load
+                    load = 0.0  # 负值全部归光伏
+
+                rows.append({
+                    'datetime': dt_str,
+                    'consume': max(0, load),
+                    'produce': max(0, pv),
+                    'FiT': fit_price,
+                    'price': _get_price(h),
+                    'month': m,
+                    'hour': int(h),
+                })
+    df = pd.DataFrame(rows)
+    if 'datetime' in df.columns and len(df) > 0:
+        df['datetime'] = pd.to_datetime(df['datetime'])
+    return df

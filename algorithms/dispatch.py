@@ -5,16 +5,70 @@ Dispatch Engines
 
 三种调度求解：贪心、逐日仿真、线性规划。
 
-本文件由 Load Curve Studio (LoomGrid) 主程序剥离而来，保留原始逻辑，仅去除 GUI 依赖。
+本文件由 LoomGrid 主程序剥离而来，保留原始逻辑，仅去除 GUI 依赖。
 原始出处：负荷曲线批量生成Ultra.py v3.2
 
-依赖：numpy / scipy
-
+依赖：numpy
 """
 
+from __future__ import annotations
 import math
 import numpy as np
-from scipy.optimize import brentq
+import sys
+import os
+import re
+import json
+import copy
+import time
+import io
+import logging
+import atexit
+import subprocess
+import traceback
+import gc
+import random
+import ctypes
+from typing import List, Any
+import urllib.request
+import urllib.parse
+import calendar
+import logging.handlers
+import multiprocessing as mp
+import threading
+import shutil
+import tempfile
+import csv
+from datetime import datetime, time as dt_time, date, timedelta
+from collections import OrderedDict, defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from dataclasses import dataclass, field
+import threading as _threading
+import hashlib, functools, threading
+import json as _json
+from contextlib import contextmanager, suppress
+from enum import Enum
+from loguru import logger as log
+from functools import lru_cache
+import types as _types
+import sys as _sys
+from dataclasses import dataclass
+import pandas as pd
+import sys as __sys
+from enum import Enum
+from collections import OrderedDict
+import datetime
+
+
+INVALID_MINUTES = 9999
+
+
+MINUTES_PER_HOUR = 60
+
+
+MINUTES_PER_DAY = 1440
+
+
+TIME_CACHE_MAXSIZE = 20000
 
 
 BESS_SOC_MIN = 0.05
@@ -23,7 +77,402 @@ BESS_SOC_MIN = 0.05
 BESS_SOC_MAX = 0.95
 
 
-BESS_DOD_DEFAULT = 0.90
+class PeriodType(str, Enum):
+    CHARGE = 'charge'
+    DISCHARGE = 'discharge'
+    CHARGE_LABEL = '充电(低谷)'
+    DISCHARGE_LABEL = '放电(高峰)'
+
+
+class LRUCache:
+    """线程安全 LRU 缓存,含命中率统计"""
+    __slots__ = ('cache', 'maxsize', '_lock', 'hits', 'misses', 'evictions')
+    def __init__(self, maxsize=20000):
+        self.cache = OrderedDict()
+        self.maxsize = maxsize
+        self._lock = threading.RLock()
+        self.hits = 0
+        self.misses = 0
+        self.evictions = 0
+    def get(self, key):
+        with self._lock:
+            if key in self.cache:
+                self.cache.move_to_end(key)
+                self.hits += 1
+                return self.cache[key]
+            self.misses += 1
+            return None
+    def put(self, key, value):
+        with self._lock:
+            # v2.23: 重复key先更新热key顺序,防止高频热key被误驱逐
+            if key in self.cache:
+                self.cache.move_to_end(key)
+            self.cache[key] = value
+            while len(self.cache) > self.maxsize:
+                self.cache.popitem(last=False)
+                self.evictions += 1
+    def clear(self):
+        with self._lock:
+            self.cache.clear()
+    @property
+    def hit_rate(self):
+        total = self.hits + self.misses
+        return self.hits / total if total else 0.0
+    def stats(self):
+        return {'size': len(self.cache), 'maxsize': self.maxsize,
+                'hits': self.hits, 'misses': self.misses, 'evictions': self.evictions,
+                'hit_rate': f'{self.hit_rate:.1%}'}
+
+
+TIME_CACHE = LRUCache(maxsize=TIME_CACHE_MAXSIZE)
+
+
+_TIME_HHMM_RE = re.compile(r'(\d{1,2}:\d{2})')
+
+
+_TIME_T_SLOT_RE = re.compile(r'[TtPp](\d{1,2})')
+
+
+_FULLWIDTH_TRANS_TABLE = str.maketrans(
+    '０１２３４５６７８９：，　',
+    '0123456789:, '
+)
+
+
+_RE_TIME_CN_COLON = re.compile(r'^(\d{1,2})\s*[时点](?:钟)?$')
+
+
+_RE_TIME_CN_HM = re.compile(r'^(\d{1,2})\s*时\s*(\d{1,2})\s*分$')
+
+
+_RE_TIME_COLON_SUFFIX = re.compile(r'^(\d{1,2})[:：](\d{2})(?:\s*[时分秒])?$')
+
+
+def _normalize_time_key(key: str) -> str:
+    """合并全角转换+时间列规范化,一次字符串遍历 (OPT: 1.2 times faster than two-pass)"""
+    k = key.strip()
+    k = k.translate(_FULLWIDTH_TRANS_TABLE)
+    m = _RE_TIME_CN_COLON.match(k)
+    if m:
+        return f"{int(m.group(1))}:00"
+    m = _RE_TIME_CN_HM.match(k)
+    if m:
+        return f"{int(m.group(1))}:{int(m.group(2)):02d}"
+    # v2.23: 补充"X点Y分"格式匹配
+    _pt_match = re.match(r'^(\d{1,2})\s*点\s*(\d{1,2})\s*分$', k)
+    if _pt_match:
+        return f"{int(_pt_match.group(1))}:{int(_pt_match.group(2)):02d}"
+    m = _RE_TIME_COLON_SUFFIX.match(k)
+    if m:
+        return f"{m.group(1)}:{m.group(2)}"
+    return k
+
+
+_HHMM_RE_CACHED = re.compile(r'^(\d{1,2}):(\d{2})$')
+
+
+_RE_AMPM = re.compile(r'(\d{1,2}):(\d{2})(?:\s*)(AM|PM|am|pm)', re.IGNORECASE)
+
+
+def _parse_min(t) -> int:
+    """解析时间点为分钟数。
+    解析优先级(6条路径,由上至下):
+      PATH-1 datetime.time 对象 → 直接取 hour*60+minute
+      PATH-2 ASCII HH:MM → str.split(':') 快速路径(覆盖95%+)
+      PATH-3 全角/中文格式 → _normalize_time_key 归一化后 regex
+      PATH-4 浮点数(0~24) → 小数转分钟
+      PATH-5 AM/PM 格式 → 正则+12h制转换
+      PATH-6 T/P 槽位格式 → T1=00:00, T96=23:45
+    
+    注意: Settlement模块有独立的 _parse_min_stl() 简化版,仅支持 HH:MM.
+    如需修改时间解析逻辑,请确保两处保持行为一致."""
+    # ═══ PATH-1: datetime.time 对象 ═══
+    if isinstance(t, dt_time):
+        minutes = t.hour * MINUTES_PER_HOUR + t.minute
+        TIME_CACHE.put(str(t), (minutes, f"{t.hour:02d}:{t.minute:02d}"))
+        return minutes
+    key = str(t).strip()
+    # ═══ PATH-2: ASCII HH:MM 纯 Python str.split(覆盖95%+调用) ═══
+    if key.isascii():
+        parts = key.split(':')
+        if len(parts) == 2:
+            try:
+                h, minute = int(parts[0]), int(parts[1])
+                if h == 24 and minute == 0:
+                    return MINUTES_PER_DAY
+                if 0 <= h < 24 and 0 <= minute < 60:
+                    return h * MINUTES_PER_HOUR + minute
+            except ValueError:
+                pass
+    # ═══ PATH-3: SLOW PATH 全角转半角+时间列规范化 ═══
+    key = _normalize_time_key(key)
+    # 快速路径:标准 HH:MM 格式直接解析
+    m = _HHMM_RE_CACHED.match(key)
+    if m:
+        h, minute = int(m.group(1)), int(m.group(2))
+        if h == 24 and minute == 0:
+            minutes, lbl = MINUTES_PER_DAY, '24:00'
+        elif 0 <= h < 24 and 0 <= minute < 60:
+            minutes, lbl = h * MINUTES_PER_HOUR + minute, key
+        else:
+            minutes, lbl = INVALID_MINUTES, key
+        TIME_CACHE.put(key, (minutes, lbl))
+        return minutes
+    # 缓存查询
+    cached = TIME_CACHE.get(key)
+    if cached is not None:
+        return cached[0]
+    if key == '24:00':
+        TIME_CACHE.put(key, (MINUTES_PER_DAY, '24:00'))
+        return MINUTES_PER_DAY
+    # ═══ PATH-4: 浮点数格式(如14.5=14:30) ═══
+    try:
+        val = float(key)
+        if 0 <= val <= 24:
+            h = int(val)
+            m = int(round((val - h) * 60))
+            if h == 24:
+                minutes, lbl = MINUTES_PER_DAY, '24:00'
+            else:
+                minutes, lbl = h * MINUTES_PER_HOUR + m, f"{h:02d}:{m:02d}"
+            TIME_CACHE.put(key, (minutes, lbl))
+            return minutes
+        TIME_CACHE.put(key, (INVALID_MINUTES, key))
+        return INVALID_MINUTES
+    except ValueError:
+        pass
+    # ═══ PATH-5: AM/PM 格式 ═══
+    amp_match = _RE_AMPM.search(key)
+    if amp_match:
+        h = int(amp_match.group(1))
+        m_val = int(amp_match.group(2))
+        is_pm = amp_match.group(3).upper() == 'PM'
+        if is_pm and h != 12:
+            h += 12
+        elif not is_pm and h == 12:
+            h = 0
+        if 0 <= h < 24 and 0 <= m_val < 60:
+            minutes = h * MINUTES_PER_HOUR + m_val
+            TIME_CACHE.put(key, (minutes, f"{h:02d}:{m_val:02d}"))
+            return minutes
+    # v2.28fix: 负号前缀保护——防止"-1:00"被_TiME_HHMM_RE误匹配为"1:00"
+    if key.startswith('-'):
+        TIME_CACHE.put(key, (INVALID_MINUTES, key))
+        return INVALID_MINUTES
+    # HH:MM 含其他字符
+    time_match = _TIME_HHMM_RE.search(key)
+    if time_match:
+        parts = time_match.group(1).split(':')
+        try:
+            h, m_val = int(parts[0]), int(parts[1])
+            if h == 24:
+                minutes, lbl = MINUTES_PER_DAY, '24:00'
+            else:
+                minutes, lbl = h * MINUTES_PER_HOUR + m_val, f"{h:02d}:{m_val:02d}"
+            TIME_CACHE.put(key, (minutes, lbl))
+            return minutes
+        except (ValueError, IndexError):
+            pass
+    # T/P 槽位格式
+    # ═══ PATH-6: T/P 槽位格式(T1=00:00..T96=23:45) ═══
+    slot_match = _TIME_T_SLOT_RE.fullmatch(key)
+    if slot_match:
+        try:
+            slot = int(slot_match.group(1))
+            if 1 <= slot <= 96:
+                minutes = (slot - 1) * 15
+                lbl = f"{minutes // MINUTES_PER_HOUR:02d}:{minutes % MINUTES_PER_HOUR:02d}"
+                TIME_CACHE.put(key, (minutes, lbl))
+                return minutes
+        except ValueError:
+            pass
+    TIME_CACHE.put(key, (INVALID_MINUTES, key))
+    return INVALID_MINUTES
+
+
+def _to_hour(v):
+    """v3.2fix(P-30): 将时段端点统一转为小时数(float)。
+    支持 float/int、"HH:MM"、"HH:MM:SS"、datetime.time。"""
+    if isinstance(v, bool):
+        return 0.0
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        s = v.strip()
+        if ':' in s:
+            parts = s.split(':')
+            try:
+                hh = float(parts[0])
+                mm = float(parts[1]) if len(parts) > 1 else 0.0
+                return hh + mm / 60.0
+            except (ValueError, IndexError):
+                return 0.0
+        try:
+            return float(s)
+        except ValueError:
+            return 0.0
+    if hasattr(v, 'hour'):
+        return float(v.hour) + float(getattr(v, 'minute', 0) or 0) / 60.0
+    return 0.0
+
+
+def _canon_period_type(t):
+    """v3.2fix(P-32): 把一个时段类型词归一化到 PeriodType 词汇表。
+
+    charge 系：charge / valley / deep_valley / 低谷 / 深谷 / 充电(低谷) / 充电
+    discharge 系：discharge / peak / sharp_peak / 高峰 / 尖峰 / 放电(高峰) / 放电
+    flat 及其他：保留原值（平段不参与充放，由下游跳过）
+    """
+    if t is None:
+        return None
+    s = str(t).strip()
+    low = s.lower()
+    if low in ('charge', 'valley', 'deep_valley') or s in ('低谷', '深谷', '充电', '充电(低谷)'):
+        return PeriodType.CHARGE.value
+    if low in ('discharge', 'peak', 'sharp_peak') or s in ('高峰', '尖峰', '放电', '放电(高峰)'):
+        return PeriodType.DISCHARGE.value
+    return t
+
+
+def _normalize_periods(periods):
+    """v3.2fix(P-30/P-32): 时段格式与类型词汇表归一化。
+
+    格式三态（系统内并存）：
+      ① dict  [{'start':8,'end':11,'type':'flat'}, ...]   ← 核心函数原本只吃这种
+      ② 元组  [(8, 11, 'flat'), ...]
+      ③ 字符串端点 [('08:00','11:00','flat'), ...]
+
+    类型词表两套（同一个字段两种语义）：
+      A. 充放电策略词表：charge / discharge / 充电(低谷) / 放电(高峰)
+      B. 电价时段词表：valley / flat / peak / 低谷 / 高峰
+    核心函数（_segment_periods / compute_*_spaces）只认 A，而省份电价库存 B。
+    传 B 进去时充放判断恒假 → 充电空间和放电空间都是 0，不报错、静默算零。
+    这里把 B 统一翻成 A（valley→charge, peak→discharge），flat 保留原样
+    （平段既不属于充也不属于放，由下游显式跳过）。
+    """
+    if not periods:
+        return []
+    out = []
+    for p in periods:
+        if isinstance(p, dict):
+            s, e, t = p.get('start'), p.get('end'), p.get('type')
+        elif isinstance(p, (list, tuple)) and len(p) >= 3:
+            s, e, t = p[0], p[1], p[2]
+        else:
+            continue
+        if t is None:
+            continue
+        out.append({'start': _to_hour(s), 'end': _to_hour(e), 'type': _canon_period_type(t)})
+    return out
+
+
+def _expand_overnight(periods):
+    periods = _normalize_periods(periods)
+    res = []
+    for p in periods:
+        s, e, t = p["start"], p["end"], p["type"]
+        if e < s:
+            res.append({"start":s, "end":24.0, "type":t})
+            res.append({"start":0.0, "end":e, "type":t})
+        else:
+            res.append({"start":s, "end":e, "type":t})
+    return res
+
+
+def _normalize_time_column_name(col_name: str) -> str:
+    """v2.23: 增强列名识别------补全X点Y分/HH:MM:SS/T槽位等格式"""
+    m = _RE_TIME_CN_COLON.match(col_name)
+    if m:
+        hour = int(m.group(1))
+        return f"{hour}:00"
+    m = _RE_TIME_CN_HM.match(col_name)
+    if m:
+        hour, minute = int(m.group(1)), int(m.group(2))
+        return f"{hour}:{minute:02d}"
+    # v2.23: X点Y分格式
+    _pt = re.match(r'^(\d{1,2})\s*点\s*(\d{1,2})\s*分$', col_name)
+    if _pt:
+        return f"{int(_pt.group(1))}:{int(_pt.group(2)):02d}"
+    # v2.23: HH:MM:SS -> 取前两部分
+    _hms = re.match(r'^(\d{1,2})[::](\d{2}):\d{2}$', col_name)
+    if _hms:
+        return f"{_hms.group(1)}:{_hms.group(2)}"
+    m = _RE_TIME_COLON_SUFFIX.match(col_name)
+    if m:
+        return f"{m.group(1)}:{m.group(2)}"
+    # v2.23: T/P槽位格式 (T0->00:00, T1->00:15, P48->12:00等)
+    _slot = re.match(r'^[TtPp](\d{1,2})$', col_name)
+    if _slot:
+        slot = int(_slot.group(1))
+        if 1 <= slot <= 96:
+            minutes = (slot - 1) * 15
+            return f"{minutes // 60}:{minutes % 60:02d}"
+    return col_name
+
+
+def simulate_daily_dispatch(load_array, time_labels, periods, capacity_kwh, power_kw,
+                             efficiency=0.9, initial_soc=0.2, soc_min=BESS_SOC_MIN, soc_max=BESS_SOC_MAX,
+                             transformer_capacity=None):
+    """v2.16: 逐日充放电调度仿真 - 含 SOC 上下限保护 + 变压器负载校验.
+    默认 DOD=90%, SOC范围10%~90%, 初始SOC=20%.
+    v2.16: 新增 transformer_capacity 参数,充电时校验 当前负荷+充电功率 <= 变压器容量x0.9,
+    超限则降功率或暂停充电,防止变压器过载.
+    """
+    n_days, n_points = load_array.shape
+    # 零容量保护
+    if capacity_kwh <= 0 or power_kw <= 0:
+        return {'soc_trajectory': np.zeros((n_days, max(n_points, 2))), 'charge_kwh': np.zeros(n_days),
+                'discharge_kwh': np.zeros(n_days), 'final_soc': 0.0,
+                'transformer_limit_events': 0}
+    if n_points < 2:
+        return {'soc_trajectory': np.zeros((n_days, 2)), 'charge_kwh': np.zeros(n_days),
+                'discharge_kwh': np.zeros(n_days), 'final_soc': 0.0,
+                'transformer_limit_events': 0}
+    hours = np.array([_parse_min(_normalize_time_column_name(t)) / 60.0 for t in time_labels])
+    soc_trajectory = np.zeros((n_days, n_points + 1))
+    charge_kwh = np.zeros(n_days)
+    discharge_kwh = np.zeros(n_days)
+    soc = initial_soc * capacity_kwh
+    soc_low = soc_min * capacity_kwh
+    soc_high = soc_max * capacity_kwh
+    # v2.16: 变压器安全上限
+    xfmr_limit = (transformer_capacity * 0.9) if (transformer_capacity and transformer_capacity > 0) else None
+    xfmr_events = 0
+
+    expanded = _expand_overnight(periods) if periods else []
+    for d in range(n_days):
+        soc_trajectory[d, 0] = soc / capacity_kwh * 100
+        for t in range(n_points):
+            # 判断当前时刻的充放电类型
+            hour = hours[t]
+            seg_type = None
+            for p in expanded:
+                if p['start'] <= hour < p['end'] or (p['start'] > p['end'] and (hour >= p['start'] or hour < p['end'])):
+                    seg_type = p['type']
+                    break
+            load = load_array[d, t]
+            if np.isnan(load): continue
+            dt = 1.0 / n_points * 24  # 时间步长(小时)
+            if seg_type in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
+                charge_power = min(power_kw, (soc_high - soc) / dt) if dt > 0 and soc < soc_high else 0
+                # v2.16: 变压器负载校验 - 当前负荷+充电功率不得超过变压器安全上限
+                if xfmr_limit is not None and charge_power > 0:
+                    available_headroom = max(0, xfmr_limit - load)
+                    if charge_power > available_headroom:
+                        charge_power = 0.0 if available_headroom <= 0.01 else min(charge_power, available_headroom)
+                        xfmr_events += 1
+                soc += charge_power * dt * efficiency
+                charge_kwh[d] += charge_power * dt
+            elif seg_type in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
+                discharge_power = min(power_kw, (soc - soc_low) / dt) if dt > 0 and soc > soc_low else 0
+                soc -= discharge_power * dt / efficiency
+                discharge_kwh[d] += discharge_power * dt
+            soc = max(soc_low, min(soc_high, soc))
+            soc_trajectory[d, t + 1] = soc / capacity_kwh * 100
+
+    return {'soc_trajectory': soc_trajectory, 'charge_kwh': charge_kwh,
+            'discharge_kwh': discharge_kwh, 'final_soc': soc / capacity_kwh * 100,
+            'transformer_limit_events': xfmr_events}
 
 
 def greedy_dispatch_annual(
@@ -154,71 +603,6 @@ def greedy_dispatch_annual(
         "total_import": total_import,
         "total_curtail": total_curtail,
     }
-
-
-def simulate_daily_dispatch(load_array, time_labels, periods, capacity_kwh, power_kw,
-                             efficiency=0.9, initial_soc=0.2, soc_min=BESS_SOC_MIN, soc_max=BESS_SOC_MAX,
-                             transformer_capacity=None):
-    """v2.16: 逐日充放电调度仿真 - 含 SOC 上下限保护 + 变压器负载校验.
-    默认 DOD=90%, SOC范围10%~90%, 初始SOC=20%.
-    v2.16: 新增 transformer_capacity 参数,充电时校验 当前负荷+充电功率 <= 变压器容量x0.9,
-    超限则降功率或暂停充电,防止变压器过载.
-    """
-    n_days, n_points = load_array.shape
-    # 零容量保护
-    if capacity_kwh <= 0 or power_kw <= 0:
-        return {'soc_trajectory': np.zeros((n_days, max(n_points, 2))), 'charge_kwh': np.zeros(n_days),
-                'discharge_kwh': np.zeros(n_days), 'final_soc': 0.0,
-                'transformer_limit_events': 0}
-    if n_points < 2:
-        return {'soc_trajectory': np.zeros((n_days, 2)), 'charge_kwh': np.zeros(n_days),
-                'discharge_kwh': np.zeros(n_days), 'final_soc': 0.0,
-                'transformer_limit_events': 0}
-    hours = np.array([_parse_min(_normalize_time_column_name(t)) / 60.0 for t in time_labels])
-    soc_trajectory = np.zeros((n_days, n_points + 1))
-    charge_kwh = np.zeros(n_days)
-    discharge_kwh = np.zeros(n_days)
-    soc = initial_soc * capacity_kwh
-    soc_low = soc_min * capacity_kwh
-    soc_high = soc_max * capacity_kwh
-    # v2.16: 变压器安全上限
-    xfmr_limit = (transformer_capacity * 0.9) if (transformer_capacity and transformer_capacity > 0) else None
-    xfmr_events = 0
-
-    expanded = _expand_overnight(periods) if periods else []
-    for d in range(n_days):
-        soc_trajectory[d, 0] = soc / capacity_kwh * 100
-        for t in range(n_points):
-            # 判断当前时刻的充放电类型
-            hour = hours[t]
-            seg_type = None
-            for p in expanded:
-                if p['start'] <= hour < p['end'] or (p['start'] > p['end'] and (hour >= p['start'] or hour < p['end'])):
-                    seg_type = p['type']
-                    break
-            load = load_array[d, t]
-            if np.isnan(load): continue
-            dt = 1.0 / n_points * 24  # 时间步长(小时)
-            if seg_type in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
-                charge_power = min(power_kw, (soc_high - soc) / dt) if dt > 0 and soc < soc_high else 0
-                # v2.16: 变压器负载校验 - 当前负荷+充电功率不得超过变压器安全上限
-                if xfmr_limit is not None and charge_power > 0:
-                    available_headroom = max(0, xfmr_limit - load)
-                    if charge_power > available_headroom:
-                        charge_power = 0.0 if available_headroom <= 0.01 else min(charge_power, available_headroom)
-                        xfmr_events += 1
-                soc += charge_power * dt * efficiency
-                charge_kwh[d] += charge_power * dt
-            elif seg_type in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
-                discharge_power = min(power_kw, (soc - soc_low) / dt) if dt > 0 and soc > soc_low else 0
-                soc -= discharge_power * dt / efficiency
-                discharge_kwh[d] += discharge_power * dt
-            soc = max(soc_low, min(soc_high, soc))
-            soc_trajectory[d, t + 1] = soc / capacity_kwh * 100
-
-    return {'soc_trajectory': soc_trajectory, 'charge_kwh': charge_kwh,
-            'discharge_kwh': discharge_kwh, 'final_soc': soc / capacity_kwh * 100,
-            'transformer_limit_events': xfmr_events}
 
 
 def optimal_dispatch_lp(load_kw, buy_price, sell_price, batt_kwh=500, Pmax=250,

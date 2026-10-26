@@ -3,17 +3,348 @@
 Load Diagnostics
 ================
 
-负荷指纹分析与行业匹配（诊断引擎的轻量入口）。
+负荷指纹分析、行业匹配与循环退化估算。
 
-本文件由 Load Curve Studio (LoomGrid) 主程序剥离而来，保留原始逻辑，仅去除 GUI 依赖。
+本文件由 LoomGrid 主程序剥离而来，保留原始逻辑，仅去除 GUI 依赖。
 原始出处：负荷曲线批量生成Ultra.py v3.2
 
 依赖：numpy
-
 """
 
+from __future__ import annotations
 import math
 import numpy as np
+import sys
+import os
+import re
+import json
+import copy
+import time
+import io
+import logging
+import atexit
+import subprocess
+import traceback
+import gc
+import random
+import ctypes
+from typing import List, Any
+import urllib.request
+import urllib.parse
+import calendar
+import logging.handlers
+import multiprocessing as mp
+import threading
+import shutil
+import tempfile
+import csv
+from datetime import datetime, time as dt_time, date, timedelta
+from collections import OrderedDict, defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from dataclasses import dataclass, field
+import threading as _threading
+import hashlib, functools, threading
+import json as _json
+from contextlib import contextmanager, suppress
+from enum import Enum
+from loguru import logger as log
+from functools import lru_cache
+import types as _types
+import sys as _sys
+from dataclasses import dataclass
+import pandas as pd
+import sys as __sys
+from collections import defaultdict
+from collections import OrderedDict
+import logging
+import datetime
+
+log = logging.getLogger(__name__)
+
+
+INVALID_MINUTES = 9999
+
+
+MINUTES_PER_HOUR = 60
+
+
+MINUTES_PER_DAY = 1440
+
+
+TIME_CACHE_MAXSIZE = 20000
+
+
+class LRUCache:
+    """线程安全 LRU 缓存,含命中率统计"""
+    __slots__ = ('cache', 'maxsize', '_lock', 'hits', 'misses', 'evictions')
+    def __init__(self, maxsize=20000):
+        self.cache = OrderedDict()
+        self.maxsize = maxsize
+        self._lock = threading.RLock()
+        self.hits = 0
+        self.misses = 0
+        self.evictions = 0
+    def get(self, key):
+        with self._lock:
+            if key in self.cache:
+                self.cache.move_to_end(key)
+                self.hits += 1
+                return self.cache[key]
+            self.misses += 1
+            return None
+    def put(self, key, value):
+        with self._lock:
+            # v2.23: 重复key先更新热key顺序,防止高频热key被误驱逐
+            if key in self.cache:
+                self.cache.move_to_end(key)
+            self.cache[key] = value
+            while len(self.cache) > self.maxsize:
+                self.cache.popitem(last=False)
+                self.evictions += 1
+    def clear(self):
+        with self._lock:
+            self.cache.clear()
+    @property
+    def hit_rate(self):
+        total = self.hits + self.misses
+        return self.hits / total if total else 0.0
+    def stats(self):
+        return {'size': len(self.cache), 'maxsize': self.maxsize,
+                'hits': self.hits, 'misses': self.misses, 'evictions': self.evictions,
+                'hit_rate': f'{self.hit_rate:.1%}'}
+
+
+TIME_CACHE = LRUCache(maxsize=TIME_CACHE_MAXSIZE)
+
+
+_TIME_HHMM_RE = re.compile(r'(\d{1,2}:\d{2})')
+
+
+_TIME_T_SLOT_RE = re.compile(r'[TtPp](\d{1,2})')
+
+
+_FULLWIDTH_TRANS_TABLE = str.maketrans(
+    '０１２３４５６７８９：，　',
+    '0123456789:, '
+)
+
+
+_RE_TIME_CN_COLON = re.compile(r'^(\d{1,2})\s*[时点](?:钟)?$')
+
+
+_RE_TIME_CN_HM = re.compile(r'^(\d{1,2})\s*时\s*(\d{1,2})\s*分$')
+
+
+_RE_TIME_COLON_SUFFIX = re.compile(r'^(\d{1,2})[:：](\d{2})(?:\s*[时分秒])?$')
+
+
+def _normalize_time_key(key: str) -> str:
+    """合并全角转换+时间列规范化,一次字符串遍历 (OPT: 1.2 times faster than two-pass)"""
+    k = key.strip()
+    k = k.translate(_FULLWIDTH_TRANS_TABLE)
+    m = _RE_TIME_CN_COLON.match(k)
+    if m:
+        return f"{int(m.group(1))}:00"
+    m = _RE_TIME_CN_HM.match(k)
+    if m:
+        return f"{int(m.group(1))}:{int(m.group(2)):02d}"
+    # v2.23: 补充"X点Y分"格式匹配
+    _pt_match = re.match(r'^(\d{1,2})\s*点\s*(\d{1,2})\s*分$', k)
+    if _pt_match:
+        return f"{int(_pt_match.group(1))}:{int(_pt_match.group(2)):02d}"
+    m = _RE_TIME_COLON_SUFFIX.match(k)
+    if m:
+        return f"{m.group(1)}:{m.group(2)}"
+    return k
+
+
+_HHMM_RE_CACHED = re.compile(r'^(\d{1,2}):(\d{2})$')
+
+
+_RE_AMPM = re.compile(r'(\d{1,2}):(\d{2})(?:\s*)(AM|PM|am|pm)', re.IGNORECASE)
+
+
+def _parse_min(t) -> int:
+    """解析时间点为分钟数。
+    解析优先级(6条路径,由上至下):
+      PATH-1 datetime.time 对象 → 直接取 hour*60+minute
+      PATH-2 ASCII HH:MM → str.split(':') 快速路径(覆盖95%+)
+      PATH-3 全角/中文格式 → _normalize_time_key 归一化后 regex
+      PATH-4 浮点数(0~24) → 小数转分钟
+      PATH-5 AM/PM 格式 → 正则+12h制转换
+      PATH-6 T/P 槽位格式 → T1=00:00, T96=23:45
+    
+    注意: Settlement模块有独立的 _parse_min_stl() 简化版,仅支持 HH:MM.
+    如需修改时间解析逻辑,请确保两处保持行为一致."""
+    # ═══ PATH-1: datetime.time 对象 ═══
+    if isinstance(t, dt_time):
+        minutes = t.hour * MINUTES_PER_HOUR + t.minute
+        TIME_CACHE.put(str(t), (minutes, f"{t.hour:02d}:{t.minute:02d}"))
+        return minutes
+    key = str(t).strip()
+    # ═══ PATH-2: ASCII HH:MM 纯 Python str.split(覆盖95%+调用) ═══
+    if key.isascii():
+        parts = key.split(':')
+        if len(parts) == 2:
+            try:
+                h, minute = int(parts[0]), int(parts[1])
+                if h == 24 and minute == 0:
+                    return MINUTES_PER_DAY
+                if 0 <= h < 24 and 0 <= minute < 60:
+                    return h * MINUTES_PER_HOUR + minute
+            except ValueError:
+                pass
+    # ═══ PATH-3: SLOW PATH 全角转半角+时间列规范化 ═══
+    key = _normalize_time_key(key)
+    # 快速路径:标准 HH:MM 格式直接解析
+    m = _HHMM_RE_CACHED.match(key)
+    if m:
+        h, minute = int(m.group(1)), int(m.group(2))
+        if h == 24 and minute == 0:
+            minutes, lbl = MINUTES_PER_DAY, '24:00'
+        elif 0 <= h < 24 and 0 <= minute < 60:
+            minutes, lbl = h * MINUTES_PER_HOUR + minute, key
+        else:
+            minutes, lbl = INVALID_MINUTES, key
+        TIME_CACHE.put(key, (minutes, lbl))
+        return minutes
+    # 缓存查询
+    cached = TIME_CACHE.get(key)
+    if cached is not None:
+        return cached[0]
+    if key == '24:00':
+        TIME_CACHE.put(key, (MINUTES_PER_DAY, '24:00'))
+        return MINUTES_PER_DAY
+    # ═══ PATH-4: 浮点数格式(如14.5=14:30) ═══
+    try:
+        val = float(key)
+        if 0 <= val <= 24:
+            h = int(val)
+            m = int(round((val - h) * 60))
+            if h == 24:
+                minutes, lbl = MINUTES_PER_DAY, '24:00'
+            else:
+                minutes, lbl = h * MINUTES_PER_HOUR + m, f"{h:02d}:{m:02d}"
+            TIME_CACHE.put(key, (minutes, lbl))
+            return minutes
+        TIME_CACHE.put(key, (INVALID_MINUTES, key))
+        return INVALID_MINUTES
+    except ValueError:
+        pass
+    # ═══ PATH-5: AM/PM 格式 ═══
+    amp_match = _RE_AMPM.search(key)
+    if amp_match:
+        h = int(amp_match.group(1))
+        m_val = int(amp_match.group(2))
+        is_pm = amp_match.group(3).upper() == 'PM'
+        if is_pm and h != 12:
+            h += 12
+        elif not is_pm and h == 12:
+            h = 0
+        if 0 <= h < 24 and 0 <= m_val < 60:
+            minutes = h * MINUTES_PER_HOUR + m_val
+            TIME_CACHE.put(key, (minutes, f"{h:02d}:{m_val:02d}"))
+            return minutes
+    # v2.28fix: 负号前缀保护——防止"-1:00"被_TiME_HHMM_RE误匹配为"1:00"
+    if key.startswith('-'):
+        TIME_CACHE.put(key, (INVALID_MINUTES, key))
+        return INVALID_MINUTES
+    # HH:MM 含其他字符
+    time_match = _TIME_HHMM_RE.search(key)
+    if time_match:
+        parts = time_match.group(1).split(':')
+        try:
+            h, m_val = int(parts[0]), int(parts[1])
+            if h == 24:
+                minutes, lbl = MINUTES_PER_DAY, '24:00'
+            else:
+                minutes, lbl = h * MINUTES_PER_HOUR + m_val, f"{h:02d}:{m_val:02d}"
+            TIME_CACHE.put(key, (minutes, lbl))
+            return minutes
+        except (ValueError, IndexError):
+            pass
+    # T/P 槽位格式
+    # ═══ PATH-6: T/P 槽位格式(T1=00:00..T96=23:45) ═══
+    slot_match = _TIME_T_SLOT_RE.fullmatch(key)
+    if slot_match:
+        try:
+            slot = int(slot_match.group(1))
+            if 1 <= slot <= 96:
+                minutes = (slot - 1) * 15
+                lbl = f"{minutes // MINUTES_PER_HOUR:02d}:{minutes % MINUTES_PER_HOUR:02d}"
+                TIME_CACHE.put(key, (minutes, lbl))
+                return minutes
+        except ValueError:
+            pass
+    TIME_CACHE.put(key, (INVALID_MINUTES, key))
+    return INVALID_MINUTES
+
+
+_RE_DIGITS_ALL = re.compile(r'\d+')
+
+
+def _parse_date_flexible(date_str: str):
+    try:
+        return datetime.strptime(date_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        pass
+    for sep in ['/', '.', ' ']:
+        if sep in date_str:
+            parts = date_str.split(sep)
+            if len(parts) == 3:
+                try:
+                    y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+                    return date(y, m, d)
+                except (ValueError, TypeError):
+                    pass
+    nums = _RE_DIGITS_ALL.findall(date_str)
+    if len(nums) >= 3:
+        try:
+            y, m, d = int(nums[0]), int(nums[1]), int(nums[2])
+            if 1 <= m <= 12 and 1 <= d <= 31:
+                return date(y, m, d)
+        except Exception:
+            pass
+    if len(nums) == 2:
+        # v3.2fix: 日期列无年份时默认今年
+        try:
+            m, d = int(nums[0]), int(nums[1])
+            if 1 <= m <= 12 and 1 <= d <= 31:
+                return date(datetime.now().year, m, d)
+        except Exception:
+            pass
+    return None
+
+
+def _normalize_time_column_name(col_name: str) -> str:
+    """v2.23: 增强列名识别------补全X点Y分/HH:MM:SS/T槽位等格式"""
+    m = _RE_TIME_CN_COLON.match(col_name)
+    if m:
+        hour = int(m.group(1))
+        return f"{hour}:00"
+    m = _RE_TIME_CN_HM.match(col_name)
+    if m:
+        hour, minute = int(m.group(1)), int(m.group(2))
+        return f"{hour}:{minute:02d}"
+    # v2.23: X点Y分格式
+    _pt = re.match(r'^(\d{1,2})\s*点\s*(\d{1,2})\s*分$', col_name)
+    if _pt:
+        return f"{int(_pt.group(1))}:{int(_pt.group(2)):02d}"
+    # v2.23: HH:MM:SS -> 取前两部分
+    _hms = re.match(r'^(\d{1,2})[::](\d{2}):\d{2}$', col_name)
+    if _hms:
+        return f"{_hms.group(1)}:{_hms.group(2)}"
+    m = _RE_TIME_COLON_SUFFIX.match(col_name)
+    if m:
+        return f"{m.group(1)}:{m.group(2)}"
+    # v2.23: T/P槽位格式 (T0->00:00, T1->00:15, P48->12:00等)
+    _slot = re.match(r'^[TtPp](\d{1,2})$', col_name)
+    if _slot:
+        slot = int(_slot.group(1))
+        if 1 <= slot <= 96:
+            minutes = (slot - 1) * 15
+            return f"{minutes // 60}:{minutes % 60:02d}"
+    return col_name
 
 
 def analyze_load_fingerprint(load_array, date_labels, time_labels):

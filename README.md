@@ -100,15 +100,21 @@ python finance.py      # 财务指标
 
 | 模块 | 内容 | 行数 |
 |---|---|---|
-| `algorithms/periods.py` | 分时电价时段归一化、分段合并、价格序列展开 | 211 |
-| `algorithms/spaces.py` | 充放电空间（逐日 / 分段两种口径） | 181 |
-| `algorithms/dispatch.py` | 贪心 / 逐日仿真 / 线性规划三种调度 | 346 |
-| `algorithms/milp.py` | MILP 容量规划（多设备选型 + 更换周期 + 需量电费） | 362 |
-| `algorithms/finance.py` | NPV / IRR / 回收期 / LCOE | 169 |
-| `algorithms/loadgen.py` | 三层叠加负荷生成引擎 | 221 |
-| `algorithms/diagnostics.py` | 负荷指纹分析与行业匹配 | 230 |
+| `algorithms/periods.py` | 分时电价时段归一化、类型词表映射、分段合并、价格序列 | 283 |
+| `algorithms/spaces.py` | 充放电空间（逐日 / 分段两种口径） | 618 |
+| `algorithms/dispatch.py` | 贪心 / 逐日仿真 / 线性规划三种调度 | 730 |
+| `algorithms/milp.py` | MILP 容量规划（多设备选型 + 更换周期 + 需量电费） | 410 |
+| `algorithms/finance.py` | NPV / IRR / 回收期 / LCOE | 212 |
+| `algorithms/loadgen.py` | 三层叠加负荷生成引擎 | 262 |
+| `algorithms/diagnostics.py` | 负荷指纹分析与行业匹配 | 561 |
 
-详见 [`algorithms/README.md`](algorithms/README.md)。
+**全链路示例**：[`examples/quickstart.py`](examples/quickstart.py) —— 不需要任何外部数据，直接跑：
+
+```bash
+python examples/quickstart.py
+```
+
+从生成负荷曲线到算出最优容量，七个步骤全部打印中间结果。其中敏感性分析会直接告诉你「再往上加容量就是亏」的拐点在哪。
 
 ---
 

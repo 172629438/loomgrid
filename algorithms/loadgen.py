@@ -5,16 +5,57 @@ Synthetic Load Generation
 
 三层叠加负荷生成：省份基线 × 班制 × 设备 Markov × 噪声平滑。
 
-本文件由 Load Curve Studio (LoomGrid) 主程序剥离而来，保留原始逻辑，仅去除 GUI 依赖。
+本文件由 LoomGrid 主程序剥离而来，保留原始逻辑，仅去除 GUI 依赖。
 原始出处：负荷曲线批量生成Ultra.py v3.2
 
-依赖：numpy / scipy
-
+依赖：numpy
 """
 
+from __future__ import annotations
 import math
 import numpy as np
-from scipy.optimize import brentq
+import sys
+import os
+import re
+import json
+import copy
+import time
+import io
+import logging
+import atexit
+import subprocess
+import traceback
+import gc
+import random
+import ctypes
+from typing import List, Any
+import urllib.request
+import urllib.parse
+import calendar
+import logging.handlers
+import multiprocessing as mp
+import threading
+import shutil
+import tempfile
+import csv
+from datetime import datetime, time as dt_time, date, timedelta
+from collections import OrderedDict, defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from dataclasses import dataclass, field
+import threading as _threading
+import hashlib, functools, threading
+import json as _json
+from contextlib import contextmanager, suppress
+from enum import Enum
+from loguru import logger as log
+from functools import lru_cache
+import types as _types
+import sys as _sys
+from dataclasses import dataclass
+import pandas as pd
+import sys as __sys
+from datetime import datetime, timedelta
+from collections import deque
 
 
 INDUSTRY_PARAMS = {

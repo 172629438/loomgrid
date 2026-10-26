@@ -4845,13 +4845,20 @@ def _to_hour(v):
 
 
 def _normalize_periods(periods):
-    """v3.2fix(P-30): 时段格式归一化。
+    """v3.2fix(P-30/P-32): 时段格式与类型词汇表归一化。
 
-    系统内时段至少三种写法并存：
-      ① dict  [{'start':8,'end':11,'type':'flat'}, ...]   ← _segment_periods 原本只吃这种
-      ② 元组  [(8, 11, 'flat'), ...]                      ← 测试/外部导入常见
+    格式三态（系统内并存）：
+      ① dict  [{'start':8,'end':11,'type':'flat'}, ...]   ← 核心函数原本只吃这种
+      ② 元组  [(8, 11, 'flat'), ...]
       ③ 字符串端点 [('08:00','11:00','flat'), ...]
-    传 ②③ 进去以前会直接 TypeError/比较错，现统一转成 ①。
+
+    类型词表两套（同一个字段两种语义）：
+      A. 充放电策略词表：charge / discharge / 充电(低谷) / 放电(高峰)
+      B. 电价时段词表：valley / flat / peak / 低谷 / 高峰
+    核心函数（_segment_periods / compute_*_spaces）只认 A，而省份电价库存 B。
+    传 B 进去时充放判断恒假 → 充电空间和放电空间都是 0，不报错、静默算零。
+    这里把 B 统一翻成 A（valley→charge, peak→discharge），flat 保留原样
+    （平段既不属于充也不属于放，由下游显式跳过）。
     """
     if not periods:
         return []
@@ -4865,8 +4872,26 @@ def _normalize_periods(periods):
             continue
         if t is None:
             continue
-        out.append({'start': _to_hour(s), 'end': _to_hour(e), 'type': t})
+        out.append({'start': _to_hour(s), 'end': _to_hour(e), 'type': _canon_period_type(t)})
     return out
+
+
+def _canon_period_type(t):
+    """v3.2fix(P-32): 把一个时段类型词归一化到 PeriodType 词汇表。
+
+    charge 系：charge / valley / deep_valley / 低谷 / 深谷 / 充电(低谷) / 充电
+    discharge 系：discharge / peak / sharp_peak / 高峰 / 尖峰 / 放电(高峰) / 放电
+    flat 及其他：保留原值（平段不参与充放，由下游跳过）
+    """
+    if t is None:
+        return None
+    s = str(t).strip()
+    low = s.lower()
+    if low in ('charge', 'valley', 'deep_valley') or s in ('低谷', '深谷', '充电', '充电(低谷)'):
+        return PeriodType.CHARGE.value
+    if low in ('discharge', 'peak', 'sharp_peak') or s in ('高峰', '尖峰', '放电', '放电(高峰)'):
+        return PeriodType.DISCHARGE.value
+    return t
 
 
 def _expand_overnight(periods):
@@ -9371,9 +9396,12 @@ def _segment_periods(periods):
             if current_type in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
                 charge_idx += 1
                 label = f'充电{charge_idx}'
-            else:
+            elif current_type in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
                 discharge_idx += 1
                 label = f'放电{discharge_idx}'
+            else:
+                # v3.2fix(P-32): 平段单独命名，不再错标为放电场次
+                label = '平段'
             segments.append({'type': current_type, 'start': current_start,
                            'end': current_end, 'label': label, 'sub_periods': current_sub})
             current_type = ptype
@@ -9385,9 +9413,12 @@ def _segment_periods(periods):
         if current_type in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
             charge_idx += 1
             label = f'充电{charge_idx}'
-        else:
+        elif current_type in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
             discharge_idx += 1
             label = f'放电{discharge_idx}'
+        else:
+            # v3.2fix(P-32): 平段单独命名
+            label = '平段'
         segments.append({'type': current_type, 'start': current_start,
                        'end': current_end, 'label': label, 'sub_periods': current_sub})
     return segments
@@ -9427,7 +9458,9 @@ def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A
             end_idx = np.searchsorted(hours, p['end'], side='right')
             if p['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
                 charge_mask[start_idx:end_idx] = True
-            else:
+            elif p['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
+                # v3.2fix(P-32): 明确只让放电类型置放电 mask；
+                # 平段（flat）不属于充也不属于放，原 else 分支会把它当放电段，导致放电空间虚高。
                 discharge_mask[start_idx:end_idx] = True
         charge = np.sum(np.maximum(cap - work_load, 0) * charge_mask * dt, axis=1) * CHARGING_EFFICIENCY
         pos_load = np.maximum(work_load, 0)
@@ -9562,7 +9595,8 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
                     space = np.nan_to_num(space, nan=0.0)
                     charge_segments.append(space)
                     charge_labels.append(seg['label'])
-                else:
+                elif seg['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
+                    # v3.2fix(P-32): 原为 else，会把平段当放电段
                     pos_sub_load = np.maximum(sub_load, 0)
                     if mode == 'A':
                         space = np.zeros(n_days) if cap is None else np.sum(np.minimum(pos_sub_load, cap) * seg_dt, axis=1) * DISCHARGING_EFFICIENCY
@@ -9578,6 +9612,13 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
                         space = np.zeros(n_days)
                     space = np.nan_to_num(space, nan=0.0)
                     discharge_segments.append(space)
+                    discharge_labels.append(seg['label'])
+                else:
+                    # v3.2fix(P-32): 平段既不充也不放。
+                    # 四个列表必须同步追加（segs 与 labels 必须一一对应），否则 zip 会错位。
+                    charge_segments.append(np.zeros(n_days))
+                    discharge_segments.append(np.zeros(n_days))
+                    charge_labels.append(seg['label'])
                     discharge_labels.append(seg['label'])
     return charge_segments, discharge_segments, charge_labels, discharge_labels
 
