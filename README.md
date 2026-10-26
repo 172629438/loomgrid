@@ -32,6 +32,10 @@
 </table>
 </div>
 
+![充放策略演示](assets/demo.gif)
+
+<div align="center"><sub>谷段充、尖峰放，SOC 全程在保护区间内 —— 这条动画由 <code>algorithms/</code> 里的真实算法驱动</sub></div>
+
 ---
 
 ## 这是什么
@@ -137,6 +141,40 @@ python examples/quickstart.py
 
 ---
 
+## 视觉与动效
+
+> 「我不想只做一个无聊的程序员。」
+
+界面上确实做了不少花里胡哨的东西。这块代码占的比重不低，也是**最想听别人提意见**的地方。
+
+<table>
+<tr><td width="26%"><code>WindowAnimator</code></td><td>窗口淡入与位置过渡</td></tr>
+<tr><td><code>RippleButton</code></td><td>点击涟漪扩散</td></tr>
+<tr><td><code>ParticleOverlay</code></td><td>粒子背景层</td></tr>
+<tr><td><code>HslAnimator</code></td><td>HSL 色彩循环动画</td></tr>
+<tr><td><code>BlueprintTransition</code></td><td>页面切换的蓝图描线过渡</td></tr>
+<tr><td><code>MappingProgressTransition</code></td><td>文件映射进度过渡</td></tr>
+<tr><td><code>SplashAnimation</code></td><td>启动画面</td></tr>
+<tr><td><code>TourOverlay</code></td><td>首次使用引导浮层</td></tr>
+<tr><td><code>ToastManager</code></td><td>轻提示队列（带自动清理）</td></tr>
+<tr><td><code>AnimatedDialog</code></td><td>对话框弹出与收起</td></tr>
+<tr><td><code>CircularProgressBar</code></td><td>环形进度指示</td></tr>
+<tr><td><code>DropOverlay</code></td><td>拖放高亮层</td></tr>
+<tr><td><code>SensitivitySliderPanel</code></td><td>敏感性实时滑块</td></tr>
+</table>
+
+底层用的是 `QPropertyAnimation` + `QEasingCurve`（27 处缓动曲线）+ `QParallelAnimationGroup`，没有引入额外的动画库。
+
+**想听到三类反馈**：
+
+1. **哪里卡了** —— 动效掉帧、动画重叠、窗口缩放时错位
+2. **哪里多了** —— 哪个动效看着热闹但干扰操作，该删
+3. **哪里该有却没有** —— 状态切换太硬、缺少反馈的地方
+
+对工具类软件来说，动效的分寸很难拿。这个分寸我一个人把不住，需要更多人的眼睛。
+
+---
+
 ## 版本说明
 
 同一工具的两条技术路线加若干历史快照。**判断版本看文件头部的 `ULTRA_VERSION`，不要看文件名**——历史上目录名当发布批次用过，`v1.4` 目录里装的是 v2.1。
@@ -230,25 +268,27 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 
 ## 架构与设计
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  Presentation    PySide6 窗口 / 对话框 / 表格 / 图表      │
-├─────────────────────────────────────────────────────────┤
-│  Orchestration   数据加载 → 列映射 → 分组 → 计算 → 输出   │
-├─────────────────────────────────────────────────────────┤
-│  Domain          Load / Tariff / Space / Dispatch /      │
-│                  Economics / Diagnostics                 │
-├─────────────────────────────────────────────────────────┤
-│  Foundation      Config / Cache / Threading / Logging    │
-└─────────────────────────────────────────────────────────┘
-```
+![四层架构](assets/architecture.png)
+
+<details>
+<summary><b>点开看：为什么坚持单文件</b></summary>
+
+**一半是强迫症。** 天秤座，看不得散落一地的文件。一个 `.py` 就是一个完整的东西，这个念头很难抗拒。
+
+**另一半是实用。** 拷一个文件到任何装了 Python 的机器上就能跑——不用管包结构、不用管相对导入、不用管 `__init__.py`。给同行发过去时，一个附件解决，不是一段「先建目录再 pip install」的说明。
+
+**代价也说清楚**：35.8k 行堆在一个文件里，没有模块边界，IDE 跳转慢，两个人同时改会冲突。这是真实的技术债，不是美德。
+
+所以 `algorithms/` 目录是这个理念的第一次让步——把能抽的都抽出去，剩下的 GUI 和业务编排继续维持单文件。将来如果要彻底拆，`algorithms/` 就是现成的起点。
+
+</details>
 
 <details>
 <summary><b>点开看：三个关键设计选择与理由</b></summary>
 
-- **单文件**：早期为了「拷一个 .py 就能跑」，后来变成 3.5 万行。这是技术债，不是优点。保留原样是因为拆分要改所有相对引用，风险大于收益。`algorithms/` 目录就是把可拆的部分先拆出来了。
 - **三套调度引擎并存**：不是冗余。贪心用于秒级预览，逐日仿真用于看 SOC 轨迹，LP 用于求最优。三者结果要能互相对照，这是验算手段。
 - **MILP 作为可选替代**：快速排序法给出候选，MILP 在候选空间里求全局最优。没有 OR-Tools 时自动降级，不阻塞主流程。
+- **领域层不依赖 GUI**：这是 `algorithms/` 能抽出来的前提。充放空间、调度、财务计算全部接受纯数据（DataFrame / dict / list），不碰任何 Qt 对象。
 
 </details>
 
