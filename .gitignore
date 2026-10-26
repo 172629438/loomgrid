@@ -69,3 +69,6 @@ dist/
 build_*.log
 build_*.err.log
 build_logs/
+
+# 打包用源文件副本（由 tools/build_exe_cx.py 自动生成）
+loomgrid_*_main.py
