@@ -1,0 +1,65 @@
+# 备份文件：修复过程的中间产物，不入库
+*.bak
+*.bak-*
+*.bak2
+*.bak3
+*.bak4
+*.bak5
+
+# 历史版本目录：含运行日志与配置备份（业务痕迹），不入库
+旧版本程序/
+config_backups/
+column_mapping_config.json
+
+# 运行日志
+logs/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+
+# 运行时产物
+*.log
+logs/
+output/
+exports/
+temp/
+tmp/
+~$*
+
+# 数据文件（体积大且含业务数据，不入库）
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+*.tsv
+*.db
+*.sqlite
+
+# 生成物
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+*.html
+!README.md
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 本地配置
+config.local.*
+*.local.json
+.env
