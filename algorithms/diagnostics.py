@@ -296,6 +296,15 @@ def _parse_date_flexible(date_str: str):
                     return date(y, m, d)
                 except (ValueError, TypeError):
                     pass
+    _s8 = str(date_str).strip()
+    # v3.2.3fix(I2): 8 位纯数字日期（20261001）此前解析为 None——
+    # 正则只切出一个 '20261001'，既不满 3 段也不满 2 段，直接落到 return None。
+    if len(_s8) == 8 and _s8.isdigit():
+        try:
+            _d = date(int(_s8[:4]), int(_s8[4:6]), int(_s8[6:8]))
+            return _d
+        except (ValueError, TypeError):
+            pass
     nums = _RE_DIGITS_ALL.findall(date_str)
     if len(nums) >= 3:
         try:
