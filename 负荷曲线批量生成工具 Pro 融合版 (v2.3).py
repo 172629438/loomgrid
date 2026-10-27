@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版 (智能增强版 v3.2)
-发布版本：LoomGrid Fusion v2.3.3（基于 v2.3，2026-10-27 数据接入层打磨：列分类强弱信号分层、示数转换对齐 Ultra 口径）
+发布版本：LoomGrid Fusion v2.3.4（基于 v2.3，2026-10-27 端到端测试：转置宽表与累示表长表形的识别修正）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -1391,7 +1391,7 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
     # 现改为强/弱分层：有功类强匹配，无功/电流/电压仅作候补。
     load_kw_strong = ['负荷','负载','功率','load','有功','需量','demand','kw','power']
     load_kw_weak = ['无功','电流','电压','amp']
-    accumulated_kw = ['示数','有功电能','总电能','电能','累积','累计','kwh','mwh','电度','读数','read','反向有功']
+    accumulated_kw = ['示数','有功电能','总电能','电能','累积','累计','kwh','mwh','电度','读数','read','反向有功','总电量','电量']
 
     for c in cols:
         cl = c.lower().replace(' ', '').replace('_', '').replace('-', '')
@@ -1418,28 +1418,36 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
             result.setdefault('load_col_fallback', c)
         if any(k in cl for k in accumulated_kw) and not (_is_power_word and not _is_energy_word):
             result.setdefault('accumulated_hint', True)
+            # v2.3.4fix(J2): 记下第一个累计类列——「总电量」这类不含「功率」的列
+            # 原本拿不到 load_col，扫描阶段报「未找到列 load_col」。
+            result.setdefault('accumulated_col', c)
 
     if not result.get('load_col') and result.get('load_col_fallback'):
         result['load_col'] = result.pop('load_col_fallback')
     result.pop('load_col_fallback', None)
+    # v2.3.4fix(J2): 无功率列时累计列充当 load_col（示数表标准形态）
+    if not result.get('load_col') and result.get('accumulated_col'):
+        result['load_col'] = result['accumulated_col']
 
     if sample_df is not None and not sample_df.empty:
-        wdate, wload = _detect_wide_matrix(sample_df, cols, max_sample)
-        if wdate and wload:
-            result['date_col'] = wdate
-            result['load_col'] = wload
-            result['format_type'] = 'wide'
+        # v2.3.4fix(J1): 先判转置宽表——_detect_wide_matrix 的「纯数字递增列当时刻列」兜底
+        # 会把转置表的日期列（值严格递增）误当时刻列，两者对同一张表同时命中。
+        trans = _detect_transposed_wide(sample_df, cols, max_sample)
+        if trans:
+            result['date_col'] = trans['date_cols'][0]
+            result['load_col'] = trans['date_cols']
+            result['format_type'] = 'wide_transposed'
+            result['transpose'] = True
+            result['time_col'] = trans['time_col']
+            result['date_cols_full'] = trans['date_cols']
         else:
-            trans = _detect_transposed_wide(sample_df, cols, max_sample)
-            if trans:
-                result['date_col'] = trans['date_cols'][0]
-                result['load_col'] = trans['date_cols']
-                result['format_type'] = 'wide_transposed'
-                result['transpose'] = True
-                result['time_col'] = trans['time_col']
-                result['date_cols_full'] = trans['date_cols']
+            wdate, wload = _detect_wide_matrix(sample_df, cols, max_sample)
+            if wdate and wload:
+                result['date_col'] = wdate
+                result['load_col'] = wload
+                result['format_type'] = 'wide'
 
-    if sample_df is not None and not sample_df.empty and result.get('format_type') not in ('wide', 'wide_transposed'):
+    if sample_df is not None and not sample_df.empty and result.get('format_type') not in ('wide', 'wide_transposed', 'accumulated'):
         # v2.3.3fix(I8): 列名是强信号，数值只是弱信号。列名已明确是功率
         # （含「功率」或 kw 且非 kwh）时，不因数值单调性改判示数表。
         _lc = result.get('load_col')
@@ -2078,14 +2086,16 @@ def _scan_wide_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
             log.warning(f"转置宽表时间列 {time_col} 不存在，跳过扫描。文件: {fp}, 工作表: {sheet}")
             return
         df_temp = df.copy(deep=True).set_index(time_col).transpose()
-        existing = [c for c in load_cols if c in df_temp.columns]
+        # v2.3.4fix(J3): 转置后 index 是日期、columns 是时间。load_cols 存的是转置前的
+        # 日期列名，转置后它们变成了 index，不在 columns 里——原逻辑恒为空，整表被跳过。
+        existing = [c for c in load_cols if c in df_temp.index] or list(df_temp.index)
         if not existing:
-            log.warning(f"转置宽表负荷列 {load_cols} 中未找到有效时间列，跳过扫描。文件: {fp}, 工作表: {sheet}")
+            log.warning(f"转置宽表负荷列 {load_cols} 在转置后未匹配到任何日期行，跳过扫描。文件: {fp}, 工作表: {sheet}")
             return
-        ldf = df_temp[existing].apply(pd.to_numeric, errors='coerce')
+        df_temp = df_temp.loc[existing]
+        ldf = df_temp.apply(pd.to_numeric, errors='coerce')
         if mapping.get('format_type') == 'accumulated':
-            ldf = _wide_row_accumulated_to_power(ldf, existing)
-            existing = list(ldf.columns)
+            ldf = _wide_row_accumulated_to_power(ldf, list(ldf.columns))
         yms = pd.Series(df_temp.index).apply(_extract_ym)
         raw_vals = None
     else:
@@ -2212,6 +2222,12 @@ def _translate_error(exc_type, exc_msg):
         return "未找到可绘制的数值数据，请检查负荷列"
     return f"发生错误：{exc_msg}"
 
+def _mapping_is_long_shape(mapping):
+    """判断 accumulated 映射的实际结构是长表还是宽表（同 Ultra）。"""
+    tc = mapping.get('time_col')
+    return bool(tc) and tc != mapping.get('date_col') and not mapping.get('transpose')
+
+
 def _scan_file_worker(args):
     fp, sheet, mapping_dict, fallback, cancel_event, shared_cache = args
     if not isinstance(mapping_dict, dict) or 'date_col' not in mapping_dict:
@@ -2236,7 +2252,9 @@ def _scan_file_worker(args):
             return {'error': _translate_error(KeyError, f"日期列不存在，可用列: {list(df.columns)}")}
         monthly_stats = {}
         normative = mapping.copy()
-        if mapping.get('format_type') in ('wide', 'wide_transposed', 'accumulated'):
+        # v2.3.4fix(J4): accumulated 长表形（日期+时间+示数）不该走宽表分支
+        _fmt = mapping.get('format_type')
+        if _fmt in ('wide', 'wide_transposed') or (_fmt == 'accumulated' and not _mapping_is_long_shape(mapping)):
             _scan_wide_chunk(fp, sheet, normative, df, fallback, monthly_stats, cancel_event)
         else:
             load_col = mapping['load_col']
@@ -2510,7 +2528,8 @@ class DataProvider:
             date_col = mapping['date_col']
             time_col = mapping.get('time_col')
             asset_col = mapping.get('asset_col')
-            if mapping.get('format_type') in ('wide', 'wide_transposed', 'accumulated'):
+            if mapping.get('format_type') in ('wide', 'wide_transposed', 'accumulated') and not (
+                    mapping.get('format_type') == 'accumulated' and _mapping_is_long_shape(mapping)):
                 load_cols = mapping['load_col']
                 if not isinstance(load_cols, list):
                     load_cols = [str(load_cols)]
