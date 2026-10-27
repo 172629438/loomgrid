@@ -4,6 +4,63 @@
 
 ---
 
+## v3.2.7 — 2026-10-27（仅 Ultra，Fusion 无代码变更）
+
+**两个静默错配 + 界面实拍。** 这轮报的问题都属于同一类：界面看着不对，但没有任何报错。
+
+### M1 · 缺依赖时主题静默降级
+
+`main()` 里按系统深浅色选 Material 主题：
+
+```python
+try:
+    from qt_material import apply_stylesheet
+    import darkdetect
+    apply_stylesheet(app, theme='dark_teal.xml' if darkdetect.isDark() else 'light_teal.xml')
+except Exception:
+    pass
+```
+
+这两包不是硬依赖。缺了以后 `ImportError` 被 `except: pass` 吃掉，表现出来只是「界面看着怪」，日志里一个字都没有。
+
+**改法**：`ImportError` 和一般异常分开捕，各写一行 warn 到 stderr（此时日志系统未就绪，stderr 已被重定向到日志文件），并说明会退回程序内置主题。不阻塞启动，但不再静默。
+
+### M2 · 主题状态与 QSS 脱节，文字和背景撞色
+
+两处：
+
+| 位置 | 原来的行为 | 后果 |
+|---|---|---|
+| `_toggle_theme` | 调 `set_global_theme()` | `DesignTokens` 立即返回另一套 tokens，而已生成的 QSS 还是旧主题 |
+| `Config.__init__` | 无条件 `set_global_theme(...)` | 从非 `main()` 入口进来的窗口，QSS 不重刷 |
+
+典型症状：切到深色后大标题变成**白底浅灰字**，缩略看像「糊了一条」。抓单控件能看清字是浅灰蓝——不是字体问题，是颜色配错。
+
+**改法**：
+
+- `_toggle_theme` 只存偏好、不改全局主题（本来就写着「重启后生效」，那一步是多余的）
+- `Config.__init__` 里主题真的变了才 `invalidate_qss_cache()` + `apply_global_stylesheet()`
+
+### M3 · 主题提示措辞
+
+原来只说「重启程序后生效」，容易被当成点了没反应。补一句「当前界面不会立刻变化」。
+
+### 界面实拍
+
+`README` 新增「视觉与动效 → 界面实拍」一节，引用 5 张真跑出来的图：
+
+| 图 | 内容 |
+|---|---|
+| `ultra-main-empty.png` | Ultra 空态 |
+| `ultra-main-imported.png` | Ultra 导入数据后 |
+| `ultra-curve-dark.png` | 负荷曲线（深色） |
+| `ultra-curve-light.png` | 负荷曲线（浅色，带均值） |
+| `fusion-main-imported.png` | Fusion 导入数据后 |
+
+生成方式：脚本造商业综合体年度电表数据（45 天 × 96 点，工作日夜峰、周末降 28%、5% 噪声）→ `_on_files_dropped` 注入 → 按 `main()` 的完整顺序初始化（`force_light_theme` → `apply_global_font` → `apply_global_stylesheet`）→ 等渲染稳定 → `QWidget.grab()`。不 P 图、不摆拍。
+
+旧的 `assets/screenshot-main.png`、`assets/screenshot-load-simulation.png` 全是空态，这次一导入才看见「导入后左侧列表是深色底」——这个布局以前从未在文档里露过脸。
+
 ## v3.2.6 — 2026-10-27（仅 Ultra，Fusion 无代码变更）
 
 **报告导出层测试。** 前面七轮测的都是「数据怎么进来、怎么算」。这一轮测**东西怎么出去**——用户最终交给客户的是那份报告，不是界面。

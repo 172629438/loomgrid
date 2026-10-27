@@ -7307,7 +7307,19 @@ class Config:
             _set_24h_belong(self.cfg['app_settings'].get('24h_belongs_current_month', False))
             Config._global_enable_particles = self.cfg['app_settings'].get('enable_particles', True)
             # v2.23: 根据配置决定初始主题(启动时已在main中预加载,此处同步状态)
-            set_global_theme('dark' if self.cfg['app_settings'].get('dark_theme', False) else 'light')
+            # v3.2.7fix(M2): 只同步状态、不重刷 QSS 会造成 tokens 与 QSS 错配
+            # （DARK 的浅色文字 + LIGHT 的白底）。主题真的变了就重刷一次，
+            # 这样从任何入口进来的窗口都能保持一致。
+            _new_theme = 'dark' if self.cfg['app_settings'].get('dark_theme', False) else 'light'
+            if get_global_theme() != _new_theme:
+                set_global_theme(_new_theme)
+                invalidate_qss_cache()
+                _app = QApplication.instance()
+                if _app is not None:
+                    try:
+                        apply_global_stylesheet(_app)
+                    except Exception:
+                        pass
             _set_log_dir(self.cfg['app_settings'].get('log_dir', 'logs'))
 
     def _migrate(self):
@@ -24436,18 +24448,19 @@ class MainWindow(QMainWindow):
         )
 
     def _toggle_theme(self, checked):
-        """v2.29: 主题切换仅保存设置,下次启动时生效,避免运行时样式表替换导致卡死。"""
-        if checked:
-            set_global_theme("dark")
-            theme_label = "深色"
-        else:
-            set_global_theme("light")
-            theme_label = "浅色"
+        """v2.29: 主题切换仅保存设置,下次启动时生效,避免运行时样式表替换导致卡死。
+
+        v3.2.7fix(M2): 原来这里同时调了 set_global_theme()——DesignTokens 立即
+        返回另一套 tokens,但已生成的 QSS 还是旧主题,文字色和背景色撑在一起。
+        典型症状: 切主题后大标题变成白底浅灰字,看着像"糊了"。
+        运行时只存偏好,真正的切换交给 main() 里的 force_dark_theme / force_light_theme。
+        """
+        theme_label = "深色" if checked else "浅色"
         # 保存偏好,重启后生效
         if hasattr(self, "config_manager") and self.config_manager:
             self.config_manager.set_app("dark_theme", checked)
-        self._log(f"主题偏好已更新为{theme_label}模式,重启程序后生效", "info")
-        ToastManager.show(self, f"已选择 {theme_label} 主题,重启程序后生效", "info", 3000)
+        self._log(f"主题偏好已更新为{theme_label}模式,重启程序后生效（当前界面不会立刻变化）", "info")
+        ToastManager.show(self, f"已选择 {theme_label} 主题,重启后生效", "info", 3000)
 
 
     def _create_menus(self):
@@ -29242,13 +29255,20 @@ def main():
     app = QApplication(sys.argv)
 
     # v3.2fix: Material Design 主题 + 系统深色模式自动适配
+    # v3.2.7fix(M1): 这两包不是硬依赖，缺了以后 ImportError 被 except: pass
+    # 吃掉，界面上只表现为「看着怪」，日志里一个字没有。改为明说，仍不阻启动。
     try:
         from qt_material import apply_stylesheet
         import darkdetect
         theme = 'dark_teal.xml' if darkdetect.isDark() else 'light_teal.xml'
         apply_stylesheet(app, theme=theme)
-    except Exception:
-        pass
+    except ImportError as _e:
+        print(f"[warn] 未安装 qt_material/darkdetect（{_e}），"
+              f"已退回程序内置主题；如需 Material 主题请 pip install qt_material darkdetect",
+              file=sys.stderr)
+    except Exception as _e:
+        print(f"[warn] Material 主题加载失败（{type(_e).__name__}: {_e}），已退回程序内置主题",
+              file=sys.stderr)
 
     # SplashAnimation立刻占满屏幕——用户看到的第一帧
     skip_anim = False
