@@ -9466,7 +9466,7 @@ def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A
         discharge_mask = np.zeros(n_points, dtype=bool)
         for p in expanded:
             start_idx = np.searchsorted(hours, p['start'], side='left')
-            end_idx = np.searchsorted(hours, p['end'], side='right')
+            end_idx = np.searchsorted(hours, p['end'], side='left')
             if p['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
                 charge_mask[start_idx:end_idx] = True
             elif p['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
@@ -9492,7 +9492,7 @@ def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A
             for p in expanded:
                 if p['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
                     start_idx = np.searchsorted(hours, p['start'], side='left')
-                    end_idx = np.searchsorted(hours, p['end'], side='right')
+                    end_idx = np.searchsorted(hours, p['end'], side='left')
                     discharge_mask[start_idx:end_idx] = True
         else:
             discharge_mask[:] = True
@@ -9504,7 +9504,7 @@ def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A
             for p in expanded:
                 if p['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
                     start_idx = np.searchsorted(hours, p['start'], side='left')
-                    end_idx = np.searchsorted(hours, p['end'], side='right')
+                    end_idx = np.searchsorted(hours, p['end'], side='left')
                     charge_mask[start_idx:end_idx] = True
         neg_load = np.maximum(-work_load, 0)
         charge = np.sum(np.minimum(rated_power, neg_load) * np.maximum(charge_mask, charge_mask_2d) * dt, axis=1) * CHARGING_EFFICIENCY
@@ -32830,9 +32830,9 @@ def periods_to_price_series(
                 cur_min = _parse_time_min(t)
                 # 处理跨午夜时段
                 if start_min <= end_min:
-                    in_range = start_min <= cur_min <= end_min
+                    in_range = start_min <= cur_min < end_min
                 else:
-                    in_range = cur_min >= start_min or cur_min <= end_min
+                    in_range = cur_min >= start_min or cur_min < end_min
                 if in_range:
                     buy_price.iloc[i] = p_price
                     price_type.iloc[i] = ptype
