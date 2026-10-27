@@ -302,10 +302,21 @@ def _get_cached_font():
         return _FONT_NAME
 
 def _setup_font():
-    """向 matplotlib 注入中文字体"""
-    import matplotlib.pyplot as _plt
-    _plt.rcParams['font.sans-serif'] = [_get_cached_font()]
-    _plt.rcParams['axes.unicode_minus'] = False
+    """向 matplotlib 注入中文字体。
+
+    v3.2.8fix: 原来没有 try/except——matplotlib 在冻结环境里要经
+    rcsetup → pyparsing → pyparsing.testing 走到 import unittest，
+    打包时若把这个标准库模块排掉，启动就会在 matplotlib.pytlot 的
+    import 处直接死，而且 gui base 会把 traceback 吞成 0xC0000005，
+    界面上只能看到双击无反应。字体注入失败不该阻塞整个程序启动。
+    """
+    try:
+        import matplotlib.pyplot as _plt
+        _plt.rcParams['font.sans-serif'] = [_get_cached_font()]
+        _plt.rcParams['axes.unicode_minus'] = False
+    except Exception as _e:
+        print(f"[warn] 中文字体注入失败（{type(_e).__name__}: {_e}），"
+              f"出图时中文可能显示为方块", file=sys.stderr)
 
 # ═══════════════════════════════════════════════════════════
 # v3.2fix: 可选依赖自动安装 (from Pro v2.3)
@@ -3353,11 +3364,15 @@ try:
     from loguru import logger as log
     log.remove()
     log.add("logs/ultra_{time}.log", rotation="10 MB", retention="7 days", enqueue=True)
-    log.add(sys.stderr, colorize=True, format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>", level="INFO")
+    # v3.2.8fix: windowed 打包后 sys.stderr 是 None，直接 log.add(sys.stderr)
+    # 会在模块级抛 TypeError: Cannot log to objects of type 'NoneType'，
+    # exe 双击无任何反应（无控制台就看不到错误）。所以先判空再挂控制台 sink。
+    if sys.stderr is not None:
+        log.add(sys.stderr, colorize=True, format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>", level="INFO")
 except ImportError:
     log = logging.getLogger("ultra")
     log.setLevel(logging.INFO)
-    if not log.handlers:
+    if not log.handlers and sys.stderr is not None:
         _h = logging.StreamHandler(sys.stderr)
         _h.setFormatter(logging.Formatter("%(asctime)s | %(levelname)-8s | %(name)s - %(message)s", "%H:%M:%S"))
         log.addHandler(_h)
