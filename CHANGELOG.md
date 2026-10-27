@@ -25,6 +25,8 @@ J1 和 J3 是一对：一个是判定错、一个是判定对了但后续处理�
 
 | **J5** | Ultra + Fusion | **Excel 引擎选择的三重错**。① `_get_excel_engine` 用 `'python-calamine'.split('-')[0]` 取模块名得到 `'python'`，永远 import 失败——calamine 装了也不会被选中（实测：装了 python-calamine 仍返回 openpyxl）；② `.xlsb` 因 `startswith('.xls')` 被归到 openpyxl 分支，而 openpyxl 根本读不了 xlsb；③ 打包产物里既无 calamine 也无 pyxlsb，`.xlsb` 文件导入必然失败 | 改为显式（引擎, 模块名）表 + 扩展名约束；构建时显式打包 `python_calamine`（calamine 原生支持 xls/xlsx/xlsb/ods，且比 openpyxl 快数倍） |
 
+| **J6** | Fusion | **拖入任意文件都会被接受**。Fusion 的 `_on_files_dropped` 不检查扩展名（模块里甚至没有 `_is_supported_file`）——拖进 .txt / .zip / .exe 也进列表并尝试当表格处理 | 补 `_is_supported_file` + 文件夹递归 + 扩展名过滤（仅 csv/xlsx/xls/xlsm/xlsb）；被拒文件记日志 |
+
 J5 是这一轮最隐的一款：它不报错、不崩溃，只是「装了也白装」。calamine 一直在依赖清单里，但从没被选中过一次。
 
 ### 验证
@@ -32,10 +34,11 @@ J5 是这一轮最隐的一款：它不报错、不崩溃，只是「装了也�
 | 脚本 | 项数 | 新增覆盖 |
 |---|---:|---|
 | `tests/verify_e2e.py` | **61** | A 长表六形态 / B 宽表（96 列与 24 列）/ C 转置宽表 / D 示数表（基准 0 与基准 1000）/ E 多资产 / F 跨月 / G 数值保真（小数精度、负值保留、空值不补 0）/ H 脏数据（重复时间戳、日期格式混杂、坏日期）/ I 双端一致 |
+| `tests/verify_gui_flow.py` | **24** | A 窗口构造与方法齐备 / B 文件注入（含非表格文件过滤）/ C 出图（基本、深色、单日、空数据、负值）/ D 导出 CSV 结构（表头、行数、三位小数、utf-8-sig BOM）/ E 图片内容（非空白、尺寸、深色主题偏暗） |
 
 关键断言是**逐点比对**：宽表里每个数必须等于源文件里对应那个数（误差 ≤1e-9），不是「形状对上了」。
 
-全套 11 个脚本 **287 项全绿**（原 129 + ingest 97 + e2e 61）。
+全套 12 个脚本 **311 项全绿**（原 129 + ingest 97 + e2e 61 + gui_flow 24）。
 
 ---
 

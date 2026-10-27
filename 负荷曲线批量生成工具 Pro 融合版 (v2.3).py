@@ -138,7 +138,14 @@ def _check_and_install_dependencies():
 INVALID_MINUTES = 9999
 MAX_FILENAME_LEN = 50
 DEFAULT_ENCODING_LIST = ['utf-8-sig', 'utf-8', 'gb18030', 'gbk', 'gb2312', 'latin1']
-SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls')
+SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
+_SUPPORTED_EXTS_SET = frozenset(SUPPORTED_EXTS)  # v2.3.4fix(J6): O(1) 成员查找
+
+
+def _is_supported_file(path: str) -> bool:
+    """v2.3.4fix(J6): 原 Fusion 没有这个函数，_on_files_dropped 不过滤类型，
+    拖入 .txt/.zip/.exe 也会进列表并被当表格处理。"""
+    return os.path.splitext(path)[1].lower() in _SUPPORTED_EXTS_SET
 
 # 缓存配置
 TIME_CACHE_MAXSIZE = 5000
@@ -9694,6 +9701,22 @@ class MainWindow(QMainWindow):
         self._update_start_btn()
 
     def _on_files_dropped(self, paths):
+        # v2.3.4fix(J6): 原实现不过滤文件类型——拖进 .txt / .zip / .exe 也会进列表
+        # 并尝试处理（Fusion 里甚至没有 _is_supported_file）。现补文件夹递归 + 扩展名过滤。
+        expanded = []
+        for p in paths:
+            if os.path.isdir(p):
+                for root, _, files in os.walk(p):
+                    for fn in files:
+                        fp = os.path.join(root, fn)
+                        if _is_supported_file(fp):
+                            expanded.append(fp)
+            elif _is_supported_file(p):
+                expanded.append(p)
+        rejected = len(paths) - len(expanded) if not any(os.path.isdir(x) for x in paths) else 0
+        if rejected > 0:
+            self._log(f"已忽略 {rejected} 个不支持的文件（仅支持 {', '.join(SUPPORTED_EXTS)}）")
+        paths = expanded
         existing = set(self.file_list.get_file_paths())
         existing_norm = {os.path.normcase(os.path.normpath(p)) for p in existing}
         added = 0
