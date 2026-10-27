@@ -114,16 +114,16 @@
 
 | 你的情况 | 用这个 |
 |---|---|
-| 明天要交方案，要稳 | **[Fusion v2.3](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.0)** |
-| 功能越多越好，愿意跟着踩坑 | **[Ultra v3.2](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.0)** |
-| 想读源码，10k 行比 35k 行好读 | **[Fusion v2.3](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.0)** |
+| 明天要交方案，要稳 | **[Fusion v2.3.1](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.1)** |
+| 功能越多越好，愿意跟着踩坑 | **[Ultra v3.2.1](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.1)** |
+| 想读源码，10k 行比 35k 行好读 | **[Fusion v2.3.1](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.1)** |
 | 想研究三层叠加引擎的完整实现 | **[Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0)** |
 | 想看看真实项目的弯路长什么样 | **[Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0)** |
 | 想看某个功能最早怎么写的 | **[Fusion v1.1 ~ v2.2](https://github.com/172629438/loomgrid/releases)** |
 
 两个现役版本不是「新旧」，是**两条路线**：
 
-| | **Fusion v2.3** | **Ultra v3.2** |
+| | **Fusion v2.3.1** | **Ultra v3.2.1** |
 |---|---|---|
 | 定位 | **生产推荐** | 测试版（功能最全） |
 | 代码量 | 10,421 行 | 35,932 行 |
@@ -137,7 +137,7 @@
 | 13 个动效组件 | — | ✓ |
 | 稳定性 | 高（跑得久） | 中（功能密度超过测试覆盖） |
 
-> **为什么稳定版推荐的是旧版本**：Ultra v3.2 在 2026-10 这一轮同时塞进了 MILP、四目标 Pareto、13 步诊断、13 个动效组件、三层引擎回填和 31 条缺陷修复。能力上限更高，踩坑概率也更高。这不是设计错了，是还没打磨完。
+> **为什么稳定版推荐的是行数少的那个**：Ultra v3.2.1 在 2026-10 这一轮同时塞进了 MILP、四目标 Pareto、13 步诊断、13 个动效组件、三层引擎回填和 30 余条缺陷修复；v3.2.1 又修了 4 条（含一条自加入起就 100% 失败的结算功能）。能力上限更高，踩坑概率也更高。这不是设计错了，是还没打磨完。
 
 ---
 
@@ -153,8 +153,8 @@
 
 | 版本 | 适合 |
 |---|---|
-| [**Fusion v2.3**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.0) | **正式做方案**，稳定优先选它 |
-| [**Ultra v3.2**](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.0) | 功能最全，但在测试阶段，愿意一起踩坑就上 |
+| [**Fusion v2.3.1**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.1) | **正式做方案**，稳定优先选它 |
+| [**Ultra v3.2.1**](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.1) | 功能最全，但在测试阶段，愿意一起踩坑就上 |
 | [Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0) | Ultra 历史快照，含三层叠加引擎原文 |
 | [Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0) | 早期分支，含占位方法，**不要做正式方案** |
 | [Fusion v1.1 ~ v2.2](https://github.com/172629438/loomgrid/releases) | 考古、版本对比 |
@@ -205,16 +205,20 @@ python examples/quickstart.py
 
 想直接看效果：`cd algorithms && python demo.py`。用现场构造的数据把七个模块跑一遍，不需要准备任何外部文件。
 
-`examples/quickstart.py` 会算出一条漂亮的结论——**容量不是越大越好**：
+`examples/quickstart.py` 会算出一条不那么漂亮的结论——**容量不是越大越好，而且这一组参数下大头都不划算**：
 
-| 容量 | 回收期 | |
-|---:|---:|---|
-| 500 kWh | 3.7 年 | 日循环上限 726 kWh 用不满 |
-| 800 kWh | 3.7 年 | ← 最优：回收期相同，但 NPV 比 500 kWh 高 60% |
-| 1000 kWh | 5.0 年 | 超过日循环上限 726 kWh |
-| 1500 kWh | 9.3 年 | |
-| 2000 kWh | 16.5 年 | |
-| 3000 kWh | 73.1 年 | |
+| 容量 | 回收期 | NPV（6% / 15 年） | 说明 |
+|---:|---:|---:|---|
+| 500 kWh | 3.7 年 | +49.6 万 | 日循环上限 484 kWh 能吃满 |
+| 800 kWh | 6.5 年 | +20.0 万 | ← 拐点：从这一档开始装不满 |
+| 1000 kWh | 9.3 年 | −5.4 万 | 超过日循环上限 484 kWh |
+| 1500 kWh | 22.3 年 | −68.8 万 | |
+| 2000 kWh | 73.1 年 | −132.3 万 | |
+| 3000 kWh | 不可回收 | −259.2 万 | |
+
+注意最后两列：这组参数（750 元/kWh、0.88 元价差、330 天）下，只有 500–800 kWh 两档 NPV 为正。
+示例想说明的是「瓶颈在负荷侧」——峰段可削量与谷段余量把日循环锁在 484 kWh，
+装得再大也只能闲置。真实项目把峰谷价差、投资单价、利用天数换成实测值后，拐点位置会变。
 
 每个模块的**问题、输入输出、核心逻辑、参数含义、踩过的坑** → [`algorithms/README.md`](algorithms/README.md)
 
@@ -399,7 +403,7 @@ utf-8-sig → gbk → gb18030 → gb2312 → latin1
 | 文件 | 内部版本 | 行数 | 定位 | 状态 |
 |---|---|---:|---|---|
 | `负荷曲线批量生成工具 Pro 融合版 (v2.3).py` | v2.3 | ~10.4k | **生产推荐**，要结果稳就选它 | 稳定 |
-| `负荷曲线批量生成Ultra.py` | v3.2.0 | ~35.8k | 功能最全，**仍在测试**，新功能与新动效密集 | 测试中 |
+| `负荷曲线批量生成Ultra.py` | v3.2.1 | ~35.9k | 功能最全，**仍在测试**，新功能与新动效密集 | 测试中 |
 
 > **为什么稳定版推荐的是「旧」版本？**
 >
@@ -552,7 +556,7 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 - **单文件 3.5 万行**，没有单元测试框架，验证靠脚本巡检（85 项回归 + 12 项算法手算对拍，见 [`tests/`](tests/) 与[缺陷修复报告](docs/缺陷修复报告.md)）。
 - **测算依赖输入质量**。工具不校验外部数据真实性，列映射选错会一路错到底。
 - **GUI 交互流程没有自动化回归测试**。核心算法有，界面点击路径靠人工。
-- **Ultra v3.2 处于测试阶段**。功能最全，但新增功能密集、动效组件多，稳定性不如 Fusion v2.3。正式交付优先用 Fusion。
+- **Ultra v3.2.1 处于测试阶段**。功能最全，但新增功能密集、动效组件多，稳定性不如 Fusion v2.3.1。正式交付优先用 Fusion。
 - **`legacy/` 里的历史版本仅供考古**，配置格式与现役版本不兼容，不建议使用。
 
 ---

@@ -26,7 +26,7 @@ import numpy as np
 from loadgen import _generate_load_profile
 from periods import _normalize_periods, _segment_periods, periods_to_price_series
 from spaces import compute_segmented_spaces
-from dispatch import greedy_dispatch_annual, optimal_dispatch_lp
+from dispatch import simulate_daily_dispatch, optimal_dispatch_lp
 from finance import calc_npv, calc_irr, calc_simple_payback
 
 
@@ -187,20 +187,33 @@ print(f"→ 电池 {CAP_KWH:.0f} kWh 的两小时率放电需求 = "
 
 rule("4. 调度引擎对照")
 
-# ── 4.1 贪心 ──
-greedy = greedy_dispatch_annual(
-    arr.flatten(),
-    batt_kwh=CAP_KWH,
-    c_rate=0.5,
-    eta_roundtrip=0.90,
+# ── 4.1 逐日仿真（电价感知） ──
+# v3.2.1fix: 原用 greedy_dispatch_annual 演示峰谷套利，但该函数的文档写死
+# 「仅适配新能源消纳优先场景，峰谷套利请使用 optimal_dispatch_lp()」。
+# 纯负荷无光伏时它没有「多余电」可充，充电恒为 0、SOC 只降不升，
+# 和 LP 并排展示会让读者以为引擎坏了。峰谷场景应用逐日仿真或 LP。
+daily = simulate_daily_dispatch(
+    arr,
+    times,
+    raw_periods,
+    capacity_kwh=CAP_KWH,
+    power_kw=POWER_KW,
+    efficiency=0.90,
+    initial_soc=0.20,
+    soc_min=0.05,
+    soc_max=0.95,
+    transformer_capacity=None,
 )
-print("贪心调度：")
-for k, v in greedy.items():
-    print(f"  {k:22s} {v:,.2f}" if isinstance(v, (int, float)) else f"  {k:22s} {v}")
+print("逐日仿真调度：")
+print(f"  日均充电    {float(np.mean(daily['charge_kwh'])):,.1f} kWh")
+print(f"  日均放电    {float(np.mean(daily['discharge_kwh'])):,.1f} kWh")
+print(f"  首日 SOC    起 {float(daily['soc_trajectory'][0][0]):.1f} → 末 {float(daily['soc_trajectory'][0][-1]):.1f} kWh")
+print(f"  变压器限流  {int(daily.get('transformer_limit_events', 0))} 次")
 
 # ── 4.2 LP ──
 buy = np.asarray(price_series, float)
 sell = buy * 0.35
+DT_HOURS = 24.0 / N_POINTS     # v3.2.1fix: LP 返回的 ch/dis 是功率(kW)，电压要乘 dt
 try:
     lp = optimal_dispatch_lp(
         arr[0],
@@ -215,8 +228,8 @@ try:
     )
     print("\n线性规划调度（单日）：")
     print(f"  收益        {float(np.nansum(lp.get('revenue', []))):,.2f} 元/天")
-    print(f"  充电总量    {float(np.nansum(lp.get('ch', []))):,.1f} kWh")
-    print(f"  放电总量    {float(np.nansum(lp.get('dis', []))):,.1f} kWh")
+    print(f"  充电总量    {float(np.nansum(lp.get('ch', []))) * DT_HOURS:,.1f} kWh")
+    print(f"  放电总量    {float(np.nansum(lp.get('dis', []))) * DT_HOURS:,.1f} kWh")
     print(f"  可行        {lp.get('feasible')}")
 except Exception as e:
     print(f"\nLP 调度跳过（{type(e).__name__}: {e}）")
@@ -259,7 +272,9 @@ cashflows = [-invest]
 for y in range(1, YEARS + 1):
     cashflows.append(annual_net * ((1 - DEGRADE) ** (y - 1)))
 
-npv = calc_npv(invest, annual_net, YEARS, 0.06)
+# v3.2.1fix: calc_npv 的签名是 (annual_cashflow, investment, ...)——年现金流在前。
+# 原调用传的是 (invest, annual_net)，把 75 万投资当年金、年收益当投资，NPV 虚高约 190 倍。
+npv = calc_npv(annual_net, invest, YEARS, 0.06)
 irr = calc_irr(invest, annual_net, YEARS)
 
 print(f"NPV（6% 折现，{YEARS} 年）  {npv:,.0f} 元")
@@ -274,15 +289,17 @@ rule("6. 敏感性分析")
 
 print(f"{'容量 kWh':>10s} {'投资 万元':>10s} {'年净收益':>10s} {'回收期':>8s} {'NPV':>12s}")
 prev_pb = None
+_flagged = False   # v3.2.1fix: 只在回收期第一次变长时标拐点，原来每行都标
 for cap in (500, 800, 1000, 1500, 2000, 3000):
     inv = cap * INVEST_PER_KWH
     rev = annual_gross_of(cap, usable_daily) - inv * O_AND_M / 100
     pb = inv / rev if rev > 0 else float("inf")
     flag = ""
-    if prev_pb is not None and pb > prev_pb + 0.01:
+    if not _flagged and prev_pb is not None and pb > prev_pb + 0.01:
         flag = "  ← 拐点"
+        _flagged = True
     prev_pb = pb
-    print(f"{cap:>10,} {inv/1e4:>10.1f} {rev:>10,.0f} {pb:>8.1f} {calc_npv(inv, rev, YEARS, 0.06):>12,.0f}{flag}")
+    print(f"{cap:>10,} {inv/1e4:>10.1f} {rev:>10,.0f} {pb:>8.1f} {calc_npv(rev, inv, YEARS, 0.06):>12,.0f}{flag}")
 
 print("\n注意：容量不是越大越好。超过某一点后，日均可充电空间不够，")
 print("多装的容量会闲置——上面的表里只要回收期开始变长，就是拐点。")
