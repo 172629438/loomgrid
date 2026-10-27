@@ -6335,26 +6335,32 @@ def _cache_enc_result(key, result):
             cache.popitem(last=False)
 
 def _get_excel_engine(fp):
-    """返回可用的Excel读取引擎,按优先级: calamine > openpyxl > xlrd"""
+    """返回可用的 Excel 读取引擎。优先 calamine（原生支持 xls/xlsx/xlsb/ods 且最快）。
+
+    v3.2.4fix(J5): 原实现有两个真缺陷：
+      ① 模块名取法错——`'python-calamine'.split('-')[0]` 得到 'python'，永远 import 失败，
+         calamine 装了也不会被选中（实测：装了 python-calamine 仍返回 openpyxl）。
+      ② `.xlsb` 因 startswith('.xls') 被归到 openpyxl 分支，而 openpyxl 根本读不了 xlsb。
+    现改为显式（引擎, 模块名）表 + 扩展名约束。
+    """
     ext = os.path.splitext(fp)[1].lower() if '.' in os.path.basename(fp) else fp
     if ext == '.csv':
         return None
-    if ext == '.xls' or not ext.startswith('.xls'):
-        engines_to_try = [('calamine', 'python-calamine'), ('xlrd', 'xlrd')]
-    else:
-        engines_to_try = [('calamine', 'python-calamine'), ('openpyxl', 'openpyxl')]
-    for engine, module in engines_to_try:
+    for engine, modname in (('calamine', 'python_calamine'),
+                            ('pyxlsb', 'pyxlsb'),
+                            ('xlrd', 'xlrd'),
+                            ('openpyxl', 'openpyxl')):
         try:
-            __import__(module.split('-')[0] if '-' in module else module)
-            return engine
+            __import__(modname)
         except ImportError:
-            pass
-    # 降级: 尝试 pyxlsb
-    try:
-        import pyxlsb  # noqa: F401
-        return 'pyxlsb'
-    except ImportError:
-        pass
+            continue
+        if engine == 'pyxlsb' and ext != '.xlsb':
+            continue
+        if engine == 'xlrd' and ext != '.xls':
+            continue
+        if engine == 'openpyxl' and ext in ('.xls', '.xlsb'):
+            continue
+        return engine
     return None
 def _safe_read_excel(fp, sheet=None, nrows=None, header=0):
     """安全的Excel读取,自动选择可用引擎"""

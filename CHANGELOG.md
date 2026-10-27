@@ -23,7 +23,9 @@
 
 J1 和 J3 是一对：一个是判定错、一个是判定对了但后续处理按错的做。两者叠在一起，转置宽表在 Fusion 上完全无法导入。
 
-J4 是最有业务价值的一条：长表形的示数表（日期/时间/总电量三列）在实际电表导出里非常常见，而它在两版上都扫不出任何数据。
+| **J5** | Ultra + Fusion | **Excel 引擎选择的三重错**。① `_get_excel_engine` 用 `'python-calamine'.split('-')[0]` 取模块名得到 `'python'`，永远 import 失败——calamine 装了也不会被选中（实测：装了 python-calamine 仍返回 openpyxl）；② `.xlsb` 因 `startswith('.xls')` 被归到 openpyxl 分支，而 openpyxl 根本读不了 xlsb；③ 打包产物里既无 calamine 也无 pyxlsb，`.xlsb` 文件导入必然失败 | 改为显式（引擎, 模块名）表 + 扩展名约束；构建时显式打包 `python_calamine`（calamine 原生支持 xls/xlsx/xlsb/ods，且比 openpyxl 快数倍） |
+
+J5 是这一轮最隐的一款：它不报错、不崩溃，只是「装了也白装」。calamine 一直在依赖清单里，但从没被选中过一次。
 
 ### 验证
 

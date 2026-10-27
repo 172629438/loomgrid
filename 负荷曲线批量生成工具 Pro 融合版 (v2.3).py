@@ -1095,26 +1095,32 @@ def _detect_enc(fp,size=50000):
 
 # region Excel引擎兼容层 (v2.3fix)
 def _get_excel_engine(ext):
-    """返回可用的Excel读取引擎，按优先级：calamine > xlrd > openpyxl"""
-    if ext == '.xls':
-        engines_to_try = [
-            ('calamine', 'python-calamine'),
-            ('xlrd', 'xlrd'),
-        ]
-    else:
-        engines_to_try = [
-            ('calamine', 'python-calamine'),
-            ('openpyxl', 'openpyxl'),
-        ]
-    last_err = None
-    for engine, module in engines_to_try:
+    """返回可用的 Excel 读取引擎。
+
+    v2.3.4fix(J5): 原实现用 `'python-calamine'.split('-')[0]` 取模块名得到 'python'，
+    永远 import 失败——calamine 装了也不会被选中。且 .xlsb 会被归到 openpyxl 分支
+    （openpyxl 读不了 xlsb）。现改为显式（引擎, 模块名）表 + 扩展名约束。
+    """
+    if ext == '.csv':
+        return None
+    for engine, modname in (
+        ('calamine', 'python_calamine'),
+        ('pyxlsb', 'pyxlsb'),
+        ('xlrd', 'xlrd'),
+        ('openpyxl', 'openpyxl'),
+    ):
         try:
-            __import__(module.split('-')[0] if '-' in module else module)
-            return engine
-        except ImportError as e:
-            last_err = e
-    # 降级到默认引擎
-    log.warning(f"Excel引擎自动检测失败({last_err})，使用pandas默认引擎")
+            __import__(modname)
+        except ImportError:
+            continue
+        if engine == 'pyxlsb' and ext != '.xlsb':
+            continue
+        if engine == 'xlrd' and ext != '.xls':
+            continue
+        if engine == 'openpyxl' and ext in ('.xls', '.xlsb'):
+            continue
+        return engine
+    log.warning("Excel 引擎自动检测失败，使用 pandas 默认引擎")
     return None
 
 def _safe_read_excel(fp, sheet=None, nrows=None, header=0):
