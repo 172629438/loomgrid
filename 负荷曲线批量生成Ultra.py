@@ -29717,7 +29717,21 @@ def generate_html_report(monthly_data, economic_summary, diagnostic, output_path
     """生成专业 HTML 方案报告(含封面、负荷分析、储能方案、经济指标、风险分析).
     v3.2fix: 优先使用 jinja2 模板, 回退 f-string."""
     diag = diagnostic or {}
-    econ = economic_summary or {}
+    # v3.2.6fix(L1): 报告正文里有 10 处 {econ.get(k,0):,.0f} / {pv.get(k,0):,.0f}。
+    # 只要字段缺失或不是数值，格式符就抛 ValueError（Unknown format code 'f'
+    # for object of type 'str'），整个报告生成直接崩掉——而“某个指标没算出来”
+    # 恰恰是真实使用里最常见的情况。先统一预清洗成可格式化的数值。
+    econ = dict(economic_summary or {})
+    for _k in ('annual_charge_kwh', 'annual_discharge_kwh', 'npv', 'annual_benefit',
+               'annual_arbitrage', 'demand_saving', 'system_cost'):
+        _v = econ.get(_k)
+        if isinstance(_v, bool) or not isinstance(_v, (int, float)):
+            econ[_k] = 0.0
+    _dc = econ.get('daily_cycles')
+    if isinstance(_dc, bool) or not isinstance(_dc, (int, float)):
+        _ac = econ.get('annual_cycles')
+        _dc = (_ac / 365.0) if (isinstance(_ac, (int, float)) and not isinstance(_ac, bool)) else 0.0
+    econ['daily_cycles'] = float(_dc)
     sc = storage_config or {}
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
 
@@ -29802,7 +29816,12 @@ def generate_html_report(monthly_data, economic_summary, diagnostic, output_path
     # v2.17: 光伏配置章节
     pv_section = ''
     if pv_config:
-        pv = pv_config
+        # v3.2.6fix(L1): 同上，光伏字段缺失时 {:,.0f} 会抛
+        pv = dict(pv_config)
+        for _pk in ('annual_kwh', 'self_use_rate'):
+            _pv = pv.get(_pk)
+            if isinstance(_pv, bool) or not isinstance(_pv, (int, float)):
+                pv[_pk] = 0.0
         pv_section = f'''
 <h2>☀️ 光伏配置</h2>
 <table>

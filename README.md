@@ -115,7 +115,7 @@
 | 你的情况 | 用这个 |
 |---|---|
 | 明天要交方案，要稳 | **[Fusion v2.3.4](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.4)** |
-| 功能越多越好，愿意跟着踩坑 | **[Ultra v3.2.5](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.5)** |
+| 功能越多越好，愿意跟着踩坑 | **[Ultra v3.2.6](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.6)** |
 | 想读源码，10k 行比 35k 行好读 | **[Fusion v2.3.4](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.4)** |
 | 想研究三层叠加引擎的完整实现 | **[Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0)** |
 | 想看看真实项目的弯路长什么样 | **[Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0)** |
@@ -123,7 +123,7 @@
 
 两个现役版本不是「新旧」，是**两条路线**：
 
-| | **Fusion v2.3.4** | **Ultra v3.2.5** |
+| | **Fusion v2.3.4** | **Ultra v3.2.6** |
 |---|---|---|
 | 定位 | **生产推荐** | 测试版（功能最全） |
 | 代码量 | 10,421 行 | 35,932 行 |
@@ -137,7 +137,7 @@
 | 13 个动效组件 | — | ✓ |
 | 稳定性 | 高（跑得久） | 中（功能密度超过测试覆盖） |
 
-> **为什么稳定版推荐的是行数少的那个**：Ultra v3.2.5 在 2026-10 这一轮同时塞进了 MILP、四目标 Pareto、13 步诊断、13 个动效组件、三层引擎回填和 30 余条缺陷修复；v3.2.1 修了 4 条口径、v3.2.2 修了数据接入层的表格式误判（含一条自加入起就 100% 失败的结算功能）。能力上限更高，踩坑概率也更高。这不是设计错了，是还没打磨完。
+> **为什么稳定版推荐的是行数少的那个**：Ultra v3.2.6 在 2026-10 这一轮同时塞进了 MILP、四目标 Pareto、13 步诊断、13 个动效组件、三层引擎回填和 30 余条缺陷修复；v3.2.1 修了 4 条口径、v3.2.2 修了数据接入层的表格式误判（含一条自加入起就 100% 失败的结算功能）。能力上限更高，踩坑概率也更高。这不是设计错了，是还没打磨完。
 
 ---
 
@@ -154,7 +154,7 @@
 | 版本 | 适合 |
 |---|---|
 | [**Fusion v2.3.4**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.4) | **正式做方案**，稳定优先选它 |
-| [**Ultra v3.2.5**](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.5) | 功能最全，但在测试阶段，愿意一起踩坑就上 |
+| [**Ultra v3.2.6**](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.6) | 功能最全，但在测试阶段，愿意一起踩坑就上 |
 | [Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0) | Ultra 历史快照，含三层叠加引擎原文 |
 | [Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0) | 早期分支，含占位方法，**不要做正式方案** |
 | [Fusion v1.1 ~ v2.2](https://github.com/172629438/loomgrid/releases) | 考古、版本对比 |
@@ -556,7 +556,7 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 - **单文件 3.5 万行**，没有单元测试框架，验证靠脚本巡检（85 项回归 + 12 项算法手算对拍，见 [`tests/`](tests/) 与[缺陷修复报告](docs/缺陷修复报告.md)）。
 - **测算依赖输入质量**。工具不校验外部数据真实性，列映射选错会一路错到底。
 - **GUI 交互流程没有自动化回归测试**。核心算法有，界面点击路径靠人工。
-- **Ultra v3.2.5 处于测试阶段**。功能最全，但新增功能密集、动效组件多，稳定性不如 Fusion v2.3.4。正式交付优先用 Fusion。
+- **Ultra v3.2.6 处于测试阶段**。功能最全，但新增功能密集、动效组件多，稳定性不如 Fusion v2.3.4。正式交付优先用 Fusion。
 - **`legacy/` 里的历史版本仅供考古**，配置格式与现役版本不兼容，不建议使用。
 
 ---

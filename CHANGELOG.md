@@ -4,6 +4,44 @@
 
 ---
 
+## v3.2.6 — 2026-10-27（仅 Ultra，Fusion 无代码变更）
+
+**报告导出层测试。** 前面七轮测的都是「数据怎么进来、怎么算」。这一轮测**东西怎么出去**——用户最终交给客户的是那份报告，不是界面。
+
+新增 `tests/verify_report.py`：五组 **28 项**断言。
+
+### 修复
+
+| 编号 | 问题 | 修法 |
+|---|---|---|
+| **L1** | **任一经济指标缺失，整份 HTML 报告生成不出来**。正文里有 10 处 `{econ.get(k,0):,.0f}` / `{pv.get(k,0):,.0f}`，其中日均循环次数写成了 `econ.get('daily_cycles', econ.get('annual_cycles',0)/365 if econ.get('annual_cycles') else '-')`——两个键都没有时塞进去的是字符串 `'-'`，格式符 `:.1f` 立刻抛 `ValueError: Unknown format code 'f' for object of type 'str'`。而「某个指标没算出来」恰恰是真实使用里最常见的情况 | 函数开头统一预清洗：7 个数值字段（年充/放量、NPV、年收益、套利收益、需量节省、系统成本）缺失或非数值一律置 0；`daily_cycles` 缺失时由 `annual_cycles/365` 折算，再兜底 0。光伏章节的 `annual_kwh` / `self_use_rate` 同样处理 |
+
+### 五组断言
+
+| 组 | 覆盖 | 项数 |
+|---|---|---:|
+| A | HTML 报告结构：DOCTYPE、html/charset、关键章节、表格、样式 | 6 |
+| B | 数据注入：公司名、项目名、月份、峰值数字、IRR、天数 | 6 |
+| C | XSS 与缺失容错：脚本标签转义、属性注入、指标全缺、只缺循环次数、值为 None、空月数据、光伏缺字段 | 7 |
+| D | Excel 报告：方法存在、签名、表头模板、openpyxl 往返 | 4 |
+| E | 文件清单报告：生成、DOCTYPE、成功数、失败文件列出 | 4 |
+
+### XSS 转义已验证生效
+
+公司名传 `<script>alert(1)</script>`，产物里是 `&lt;script&gt;`，原样标签不出现。`v2.24` 加的转义是真在起作用。
+
+### 一个记录下来的事实
+
+`report_template.html` 从未进过仓库——`.gitignore` 里有 `*.html`，把它一起排掉了。所以 `generate_html_report` 里那条 jinja2 模板分支**永远走不到**，实际一直用 f-string 回退路径。
+
+不是 bug（输出是对的），但它意味着「模板可定制」这个设计意图目前是空的。要恢复，得在 `.gitignore` 里加 `!report_template.html` 并补上模板文件；本轮不动，先记下来。
+
+### Excel 报告测到哪一步
+
+`ProfessionalWindow._export_report_xlsx` 依赖主题字典（构造时读 `tk['BG_CARD']`）与完整的 config / settings / provider，脱 GUI 无法凭空构造——试了 `SimpleNamespace` 替身和自动补参两条路，都卡在 `KeyError: 'BG_CARD'`。
+
+所以 D 组退为契约级断言：方法存在、签名含 `path`、表头模板包含「月份 / 充电_ / 放电_」、openpyxl 写读往返无失真。这是测试能力的边界，不是漏测——写在这里，免得以后误以为它被覆盖了。
+
 ## v3.2.5 — 2026-10-27（仅 Ultra，Fusion 无代码变更）
 
 **测算链路测试。** 前面几套测到「宽表」为止：单点函数、文件→宽表、界面出图。这一套补最后一环——宽表怎么变成方案。
