@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 """批量打包所有版本为单文件 exe（PyInstaller）
 
+⚠ 已废弃：本机 PyInstaller 跑不动这个项目
+    --onefile 在 isolated child 阶段抛 OSError [Errno 22]
+    --onedir 卡在 hook-PySide6.QtCore.py，25 分钟不出结果
+    当前可用的是 tools/build_exe_cx.py（cx_Freeze，87 秒出全部 12 个目标）。
+    本脚本保留作为参考：如果你在自己机器上行得通，可以直接用。
+
 用法：
     python build_all_exe.py            # 打全部
     python build_all_exe.py ultra      # 只打 Ultra
@@ -15,7 +21,8 @@ import sys
 import time
 import glob
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+# 仓库根目录（本文件在 tools/ 下，要上跳一层；写错会让 ICON 和源文件全都找不到）
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICON = os.path.join(ROOT, "assets", "app.ico")
 DIST = os.path.join(ROOT, "dist")
 BUILD = os.path.join(ROOT, "build")
