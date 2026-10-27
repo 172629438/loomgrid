@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版 (智能增强版 v3.2)
+发布版本：LoomGrid Fusion v2.3.1（基于 v2.3，2026-10-27 修复充电空间口径与分段返回结构）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -2820,9 +2821,14 @@ def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A
             end_idx = np.searchsorted(hours, p['end'], side='left')
             if p['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
                 charge_mask[start_idx:end_idx] = True
-            else:
+            elif p['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
+                # v2.3.1fix: 原为 else，把平段（flat）也置成放电段，导致放电空间虚高。
+                # 与 Ultra 的 P-32 修复对齐。
                 discharge_mask[start_idx:end_idx] = True
-        charge = np.sum(np.maximum(cap - work_load, 0) * charge_mask * dt, axis=1) * CHARGING_EFFICIENCY
+        # v2.3.1fix(N3): 充电空间是「电网侧还能灌进去多少」，不再乘充电效率。
+        # 原实现乘 η 后与 compute_segmented_spaces（不乘）差 7.53%，且与
+        # calc_economic_summary 的口径注释（Mode A 充电已是电网侧，不除 η）矛盾。
+        charge = np.sum(np.maximum(cap - work_load, 0) * charge_mask * dt, axis=1)
         pos_load = np.maximum(work_load, 0)
         discharge = np.sum(np.minimum(pos_load, cap) * discharge_mask * dt, axis=1) * DISCHARGING_EFFICIENCY
 
@@ -3011,7 +3017,7 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
                         space += charge_space
                 else:
                     space += np.zeros(n_days)
-            else:
+            elif seg['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
                 pos_sub_load = np.maximum(sub_load, 0)
                 if mode == 'A':
                     if cap is None:
@@ -3030,13 +3036,28 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
                         space += discharge_space
                 else:
                     space += np.zeros(n_days)
+            else:
+                # v2.3.1fix: 原为 else，平段（flat）被当成放电段统计。
+                # 与 Ultra 的 P-32 修复对齐：平段既不属于充电也不属于放电。
+                space += np.zeros(n_days)
 
         space = np.nan_to_num(space, nan=0.0)
+        # v2.3.1fix(N4): 四个列表必须同长（segs 与 labels 一一对应），
+        # 原实现只向单侧追加，导致 charge/discharge 列表不等长，下游按索引取值错位。
         if seg['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
             charge_segments.append(space)
             charge_labels.append(seg['label'])
-        else:
+            discharge_segments.append(np.zeros(n_days))
+            discharge_labels.append(seg['label'])
+        elif seg['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
             discharge_segments.append(space)
+            discharge_labels.append(seg['label'])
+            charge_segments.append(np.zeros(n_days))
+            charge_labels.append(seg['label'])
+        else:
+            charge_segments.append(np.zeros(n_days))
+            discharge_segments.append(np.zeros(n_days))
+            charge_labels.append(seg['label'])
             discharge_labels.append(seg['label'])
 
     return charge_segments, discharge_segments, charge_labels, discharge_labels
