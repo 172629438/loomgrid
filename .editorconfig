@@ -1,0 +1,28 @@
+root = true
+
+# 通用：UTF-8 + LF + 末尾换行 + 去尾空格
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.py]
+indent_size = 4
+max_line_length = 120
+
+# Markdown 里的行尾双空格是换行语法，不能去
+[*.md]
+trim_trailing_whitespace = false
+indent_size = 2
+
+[*.{json,yml,yaml,toml}]
+indent_size = 2
+
+[*.{html,css,js}]
+indent_size = 2
+
+# Windows 批处理必须 CRLF，否则某些命令会出错
+[*.{bat,cmd}]
+end_of_line = crlf
