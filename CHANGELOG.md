@@ -4,6 +4,67 @@
 
 ---
 
+## v3.2.8 — 2026-10-28（仅 Ultra，Fusion 无代码变更）
+
+**Release 上的 exe 从 v3.2.0 起就打不开。这轮把它修好了。**
+
+双击即退，退出码 `0xC0000005`，无窗口、无日志、无任何输出。两层根因：
+
+### 第一层：cx_Freeze 把 ImportError 吞成访问冲突
+
+```
+_setup_font()  →  import matplotlib.pyplot
+               →  rcsetup → _fontconfig_pattern
+               →  pyparsing → pyparsing/testing.py
+               →  import unittest
+               →  ModuleNotFoundError
+```
+
+打包脚本的 `EXCLUDES` 从 v3.2.x 起就排了 `unittest`（当「测试用的」省体积）。而 `cx_Freeze` 的 `base="gui"` 把这个 ImportError 吞成了 `0xC0000005` —— **错误信息从未输出过**，这是为什么前十个排查方向（zip 损坏、200 DLL 缺失、OpenGL 设置、RecursionError…）全都摸不到边。
+
+定位方式：**换 PyInstaller 打 console 版**，traceback 直接打出来了。
+
+### 第二层：windowed 下 `sys.stderr` 是 `None`
+
+模块级那行：
+
+```python
+log.add(sys.stderr, colorize=True, format=..., level="INFO")
+```
+
+无控制台打包后 `sys.stderr` 为 `None`，loguru 直接抛 `TypeError: Cannot log to objects of type 'NoneType'`。这也是 console 版能跑、`--windowed` 版不能的原因：同一份代码，只差 `sys.stderr` 有没有值。
+
+### 修复
+
+| 位置 | 修法 |
+|---|---|
+| `_setup_font()` | 包 `try/except`：一个可选的字体注入不该能让整个程序起不来，失败时写 stderr 提示并继续启动 |
+| loguru 挂 sink | `if sys.stderr is not None:` 再挂；标准 logging 分支同样判空 |
+
+### 验证
+
+两处修完重打 `--windowed`，实测启动成功：
+
+```
+MainWindowTitle = 🏭 负荷曲线批量生成工具 Ultra
+内存 319.3 MB，界面完整渲染，日志区显示「程序启动,等待操作...」
+```
+
+**这是 LoomGrid 第一个能双击打开的 Ultra 包。**
+
+### 顺带发现
+
+`main()` 里 `QT_OPENGL=angle` 在 Qt 6 已废弃，日志有两条警告（无害，待清理）：
+
+```
+QT_OPENGL=angle is no longer supported in Qt 6
+qt.qpa.gl: Invalid value set for QT_OPENGL: "angle"
+```
+
+### 教训
+
+「资产 sha256 与 Release 记录一致」不等于「包可用」——它只证明上传没坏。八轮测试一次没碰过打包产物，这个坑就藏了一整个开发周期。以后打包脚本末尾必须跑一次「真启动 + 检查进程存活 + 读日志」的冒烟闸门。
+
 ## v3.2.7 — 2026-10-27（仅 Ultra，Fusion 无代码变更）
 
 **两个静默错配 + 界面实拍。** 这轮报的问题都属于同一类：界面看着不对，但没有任何报错。
