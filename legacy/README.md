@@ -19,7 +19,7 @@
 | `LoomGrid-Fusion-v2.2.py` | v2.2 | 428 KB | 2026-05 |
 | `LoomGrid-Fusion-v2.3.py` | v2.3 | 457 KB | 2026-05 |
 
-> v2.3 同时存在于仓库根目录（`负荷曲线批量生成工具 Pro 融合版 (v2.3).py`），这里保留一份是为了版本线完整。
+> **v2.3 有两份，内容不完全相同**：仓库根目录的 `负荷曲线批量生成工具 Pro 融合版 (v2.3).py` 是现役维护版；这里的 `LoomGrid-Fusion-v2.3.py` 是另一个分支快照——它多一块 Windows 提交内存探测（`_get_commit_free_gb`，用于避免 `BrokenProcessPool`），但缺根目录版后来加的 SOC/DOD 常量收敛。两份各自都有一段别人没有的东西，不要当成同一份文件。
 
 ---
 
