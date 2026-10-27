@@ -1,23 +1,34 @@
 <div align="center">
 
-![License](https://img.shields.io/badge/license-MIT-4fd1c5?style=flat-square)
-![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
-![PySide6](https://img.shields.io/badge/PySide6-6.5%2B-41CD52?style=flat-square&logo=qt&logoColor=white)
-![Code](https://img.shields.io/badge/code-35.8k_lines-8b5cf6?style=flat-square)
-![Status](https://img.shields.io/badge/status-active-22c55e?style=flat-square)
+<img src="assets/app.png" width="88" alt="LoomGrid">
 
 # LoomGrid
 
 **工商业储能测算工作台**
-*C&I Energy Storage Sizing Studio*
+<sub><i>C&I Energy Storage Sizing Studio</i></sub>
 
-把一条负荷曲线，织成一份可交付的储能方案。
+<sub>把一条负荷曲线，织成一份可交付的储能方案</sub>
 
-[快速开始](#快速开始) · [核心算法](#核心算法) · [版本说明](#版本说明) · [已知边界](#已知边界) · [参与贡献](CONTRIBUTING.md)
+<br>
+
+[![License](https://img.shields.io/badge/license-MIT-4fd1c5?style=flat-square)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![PySide6](https://img.shields.io/badge/PySide6-6.5%2B-41CD52?style=flat-square&logo=qt&logoColor=white)](https://www.qt.io/qt-for-python)
+![Code](https://img.shields.io/badge/code-89k_lines-8b5cf6?style=flat-square)
+![Algorithms](https://img.shields.io/badge/algorithms-7_modules-f59e0b?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-97_assertions-22c55e?style=flat-square)
+[![Release](https://img.shields.io/github/v/release/172629438/loomgrid?style=flat-square&color=0ea5e9&label=release)](https://github.com/172629438/loomgrid/releases)
+[![Last commit](https://img.shields.io/github/last-commit/172629438/loomgrid?style=flat-square&color=64748b)](https://github.com/172629438/loomgrid/commits)
+
+<br>
+
+**[快速开始](#快速开始)** · **[该用哪个版本](#该用哪个版本)** · **[核心算法](#核心算法)** · **[怎么保证算得对](#怎么保证算得对)** · **[文档](#文档)** · **[参与贡献](CONTRIBUTING.md)**
 
 </div>
 
 ![LoomGrid — 负荷曲线 × 电价分层 × 储能充放](assets/hero.png)
+
+<div align="center"><sub>负荷曲线 × 峰平谷电价分层 × 储能充放区间 —— 一张图说清这个工具在算什么</sub></div>
 
 <div align="center">
 <table>
@@ -38,6 +49,32 @@
 
 ---
 
+<details>
+<summary><b>目录（点开）</b></summary>
+
+- [这是什么](#这是什么)
+- [该用哪个版本](#该用哪个版本)
+- [快速开始](#快速开始)
+- [核心算法](#核心算法)
+- [核心能力](#核心能力)
+- [视觉与动效](#视觉与动效)
+- [版本说明](#版本说明)
+- [写给同行的话](#写给同行的话)
+- [架构与设计](#架构与设计)
+- [技术栈与环境](#技术栈与环境)
+- [已知边界](#已知边界)
+- [怎么保证算得对](#怎么保证算得对)
+- [文档](#文档)
+- [接下来](#接下来)
+- [常见问题](#常见问题)
+- [参与贡献](#参与贡献)
+- [致谢](#致谢)
+- [许可](#许可)
+
+</details>
+
+---
+
 ## 这是什么
 
 > 一个储能工程师，为解放自己的重复劳动写出来的桌面工具。读进客户的用电曲线和当地分时电价，算清楚「装多大、怎么充放、能省多少、几年回本」。
@@ -55,6 +92,52 @@
 | 想验证自己的经济模型 | `finance.py`：NPV / IRR / 回收期 / LCOE，IRR 有二分法兜底 |
 | 需要一条像样的曲线做测试 | `loadgen.py`：25 行业 × 省份基线 × 设备 Markov × 噪声平滑 |
 
+### 和手工做方案比，差在哪
+
+| 环节 | 手工 | 用这个 |
+|---|---|---|
+| 拉 8760 行负荷、拆日期时间 | Excel 公式 + 手工拖 | 拖进去自动识别列 |
+| 按省份拆峰平谷时段 | 查政策、手填时段表 | 选省份自动加载 104 条已整理的电价 |
+| 算充放空间 | 逐时段列公式，或凭经验拍 | 逐日 / 分段两种口径自动算 |
+| 试不同容量 | 改一个参数重算一遍 | 敏感性表一次出 6 个容量点 |
+| 出图 | 手调坐标轴、配色 | 深浅双主题批量出图 |
+| 结果对不对 | 靠经验 | 12 项手算对拍 + 85 项回归 |
+
+**它不替你做判断。** 峰谷价差取多少、循环按几次、需量按哪个口径——这些还得你自己定。工具的价值是把搬运那七成省下来，让你有时间想这三成。
+
+---
+
+## 该用哪个版本
+
+**30 秒选完**：
+
+| 你的情况 | 用这个 |
+|---|---|
+| 明天要交方案，要稳 | **[Fusion v2.3](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.0)** |
+| 功能越多越好，愿意跟着踩坑 | **[Ultra v3.2](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.0)** |
+| 想读源码，10k 行比 35k 行好读 | **[Fusion v2.3](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.0)** |
+| 想研究三层叠加引擎的完整实现 | **[Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0)** |
+| 想看看真实项目的弯路长什么样 | **[Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0)** |
+| 想看某个功能最早怎么写的 | **[Fusion v1.1 ~ v2.2](https://github.com/172629438/loomgrid/releases)** |
+
+两个现役版本不是「新旧」，是**两条路线**：
+
+| | **Fusion v2.3** | **Ultra v3.2** |
+|---|---|---|
+| 定位 | **生产推荐** | 测试版（功能最全） |
+| 代码量 | 10,421 行 | 35,932 行 |
+| 架构 | 另写一遍，流式处理 | 单文件全功能 |
+| 吞吐 | Ultra 的三成 | 基准 |
+| 内存占用 | 低 | 高 |
+| MILP 全局规划 | — | ✓ |
+| 四目标 Pareto | — | ✓ |
+| 13 步综合诊断 | — | ✓ |
+| 三层叠加负荷引擎 | 简化版 | 完整 |
+| 13 个动效组件 | — | ✓ |
+| 稳定性 | 高（跑得久） | 中（功能密度超过测试覆盖） |
+
+> **为什么稳定版推荐的是旧版本**：Ultra v3.2 在 2026-10 这一轮同时塞进了 MILP、四目标 Pareto、13 步诊断、13 个动效组件、三层引擎回填和 31 条缺陷修复。能力上限更高，踩坑概率也更高。这不是设计错了，是还没打磨完。
+
 ---
 
 ## 快速开始
@@ -65,19 +148,17 @@
 
 **① 直接用（不装环境）**
 
-到 [Releases](https://github.com/172629438/loomgrid/releases) 下载 **`LoomGrid-Suite-win64.zip`**（171 MB），解压双击。
+到 [Releases](https://github.com/172629438/loomgrid/releases) 选你要的版本——**每个版本一个独立压缩包**，各 163.6 MB，解压后 366 MB，自带完整运行时，不需装 Python。
 
-包里含 **11 个版本**，共用一套运行时（解压后 452 MB）：
-
-| 可执行文件 | 适合 |
+| 版本 | 适合 |
 |---|---|
-| `LoomGrid-Fusion-v2.3.exe` | **正式做方案**，稳定优先选它 |
-| `LoomGrid-Ultra-v3.2.exe` | 功能最全，但在测试阶段，愿意一起踩坑就上 |
-| `LoomGrid-Backup-v2.29.exe` | Ultra 历史快照，含三层叠加引擎原文 |
-| `LoomGrid-Reference-v2.29.exe` | 早期分支，含占位方法，**不要做正式方案** |
-| `LoomGrid-Fusion-v1.1` ~ `v2.2` | 考古、版本对比 |
+| [**Fusion v2.3**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.0) | **正式做方案**，稳定优先选它 |
+| [**Ultra v3.2**](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.0) | 功能最全，但在测试阶段，愿意一起踩坑就上 |
+| [Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0) | Ultra 历史快照，含三层叠加引擎原文 |
+| [Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0) | 早期分支，含占位方法，**不要做正式方案** |
+| [Fusion v1.1 ~ v2.2](https://github.com/172629438/loomgrid/releases) | 考古、版本对比 |
 
-不需要装 Python。`lib\` 目录必须和 exe 保持同级，不要单独移走 exe。
+`lib\` 目录必须和 exe 保持同级，不要单独把 exe 拎出来。
 
 </td>
 <td width="50%" valign="top">
@@ -112,20 +193,23 @@ python examples/quickstart.py
 
 | 模块 | 内容 | 行数 |
 |---|---:|---:|
-| [`periods.py`](algorithms/periods.py) | 电价时段归一化、类型词表映射、分段合并、价格序列 | 283 |
-| [`spaces.py`](algorithms/spaces.py) | 充放电空间（逐日 / 分段两种口径） | 618 |
-| [`dispatch.py`](algorithms/dispatch.py) | 贪心 / 逐日仿真 / 线性规划三种调度 | 730 |
-| [`milp.py`](algorithms/milp.py) | MILP 容量规划（多设备选型 + 更换周期 + 需量电费） | 410 |
-| [`finance.py`](algorithms/finance.py) | NPV / IRR / 回收期 / LCOE | 212 |
-| [`loadgen.py`](algorithms/loadgen.py) | 三层叠加负荷生成引擎 | 262 |
+| [`periods.py`](algorithms/periods.py) | 电价时段归一化、类型词表映射、分段合并、价格序列 | 284 |
+| [`spaces.py`](algorithms/spaces.py) | 充放电空间（逐日 / 分段两种口径） | 628 |
+| [`dispatch.py`](algorithms/dispatch.py) | 贪心 / 逐日仿真 / 线性规划三种调度 | 736 |
+| [`milp.py`](algorithms/milp.py) | MILP 容量规划（多设备选型 + 更换周期 + 需量电费） | 411 |
+| [`finance.py`](algorithms/finance.py) | NPV / IRR / 回收期 / LCOE | 213 |
+| [`loadgen.py`](algorithms/loadgen.py) | 三层叠加负荷生成引擎 | 263 |
 | [`diagnostics.py`](algorithms/diagnostics.py) | 负荷指纹分析与行业匹配 | 561 |
+| [`demo.py`](algorithms/demo.py) | 不看源码先看效果：七个模块各调用一遍 | — |
+
+想直接看效果：`cd algorithms && python demo.py`。用现场构造的数据把七个模块跑一遍，不需要准备任何外部文件。
 
 `examples/quickstart.py` 会算出一条漂亮的结论——**容量不是越大越好**：
 
 | 容量 | 回收期 | |
 |---:|---:|---|
-| 500 kWh | 3.7 年 | |
-| 800 kWh | 3.7 年 | ← 最优 |
+| 500 kWh | 3.7 年 | 日循环上限 726 kWh 用不满 |
+| 800 kWh | 3.7 年 | ← 最优：回收期相同，但 NPV 比 500 kWh 高 60% |
 | 1000 kWh | 5.0 年 | 超过日循环上限 726 kWh |
 | 1500 kWh | 9.3 年 | |
 | 2000 kWh | 16.5 年 | |
@@ -279,9 +363,9 @@ python examples/quickstart.py
 <details>
 <summary><b>点开看：这个项目是怎么写出来的（DeepSeek 与 Hana Agent）</b></summary>
 
-**第一阶段：DeepSeek 网页版（2026-05 ~ 2026-09）**
+**第一阶段：D 老师（DeepSeek 网页版免费对话），2026-05 ~ 2026-09**
 
-用免费网页对话，一段段贴需求、贴报错、贴代码回来改。`legacy/` 里 v1.1 到 v2.3 那八个版本，基本就是这么聊出来的。
+最早就是我和 D 老师两个人，我提需求、他写代码，一段段贴过去、贴回来。`legacy/` 里 v1.1 到 v2.3 那八个版本，基本就是这么聊出来的。
 
 天花板很明确：**上下文窗口**。单文件涨到一万行之后，每次对话都要重新贴大段代码，聊到后面模型记不住前面的约定，改 A 处崩 B 处。
 
@@ -335,10 +419,39 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 
 ---
 
+## 技术栈与环境
+
+| 层 | 用什么 | 版本要求 |
+|---|---|---|
+| 语言 | Python | 3.10+（开发用 3.12 / 3.14） |
+| GUI | PySide6（Qt 6） | 6.5+ |
+| 数值 | numpy / pandas / scipy | — |
+| 绘图 | matplotlib | 3.7+ |
+| Excel | openpyxl | — |
+| 优化求解 | OR-Tools | 可选，缺了自动降级到快速排序法 |
+| 打包 | cx_Freeze | 只在需要重新出 exe 时用 |
+
+**不装 Python 也能用**：Releases 里的包自带完整运行时（Python + 全部依赖，解压后 366 MB），解压即用。
+
+**只想跑算法部分**：numpy / pandas / scipy 三个就够，不用装 Qt。`examples/quickstart.py` 和 `algorithms/demo.py` 都只需要这三个。
+
+### 项目规模
+
+<div align="center">
+
+| 现役代码 | 算法模块 | 历史快照 | 已修缺陷 | 验证断言 |
+|:---:|:---:|:---:|:---:|:---:|
+| **89,363** 行 | **7** 个 | **8** 个 | **31** 条 | **97** 项 |
+| Ultra 35,932 / Backup 32,216<br>Reference 31,794 / Fusion 10,421 | 3,096 行<br>均不依赖 GUI | v1.1 ~ v2.3<br>仅做考古 | 致命 5 / 高危 9<br>中危 11 / 低危 6 | 12 项手算对拍<br>85 项回归 |
+
+</div>
+
+---
+
 ## 已知边界
 
 - **`参考程序.py` 里有一批未实现的占位方法**。例如月度结算里的 `有储能电费 = 无储能电费 × 0.85`、快速测算里的 `投资 = 容量 × 750`。这些常数是当年为了先跑通界面拍的，不是测算结果。Ultra 里未采纳这些方法。
-- **单文件 3.5 万行**，没有单元测试框架，验证靠脚本巡检（85 项断言，见[缺陷修复报告](docs/缺陷修复报告.md)）。
+- **单文件 3.5 万行**，没有单元测试框架，验证靠脚本巡检（85 项回归 + 12 项算法手算对拍，见 [`tests/`](tests/) 与[缺陷修复报告](docs/缺陷修复报告.md)）。
 - **测算依赖输入质量**。工具不校验外部数据真实性，列映射选错会一路错到底。
 - **GUI 交互流程没有自动化回归测试**。核心算法有，界面点击路径靠人工。
 - **Ultra v3.2 处于测试阶段**。功能最全，但新增功能密集、动效组件多，稳定性不如 Fusion v2.3。正式交付优先用 Fusion。
@@ -346,14 +459,55 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 
 ---
 
+## 怎么保证算得对
+
+工具类软件最怕的不是功能少，是**算错了还看起来像对的**。这个项目用三层办法防这件事。
+
+### 一、能手算的，必须对得上
+
+[`tests/verify_algorithms_math.py`](tests/verify_algorithms_math.py) 用**可以手算的样例**逐个对拍，共 12 项：
+
+| 项目 | 手算期望 | 工具实得 |
+|---|---:|---:|
+| NPV：20 万 × 10 年 @ 8% | 1,342,016.28 | 1,342,016.28 |
+| 扣 100 万投资后的 NPV | 342,016.28 | 342,016.28 |
+| 静态回收期：100 万 / 20 万 | 5.00 年 | 5.00 年 |
+| IRR（无衰减） | 15.0984% | 15.0984% |
+| 充电空间（平坦 500 kW / 变压器 800 kVA） | 3000 kWh | 3000 kWh |
+| 放电空间（峰段 5 h） | 2325 kWh | 2325 kWh |
+| 负荷超变压器时的充电空间 | 0 | 0 |
+| 24 小时价格序列逐点核对 | 谷/平/峰分段 | 逐点一致 |
+| 跨午夜 22:00→6:00 拆分 | 8 小时 | 8 小时 |
+| 两条空间计算路径一致性 | 相同 | 相同 |
+| 无价差时 LP 收益 | 0 | 0 |
+| 有价差时 LP 收益 | ≤ 384.75 | 370.89 |
+
+跑法：
+
+```bash
+python tests/verify_algorithms_math.py
+```
+
+这张表本身也抓过虫。写它的时候我把期望值算错了三次（忘了 IRR 默认带 2% 衰减、Series 用日期做索引、初始 SOC 里那 250 kWh 是免费能量），每次都是我的测试错、程序对。**所以它不只是验程序，也在验写测试的人。**
+
+### 二、改过的地方，必须有回归
+
+`tests/` 下另有 5 套回归脚本，覆盖历次修复的 31 条缺陷，共 85 项断言。每改一处测算相关代码就跑一遍，改坏了当场红。
+
+### 三、算不出来的，如实写出来
+
+[`docs/缺陷修复报告.md`](docs/缺陷修复报告.md) 里单列了一节「未验证的部分」：GUI 点击路径、模态对话框、非 Windows 平台。**没验的就是没验，不假装验过。**
+
+---
+
 ## 文档
 
 | 文档 | 内容 |
 |---|---|
-| [`docs/深度理解报告.md`](docs/深度理解报告.md) | 七层架构、端到端调用链、充放电空间的物理定义、28 条风险清单 |
+| [`docs/深度理解报告.md`](docs/深度理解报告.md) | 七层架构、端到端调用链、充放电空间的物理定义、31 条风险清单 |
 | [`algorithms/README.md`](algorithms/README.md) | 七个算法模块的原理、公式、参数含义与踩过的坑 |
 | [`docs/版本演进.md`](docs/版本演进.md) | 四版本差异、特性迁移史、三次特性丢失与回填记录 |
-| [`docs/缺陷修复报告.md`](docs/缺陷修复报告.md) | 31 条缺陷的定位、修法与验证证据（85 项断言） |
+| [`docs/缺陷修复报告.md`](docs/缺陷修复报告.md) | 31 条缺陷的定位、修法与验证证据（97 项断言） |
 
 ---
 
@@ -363,13 +517,13 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 
 ### 已经在做
 
-- **电价政策库持续校准** —— 32 个省份的分时时段是从公开政策整理的，政策一调就得跟。这块永远需要人
+- **电价政策库持续校准** —— 31 个省级行政区、共 104 条省市电价时段是从公开政策整理的，政策一调就得跟。这块永远需要人
 - **算法交叉验证** —— 用独立工具跑同一组数据，比对结果差异
 - **边界场景覆盖** —— 脏数据、乱列名、跨年、多资产、光伏倒送
 
 ### 打算做
 
-- **GUI 路径的自动化回归** —— 现在核心算法有 85 项断言兜底，界面点击路径全靠人工。想用 pytest-qt 把主流程串起来，但模态对话框是硬骨头
+- **GUI 路径的自动化回归** —— 现在核心算法有 97 项断言兜底，界面点击路径全靠人工。想用 pytest-qt 把主流程串起来，但模态对话框是硬骨头
 - **单文件的渐进拆分** —— `algorithms/` 是第一步。下一步想把数据加载层和配置层也独立出去，GUI 和业务编排最后再动
 - **行业参数库改成数据文件** —— 25 个行业的负荷特征现在写在代码里，挪成 YAML 之后，懂行业的人不用会 Python 也能贡献
 
@@ -388,7 +542,7 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 
 **为什么 exe 有 164 MB？**
 
-Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，压缩前 452 MB。这是 Python 打包程序的固有成本，不是塞了多余东西。11 个版本共用同一套运行时，所以加起来才 1.76 GB 而不是 4.9 GB。
+Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，解压后 366 MB。这是 Python 打包程序的固有成本，不是塞了多余东西。11 个版本共用同一套运行时，所以加起来才 1.76 GB 而不是 4.9 GB。
 
 **为什么 SOC 下限定在 5%，不是 0% 或 10%？**
 
@@ -397,6 +551,22 @@ Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，压缩�
 **支持 Mac / Linux 吗？**
 
 源代码可以跑——PySide6 本身就是跨平台的。但没有打包，也没在非 Windows 环境实测过。想用的话自己 `pip install` 后运行，遇到问题提 Issue。
+
+**exe 被杀毒软件报了，怎么办？**
+
+打包的 Python 程序没有代码签名，国内杀软经常误报（尤其是对 `python3xx.dll` 的启发式规则）。加白名单即可。文件本身没有任何联网代码，源码就在仓库里，可以自己核对。
+
+**启动要好几秒，正常吗？**
+
+正常。首次启动要把 Python 运行时和依赖加载进内存，3–8 秒。如果超过 30 秒还没反应，大概率是杀软在扫 `lib\` 里的三千多个文件。
+
+**界面中文显示成方框，或者导出的 CSV 乱码？**
+
+两种不同的原因：界面方框是系统缺中文字体（装「微软雅黑」即可）；CSV 乱码是 Excel 默认用 GBK 打开 UTF-8 文件，导入时手动选 UTF-8。
+
+**双击 exe 提示找不到模块？**
+
+`lib\` 目录必须和 exe 在同一层。只把 exe 复制到别处是跑不起来的。
 
 **程序会把我的数据传出去吗？**
 
@@ -418,7 +588,7 @@ Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，压缩�
 
 我最想要的三类帮助：
 
-1. **电价政策的准确性** —— 32 个省份的分时时段是从公开政策整理的，但政策会调整。发现某省时段过时了，告诉我。
+1. **电价政策的准确性** —— 31 个省级行政区、共 104 条省市电价时段是从公开政策整理的，但政策会调整。发现某省时段过时了，告诉我。
 2. **算法的交叉验证** —— 如果你有独立的测算工具，跑同一组数据对一下结果，差异就是线索。
 3. **真实场景的边界情况** —— 数据脏、列名乱、跨年、多资产、光伏倒送，这些真实世界的坑比算法本身更需要覆盖。
 
