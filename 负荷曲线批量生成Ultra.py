@@ -5,7 +5,7 @@
 # ========================================================================
 from __future__ import annotations
 
-ULTRA_VERSION = "3.2.1"            # v3.2.1: 修复结算明细死功能 / LP 放电收益口径 / 快算充电口径 / 分段返回结构
+ULTRA_VERSION = "3.2.2"            # v3.2.2: 修多值列长表误判为转置宽表（数据接入层）
 ULTRA_BUILD_DATE = "2026-10-27"    # 构建日期
 
 # v2.29: 内置用户手册(按F1或菜单→帮助→用户手册查看)
@@ -6787,6 +6787,15 @@ def _detect_transposed_wide(df: 'pd.DataFrame', cols, max_sample=100):
                 except Exception:
                     pass
                 top_vals = sample[c].dropna().head(5)
+                # v3.2.2fix(N6): 数值列不当日期列。
+                # 原逻辑直接对列内容跑 _extract_ym，而 pd.to_datetime(512.3) 会把数值
+                # 按纳秒解释成 1970-01-01，导致负荷列被认成日期列（≥2 列就触发），
+                # 「日期+时间+功率+无功+电流」这种多值列长表被整表误判成转置宽表。
+                try:
+                    if _get_pd().api.types.is_numeric_dtype(top_vals):
+                        continue
+                except Exception:
+                    pass
                 if top_vals.apply(_extract_ym).notna().any():
                     date_cols.append(c)
             if len(date_cols) >= 2:
@@ -6944,14 +6953,21 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
         if any(k in cl for k in asset_kw):
             result.setdefault('asset_col', c)
         # 负荷列: 强匹配优先,排除累计示数列干扰
+        # v3.2.2fix(N6): 「正向有功功率」同时命中 load_kw_strong 与 accumulated_kw（'正向有功'），
+        # 原逻辑直接把它踢出负荷列 → 最常见的电表列名丢失，整表进一步被判成累计示数或转置宽表。
+        # 以主体词定夺：含「功率」且不含「电量/电能/kwh」的，按功率处理。
+        _is_power_word = ('功率' in cl) or ('kw' in cl and 'kwh' not in cl)
+        _is_energy_word = any(k in cl for k in ('电量', '电能', 'kwh', 'mwh', '示数', '电度', '读数', '示值'))
         if any(k in cl for k in load_kw_strong):
-            if not any(k in cl for k in accumulated_kw):
+            if _is_power_word and not _is_energy_word:
+                result.setdefault('load_col', c)
+            elif not any(k in cl for k in accumulated_kw):
                 result.setdefault('load_col', c)
         elif any(k in cl for k in load_kw_weak) and not result.get('load_col'):
             if not any(k in cl for k in accumulated_kw):
                 result.setdefault('load_col_fallback', c)
         # 累计示数列
-        if any(k in cl for k in accumulated_kw):
+        if any(k in cl for k in accumulated_kw) and not (_is_power_word and not _is_energy_word):
             result.setdefault('accumulated_hint', True)
 
     # 回退: 如果强匹配没命中,使用弱匹配候补
@@ -7024,15 +7040,18 @@ def _smart_classify_columns_basic(cols, sample_df=None, max_sample=100):
 
     for c in cols:
         cl = c.lower()
+        # v3.2.2fix(N6): 同 professional 版——「正向有功功率」不该被 '正向' 这类累计词踢出负荷列。
+        _is_power_word = ('功率' in cl) or ('kw' in cl and 'kwh' not in cl)
+        _is_energy_word = any(k in cl for k in ('电量', '电能', 'kwh', 'mwh', '示数', '电度', '读数', '示值'))
         if any(k in cl for k in date_kw):
             result.setdefault('date_col', c)
         if any(k in cl for k in time_kw):
             result.setdefault('time_col', c)
         if any(k in cl for k in asset_kw):
             result.setdefault('asset_col', c)
-        if any(k in cl for k in load_kw) and not any(k in cl for k in accumulated_kw):
+        if any(k in cl for k in load_kw) and not (_is_energy_word and not _is_power_word):
             result.setdefault('load_col', c)
-        if any(k in cl for k in accumulated_kw):
+        if any(k in cl for k in accumulated_kw) and not (_is_power_word and not _is_energy_word):
             result.setdefault('accumulated_hint', True)
 
     if sample_df is not None and not sample_df.empty:
@@ -33981,8 +34000,8 @@ def optimal_dispatch_lp(load_kw, buy_price, sell_price, batt_kwh=500, Pmax=250,
     c = np.zeros(n_vars)
     for t in range(T):
         c[t] = buy_price[t] * dt        # ch成本
-        _benefit = max(float(buy_price[t]), float(sell_price[t]))
-        c[T+t] = -_benefit * dt         # dis收益(负=最大化)
+        benefit = max(float(buy_price[t]), float(sell_price[t]))
+        c[T+t] = -benefit * dt          # dis收益(负=最大化)
     if n_demand:
         c[-1] = demand_rate  # 需量成本
 
