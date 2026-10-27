@@ -5,7 +5,7 @@
 # ========================================================================
 from __future__ import annotations
 
-ULTRA_VERSION = "3.2.3"            # v3.2.3: 数据接入层打磨——列分类强/弱信号分层、8 位日期、日重置示数表跨天回落、单日表可转换
+ULTRA_VERSION = "3.2.4"            # v3.2.4: 端到端测试——转置宽表判定优先级、总电量列入 load_col、累示表长表形分支
 ULTRA_BUILD_DATE = "2026-10-27"    # 构建日期
 
 # v2.29: 内置用户手册(按F1或菜单→帮助→用户手册查看)
@@ -6928,6 +6928,20 @@ def _classify_check_accumulated(sample_df, wload, result, detector_fn, cols, max
     detector_fn: _detect_accumulated_pattern 或 basic 版本."""
     if sample_df is None or sample_df.empty:
         return False
+    # v3.2.4fix(J1): 先判转置宽表。
+    # _detect_wide_matrix 里有一条「纯数字缓慢递增列当作时刻列」的兜底（v2.27），
+    # 它会把转置表的日期列（值 500,501,502… 严格递增）误当作时刻列，
+    # 于是同一张表既命中 wide 又命中 wide_transposed。转置表的特征（时刻在首列、
+    # 日期在列名）更具体，优先于宽表判定。
+    trans = _detect_transposed_wide(sample_df, cols, max_sample)
+    if trans:
+        result['date_col'] = trans['date_cols'][0]
+        result['load_col'] = trans['date_cols']
+        result['format_type'] = 'wide_transposed'
+        result['transpose'] = True
+        result['time_col'] = trans['time_col']
+        result['date_cols_full'] = trans['date_cols']
+        return True
     wdate, wload_detected = _detect_wide_matrix(sample_df, cols, max_sample)
     if not (wdate and wload_detected):
         return False
@@ -6971,7 +6985,8 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
     # v2.28: 扩展累计示数关键词—增加反向有功/正向有功总/反向有功总
     accumulated_kw = ['示数', '正向有功', '正向有功总', '反向有功', '反向有功总',
                       '有功电能', '总电能', '电能', '累积', '累计', 'kwh', 'mwh',
-                      '读数', 'read', '示值', '电度', '正向总', '反向总', '组合有功']
+                      '读数', 'read', '示值', '电度', '正向总', '反向总', '组合有功',
+                      '总电量', '电量']
 
     for c in cols:
         cl = c.lower().replace(' ', '').replace('_', '').replace('-', '')
@@ -7013,6 +7028,9 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
         # 累计示数列
         if any(k in cl for k in accumulated_kw) and not (_is_power_word and not _is_energy_word):
             result.setdefault('accumulated_hint', True)
+            # v3.2.4fix(J2): 记下第一个累计类列。「总电量」这类不含「功率」的列
+            # 原本拿不到 load_col，扫描阶段报「未找到列 load_col」。
+            result.setdefault('accumulated_col', c)
 
     # 回退: 如果强匹配没命中,使用弱匹配候补
     if not result.get('date_col') and result.get('date_col_fallback'):
@@ -7021,6 +7039,9 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
         result['time_col'] = result.pop('time_col_fallback')
     if not result.get('load_col') and result.get('load_col_fallback'):
         result['load_col'] = result.pop('load_col_fallback')
+    # v3.2.4fix(J2): 无功率列时累计列充当 load_col（示数表标准形态）
+    if not result.get('load_col') and result.get('accumulated_col'):
+        result['load_col'] = result['accumulated_col']
     # 清理未使用的 fallback 键
     for fb in ['date_col_fallback', 'time_col_fallback', 'load_col_fallback']:
         result.pop(fb, None)
@@ -7059,12 +7080,15 @@ def _detect_file_format_type(fp, sheet, hrow=0, enc='auto', delimiter=','):
         log.exception("文件格式检测失败")
         return 'long'
     cols = list(sample_df.columns)
-    wdate, wload = _detect_wide_matrix(sample_df, cols)
-    if wdate and wload:
-        return 'wide'
+    # v3.2.4fix(J1): 转置宽表先判——_detect_wide_matrix 的「纯数字递增列当时刻列」兜底
+    # 会把转置表的日期列误当时刻列，两者对同一张表同时命中。时刻在首列、日期在列名
+    # 的特征更具体，优先。
     trans = _detect_transposed_wide(sample_df, cols)
     if trans:
         return 'wide_transposed'
+    wdate, wload = _detect_wide_matrix(sample_df, cols)
+    if wdate and wload:
+        return 'wide'
     smart = _smart_classify_columns(cols, sample_df)
     if smart.get('format_type') == 'accumulated':
         return 'accumulated'
@@ -7081,7 +7105,7 @@ def _smart_classify_columns_basic(cols, sample_df=None, max_sample=100):
     time_kw_weak = ['点', '时', 'hour', 'min']  # v3.2.3fix(I6): 弱词只作候补，防「测点1」误当时间列
     asset_kw = ['资产', '户号', '编号', '表号', 'id', '用户', 'meter', 'asset', '电表', '线路']
     load_kw = ['负荷', '负载', '功率', 'load', '有功', '需量', 'demand', 'kw']  # v2.28: 排除无功,加入需量
-    accumulated_kw = ['示数', '正向', '有功电能', '总电能', '电能', '累积', '累计', 'kwh', 'mwh', '电度', '读数', 'read', '反向有功']
+    accumulated_kw = ['示数', '正向', '有功电能', '总电能', '电能', '累积', '累计', 'kwh', 'mwh', '电度', '读数', 'read', '反向有功', '总电量', '电量']
 
     for c in cols:
         cl = c.lower()
@@ -7109,6 +7133,8 @@ def _smart_classify_columns_basic(cols, sample_df=None, max_sample=100):
                 result.setdefault('load_col', c)
         if any(k in cl for k in accumulated_kw) and not (_is_power_word and not _is_energy_word):
             result.setdefault('accumulated_hint', True)
+            # v3.2.4fix(J2): 记下第一个累计类列供 load_col 兜底
+            result.setdefault('accumulated_col', c)
 
     # v3.2.3fix(I1/I6): 强匹配未命中时回落候补（纯无功表仍能选中负荷列）
     if not result.get('time_col') and result.get('time_col_fallback'):
@@ -7117,6 +7143,9 @@ def _smart_classify_columns_basic(cols, sample_df=None, max_sample=100):
         result['load_col'] = result.pop('load_col_fallback')
     for _fb in ('time_col_fallback', 'load_col_fallback'):
         result.pop(_fb, None)
+    # v3.2.4fix(J2): 无功率列时累计列充当 load_col（示数表标准形态）
+    if not result.get('load_col') and result.get('accumulated_col'):
+        result['load_col'] = result['accumulated_col']
 
     if sample_df is not None and not sample_df.empty:
         if not _classify_check_accumulated(sample_df, None, result, _detect_accumulated_pattern_basic, cols, max_sample):
@@ -7129,7 +7158,7 @@ def _smart_classify_columns_basic(cols, sample_df=None, max_sample=100):
                 result['time_col'] = trans['time_col']
                 result['date_cols_full'] = trans['date_cols']
 
-    if sample_df is not None and not sample_df.empty and result.get('format_type') not in ('wide', 'wide_transposed'):
+    if sample_df is not None and not sample_df.empty and result.get('format_type') not in ('wide', 'wide_transposed', 'accumulated'):
         detector = _detect_accumulated_pattern_basic
         # v3.2.3fix(I8): 列名是强信号，数值只是弱信号。
         # 原逻辑只靠数值三因子判示数，会把「单调但跨度小」的功率曲线误判成示数表
@@ -8035,17 +8064,19 @@ def _scan_wide_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
             num_cols = df_temp.select_dtypes(include=np.number).columns.tolist()
             df_temp = df_temp.groupby(time_col, as_index=False)[num_cols].mean()
         df_temp = df_temp.set_index(time_col).transpose()
-        existing = [c for c in load_cols if c in df_temp.columns]
+        # v3.2.4fix(J3): 转置后 index 是日期、columns 是时间。load_cols 存的是转置前的
+        # 日期列名，转置后它们变成了 index，不在 columns 里——原逻辑恒为空，整表被跳过。
+        existing = [c for c in load_cols if c in df_temp.index] or list(df_temp.index)
         if not existing:
-            log.warning(f"转置宽表负荷列 {load_cols} 中未找到有效时间列,跳过扫描.文件: {fp}, 工作表: {sheet}")
+            log.warning(f"转置宽表负荷列 {load_cols} 在转置后未匹配到任何日期行,跳过扫描.文件: {fp}, 工作表: {sheet}")
             return
-        ldf = df_temp[existing].apply(_get_pd().to_numeric, errors='coerce')
+        df_temp = df_temp.loc[existing]
+        ldf = df_temp.apply(_get_pd().to_numeric, errors='coerce')
         if mapping.get('format_type') == 'accumulated':
             try:
-                ldf = _wide_row_accumulated_to_power(ldf, existing)
+                ldf = _wide_row_accumulated_to_power(ldf, list(ldf.columns))
             except ValueError:
                 log.warning(f"累计转功率失败(形状不兼容),降级为非累计模式.文件: {fp}, 工作表: {sheet}")
-            existing = list(ldf.columns)
         yms = pd.Series(df_temp.index).apply(_extract_ym)
         raw_vals = None
     else:
@@ -8136,6 +8167,18 @@ def _scan_long_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
         monthly_stats[key]['dropped_ratio'] = dropped_ratio
         monthly_stats[key]['conversion_failed'] = conversion_failed
 
+def _mapping_is_long_shape(mapping):
+    """判断 accumulated 映射的实际结构是长表还是宽表。
+
+    accumulated 有两种形态：
+      · 宽表形——日期行 + 时刻列，值逐行递增（转置表则时刻在行）
+      · 长表形——日期 + 时间 + 示数三列（「总电量」表最常见）
+    后者若被送进宽表分支，会把示数列当成时刻列，扫出 0 个分组。
+    """
+    tc = mapping.get('time_col')
+    return bool(tc) and tc != mapping.get('date_col') and not mapping.get('transpose')
+
+
 def _scan_file_worker(args):
     fp, sheet, mapping_dict, fallback, cancel_event, shared_cache, force_chunk = args
     fname = os.path.basename(fp)
@@ -8172,7 +8215,12 @@ def _scan_file_worker(args):
             return {'error': _translate_error(KeyError, f"日期列不存在,可用列: {list(df.columns)}")}
         monthly_stats = {}
         normative = mapping.copy()
-        if mapping.get('format_type') in ('wide', 'wide_transposed', 'accumulated'):
+        # v3.2.4fix(J4): accumulated 有两种形态——宽表形（日期行 + 时刻列，值递增）
+        # 与长表形（日期 + 时间 + 示数三列）。原逻辑无条件送进宽表分支，长表形的
+        # 「总电量」表（最常见的一种）直接扫出 0 个分组。
+        _fmt = mapping.get('format_type')
+        _is_long_shape = _mapping_is_long_shape(mapping)
+        if _fmt in ('wide', 'wide_transposed') or (_fmt == 'accumulated' and not _is_long_shape):
             log.info(f"[scan] 宽表扫描: {fname}/{sheet}, format={mapping.get('format_type')}")
             _scan_wide_chunk(fp, sheet, normative, df, fallback, monthly_stats, cancel_event)
         else:
@@ -8499,7 +8547,8 @@ class DataProvider:
             date_col = mapping['date_col']
             time_col = mapping.get('time_col')
             asset_col = mapping.get('asset_col')
-            if mapping.get('format_type') in ('wide', 'wide_transposed', 'accumulated'):
+            if mapping.get('format_type') in ('wide', 'wide_transposed', 'accumulated') and not (
+                    mapping.get('format_type') == 'accumulated' and _mapping_is_long_shape(mapping)):
                 load_cols = mapping['load_col']
                 if not isinstance(load_cols, list):
                     load_cols = [str(load_cols)]
