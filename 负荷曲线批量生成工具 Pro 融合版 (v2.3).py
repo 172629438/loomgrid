@@ -2817,7 +2817,7 @@ def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A
         discharge_mask = np.zeros(n_points, dtype=bool)
         for p in expanded:
             start_idx = np.searchsorted(hours, p['start'], side='left')
-            end_idx = np.searchsorted(hours, p['end'], side='right')
+            end_idx = np.searchsorted(hours, p['end'], side='left')
             if p['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
                 charge_mask[start_idx:end_idx] = True
             else:
@@ -2843,7 +2843,7 @@ def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A
             for p in expanded:
                 if p['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
                     start_idx = np.searchsorted(hours, p['start'], side='left')
-                    end_idx = np.searchsorted(hours, p['end'], side='right')
+                    end_idx = np.searchsorted(hours, p['end'], side='left')
                     discharge_mask[start_idx:end_idx] = True
         else:
             discharge_mask[:] = True
@@ -2856,7 +2856,7 @@ def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A
             for p in expanded:
                 if p['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
                     start_idx = np.searchsorted(hours, p['start'], side='left')
-                    end_idx = np.searchsorted(hours, p['end'], side='right')
+                    end_idx = np.searchsorted(hours, p['end'], side='left')
                     charge_mask[start_idx:end_idx] = True
         neg_load = np.maximum(-work_load, 0)
         # 取时段掩码(1D)和负负荷掩码(2D)的并集
