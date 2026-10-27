@@ -22908,11 +22908,15 @@ class MainWindow(QMainWindow):
             log.info(msg)
         else:
             log.info(msg)
-        if tag in ("error", "warning"):
+        if tag in ("error", "warning") and hasattr(self, 'log_group'):
             self.log_group.setChecked(True)
 
     def _flush_logs(self):
         """智能日志刷新:防刷屏 + 自适应间隔 + 批量追加"""
+        # 初始化守卫：_log_timer 可能先于 UI 控件创建而触发
+        # （参考程序实测崩在 self.pause_log_btn 未创建即被调用）
+        if not hasattr(self, 'pause_log_btn') or not hasattr(self, 'log_level_combo'):
+            return
         if self.pause_log_btn.isChecked():
             return
         current_level = self.log_level_combo.currentText()

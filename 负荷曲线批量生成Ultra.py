@@ -3346,10 +3346,21 @@ def _init_logging_now():
         _log_initialized = True
 
 _init_logging_now()
-from loguru import logger as log
-log.remove()
-log.add("logs/ultra_{time}.log", rotation="10 MB", retention="7 days", enqueue=True)
-log.add(sys.stderr, colorize=True, format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>", level="INFO")
+# v3.2fix: loguru 是可选依赖，缺失时降级到标准 logging。
+# 原写法是硬 import，打包环境没装 loguru 时 exe 启动即崩在这一行。
+# 代码里只用到 warning/info/error/debug/exception/critical，标准 logging 全都有。
+try:
+    from loguru import logger as log
+    log.remove()
+    log.add("logs/ultra_{time}.log", rotation="10 MB", retention="7 days", enqueue=True)
+    log.add(sys.stderr, colorize=True, format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>", level="INFO")
+except ImportError:
+    log = logging.getLogger("ultra")
+    log.setLevel(logging.INFO)
+    if not log.handlers:
+        _h = logging.StreamHandler(sys.stderr)
+        _h.setFormatter(logging.Formatter("%(asctime)s | %(levelname)-8s | %(name)s - %(message)s", "%H:%M:%S"))
+        log.addHandler(_h)
 
 _warned_dup_cols = set()
 _warned_dup_lock = threading.Lock()
@@ -25215,11 +25226,15 @@ class MainWindow(QMainWindow):
             log.info(msg)
         else:
             log.info(msg)
-        if tag in ("error", "warning"):
+        if tag in ("error", "warning") and hasattr(self, 'log_group'):
             self.log_group.setChecked(True)
 
     def _flush_logs(self):
         """智能日志刷新:防刷屏 + 自适应间隔 + 批量追加"""
+        # 初始化守卫：_log_timer 可能先于 UI 控件创建而触发
+        # （参考程序实测崩在 self.pause_log_btn 未创建即被调用）
+        if not hasattr(self, 'pause_log_btn') or not hasattr(self, 'log_level_combo'):
+            return
         if self.pause_log_btn.isChecked():
             return
         current_level = self.log_level_combo.currentText()

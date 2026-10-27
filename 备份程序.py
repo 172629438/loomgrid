@@ -88,6 +88,7 @@ code{background:#f0f0f0;padding:2px 6px;border-radius:3px;font-size:13px}
 </body></html>"""
 
 # ── 标准库 ──
+from typing import List
 import sys
 import os
 import re
@@ -21426,11 +21427,15 @@ class MainWindow(QMainWindow):
             log.info(msg)
         else:
             log.info(msg)
-        if tag in ("error", "warning"):
+        if tag in ("error", "warning") and hasattr(self, 'log_group'):
             self.log_group.setChecked(True)
 
     def _flush_logs(self):
         """智能日志刷新:防刷屏 + 自适应间隔 + 批量追加"""
+        # 初始化守卫：_log_timer 可能先于 UI 控件创建而触发
+        # （参考程序实测崩在 self.pause_log_btn 未创建即被调用）
+        if not hasattr(self, 'pause_log_btn') or not hasattr(self, 'log_level_combo'):
+            return
         if self.pause_log_btn.isChecked():
             return
         current_level = self.log_level_combo.currentText()
@@ -28346,8 +28351,8 @@ def scan_capacity(load_profile: list[float], price_spread: float,
                   discharge_hours_range: tuple[float, float] = (0.5, 6.0),
                   step: float = 0.5,
                   demand_charge_rate: float = 40.0,
-                  invest_params: InvestmentParams | None = None,
-                  power_factor: float = 0.30) -> list[CapacityPlan]:
+                  invest_params: "InvestmentParams | None" = None,
+                  power_factor: float = 0.30) -> "list[CapacityPlan]":
     """容量扫描:遍历放电时长,评估经济性.
 
     Args:
@@ -28411,7 +28416,7 @@ def scan_capacity(load_profile: list[float], price_spread: float,
 
 def scan_capacity_multi_scenario(load_profile: list[float], price_spread: float,
                                  demand_charge_rate: float = 40.0,
-                                 exchange_rate: float = 7.2) -> dict[str, list[CapacityPlan]]:
+                                 exchange_rate: float = 7.2) -> dict[str, list["CapacityPlan"]]:
     """多场景容量扫描(保守/中等/先进 x 手动)."""
     results = {}
     for scenario in [CostScenario.CONSERVATIVE, CostScenario.MODERATE, CostScenario.ADVANCED]:
