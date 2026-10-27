@@ -470,14 +470,16 @@ def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A
         discharge_mask = np.zeros(n_points, dtype=bool)
         for p in expanded:
             start_idx = np.searchsorted(hours, p['start'], side='left')
-            end_idx = np.searchsorted(hours, p['end'], side='right')
+            end_idx = np.searchsorted(hours, p['end'], side='left')
             if p['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
                 charge_mask[start_idx:end_idx] = True
             elif p['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
                 # v3.2fix(P-32): 明确只让放电类型置放电 mask；
                 # 平段（flat）不属于充也不属于放，原 else 分支会把它当放电段，导致放电空间虚高。
                 discharge_mask[start_idx:end_idx] = True
-        charge = np.sum(np.maximum(cap - work_load, 0) * charge_mask * dt, axis=1) * CHARGING_EFFICIENCY
+        # Mode A 充电 = max(cap-load)×dt，已是电网侧吸收量，不再乘 η
+        # （与 compute_segmented_spaces 及主程序 L17358 的口径说明一致）
+        charge = np.sum(np.maximum(cap - work_load, 0) * charge_mask * dt, axis=1)
         pos_load = np.maximum(work_load, 0)
         discharge = np.sum(np.minimum(pos_load, cap) * discharge_mask * dt, axis=1) * DISCHARGING_EFFICIENCY
     elif mode == 'B':
@@ -496,7 +498,7 @@ def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A
             for p in expanded:
                 if p['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
                     start_idx = np.searchsorted(hours, p['start'], side='left')
-                    end_idx = np.searchsorted(hours, p['end'], side='right')
+                    end_idx = np.searchsorted(hours, p['end'], side='left')
                     discharge_mask[start_idx:end_idx] = True
         else:
             discharge_mask[:] = True
@@ -508,7 +510,7 @@ def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A
             for p in expanded:
                 if p['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
                     start_idx = np.searchsorted(hours, p['start'], side='left')
-                    end_idx = np.searchsorted(hours, p['end'], side='right')
+                    end_idx = np.searchsorted(hours, p['end'], side='left')
                     charge_mask[start_idx:end_idx] = True
         neg_load = np.maximum(-work_load, 0)
         charge = np.sum(np.minimum(rated_power, neg_load) * np.maximum(charge_mask, charge_mask_2d) * dt, axis=1) * CHARGING_EFFICIENCY
@@ -590,6 +592,10 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
                     space = np.nan_to_num(space, nan=0.0)
                     charge_segments.append(space)
                     charge_labels.append(seg['label'])
+                    # 四个列表必须同步追加，否则 zip 会错位（谷段不进放电列表，
+                    # 后面的峰段值就会被标成上一个段的 label）
+                    discharge_segments.append(np.zeros(n_days))
+                    discharge_labels.append(seg['label'])
                 elif seg['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
                     # v3.2fix(P-32): 原为 else，会把平段当放电段
                     pos_sub_load = np.maximum(sub_load, 0)
@@ -608,6 +614,9 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
                     space = np.nan_to_num(space, nan=0.0)
                     discharge_segments.append(space)
                     discharge_labels.append(seg['label'])
+                    # 同上：同步追加充电侧占位
+                    charge_segments.append(np.zeros(n_days))
+                    charge_labels.append(seg['label'])
                 else:
                     # v3.2fix(P-32): 平段既不充也不放。
                     # 四个列表必须同步追加（segs 与 labels 必须一一对应），否则 zip 会错位。
