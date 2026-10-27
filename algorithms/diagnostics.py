@@ -57,7 +57,6 @@ import sys as __sys
 from collections import defaultdict
 from collections import OrderedDict
 import logging
-import datetime
 
 log = logging.getLogger(__name__)
 

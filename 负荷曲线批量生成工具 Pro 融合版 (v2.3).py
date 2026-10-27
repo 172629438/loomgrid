@@ -163,9 +163,9 @@ WEEKEND_BG_ALPHA = 0.08
 # v3.2fix: 充放电效率(单向93%),用于容量测算
 CHARGING_EFFICIENCY = 0.93
 DISCHARGING_EFFICIENCY = 0.93
-BESS_DOD_DEFAULT = 0.95     # v3.2fix: 默认放电深度(SOC范围: 0%→95%)
-BESS_SOC_MIN = 0.05         # v3.2fix: 最小SOC(5%保护)
-BESS_SOC_MAX = 0.95         # v3.2fix: 最大SOC(95%,=DOD)
+BESS_DOD_DEFAULT = 0.90     # 默认放电深度(SOC区间 5%~95%,与 BESS_SOC_MIN/MAX 一致)
+BESS_SOC_MIN = 0.05         # 最小SOC(5%保护)
+BESS_SOC_MAX = 0.95         # 最大SOC(95%)
 BESS_CYCLE_LIFE_DEFAULT = 6000  # v3.2fix: 默认循环寿命
 
 from enum import Enum
@@ -7283,9 +7283,9 @@ class ProfessionalWindow(QMainWindow):
         row2.addWidget(QLabel("  DOD:"))
         self.dod_spin = QSpinBox()
         self.dod_spin.setRange(50, 100)
-        self.dod_spin.setValue(95)
+        self.dod_spin.setValue(int(BESS_DOD_DEFAULT * 100))
         self.dod_spin.setSuffix('%')
-        self.dod_spin.setToolTip("放电深度, 95%=SOC范围0%~95%. 推荐容量=日需求/DOD")
+        self.dod_spin.setToolTip("放电深度, 90%=SOC区间5%~95%. 推荐容量=日需求/DOD")
         self.dod_spin.valueChanged.connect(lambda: self._update_system_scale())
         row2.addWidget(self.dod_spin)
 
