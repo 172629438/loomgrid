@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版 (智能增强版 v3.2)
-发布版本：LoomGrid Fusion v2.3.1（基于 v2.3，2026-10-27 修复充电空间口径与分段返回结构）
+发布版本：LoomGrid Fusion v2.3.2（基于 v2.3，2026-10-27 修数据接入层列分类与转置宽表误判）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -1280,6 +1280,13 @@ def _detect_transposed_wide(df: pd.DataFrame, cols, max_sample=100):
                 except Exception:
                     pass
                 top_vals = sample[c].dropna().head(5)
+                # v2.3.2fix(N6): 数值列不当日期列——pd.to_datetime(512.3) 会把数值按纳秒解释，
+                # 导致浮荷列被认成日期列，多值列长表被整表误判成转置宽表。
+                try:
+                    if pd.api.types.is_numeric_dtype(top_vals):
+                        continue
+                except Exception:
+                    pass
                 if top_vals.apply(_extract_ym).notna().any():
                     date_cols.append(c)
             if len(date_cols) >= 2:
@@ -1317,21 +1324,37 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
     date_kw = ['日期','date','时间戳','timestamp']
     time_kw = ['时间','time','时刻','时分','点','时']
     asset_kw = ['资产','户号','编号','表号','id','用户','meter']
-    load_kw = ['负荷','负载','功率','load','有功','无功','电流','电压']
-    accumulated_kw = ['示数','正向','有功电能','总电能','电能','累积','累计','kwh','mwh','点','时']
+    # v2.3.2fix(N9): 原词表把「无功 / 电流 / 电压」与有功并列为负荷列，
+    # 且累计词表里混进了 '点' / '时' 这两个时间词。后果：
+    #   · 电表表里「四象限无功功率」可能先于「正向有功功率」被选中作负荷列；
+    #   · 列名带「点」「时」的列（如「测点1」）被误置 accumulated_hint，整表判成示数表。
+    # 现改为强/弱分层：有功类强匹配，无功/电流/电压仅作候补。
+    load_kw_strong = ['负荷','负载','功率','load','有功','需量','demand','kw','power']
+    load_kw_weak = ['无功','电流','电压','amp']
+    accumulated_kw = ['示数','有功电能','总电能','电能','累积','累计','kwh','mwh','电度','读数','read','反向有功']
 
     for c in cols:
-        cl = c.lower()
+        cl = c.lower().replace(' ', '').replace('_', '').replace('-', '')
+        # v2.3.2fix(N6): 同 Ultra——「正向有功功率」不该被 '正向' 这类累计词踢出负荷列；
+        # 以主体词定夺：含「功率」且不含「电量/电能/kwh」的，按功率处理。
+        _is_power_word = ('功率' in cl) or ('kw' in cl and 'kwh' not in cl)
+        _is_energy_word = any(k in cl for k in ('电量', '电能', 'kwh', 'mwh', '示数', '电度', '读数', '示值'))
         if any(k in cl for k in date_kw):
             result.setdefault('date_col', c)
         if any(k in cl for k in time_kw):
             result.setdefault('time_col', c)
         if any(k in cl for k in asset_kw):
             result.setdefault('asset_col', c)
-        if any(k in cl for k in load_kw):
+        if any(k in cl for k in load_kw_strong) and not (_is_energy_word and not _is_power_word):
             result.setdefault('load_col', c)
-        if any(k in cl for k in accumulated_kw):
+        elif any(k in cl for k in load_kw_weak) and not result.get('load_col'):
+            result.setdefault('load_col_fallback', c)
+        if any(k in cl for k in accumulated_kw) and not (_is_power_word and not _is_energy_word):
             result.setdefault('accumulated_hint', True)
+
+    if not result.get('load_col') and result.get('load_col_fallback'):
+        result['load_col'] = result.pop('load_col_fallback')
+    result.pop('load_col_fallback', None)
 
     if sample_df is not None and not sample_df.empty:
         wdate, wload = _detect_wide_matrix(sample_df, cols, max_sample)
