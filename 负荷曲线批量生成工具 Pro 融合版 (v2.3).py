@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版 (智能增强版 v3.2)
-发布版本：LoomGrid Fusion v2.3.2（基于 v2.3，2026-10-27 修数据接入层列分类与转置宽表误判）
+发布版本：LoomGrid Fusion v2.3.3（基于 v2.3，2026-10-27 数据接入层打磨：列分类强弱信号分层、示数转换对齐 Ultra 口径）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -808,6 +808,14 @@ def _parse_date_flexible(date_str: str):
                         return date(datetime.now().year, m, d)
                 except (ValueError, TypeError):
                     pass
+    _s8 = str(date_str).strip()
+    # v2.3.3fix(I2): 8 位纯数字日期（20261001）此前解析为 None。
+    if len(_s8) == 8 and _s8.isdigit():
+        try:
+            _d = date(int(_s8[:4]), int(_s8[4:6]), int(_s8[6:8]))
+            return _d
+        except (ValueError, TypeError):
+            pass
     nums = re.findall(r'\d+', date_str)
     if len(nums) >= 3:
         try:
@@ -908,10 +916,45 @@ def _convert_accumulated_to_power(df, date_col, time_col, load_col, asset_col=No
         df['__ts__'] = pd.to_datetime(dt_series, errors='coerce')
         df = df.dropna(subset=['__ts__']).sort_values(['__ts__'])
 
+        # v2.3.3fix(I3): 移植 Ultra v2.9c 的日重置/月累计判别。
+        # 原 Fusion 无此保护：月度累计表会被直接差分，跨天跳变污染整条曲线。
+        load_num = pd.to_numeric(df[load_col], errors='coerce')
+        df['__date__'] = df['__ts__'].dt.date
+        daily_min = df.groupby('__date__')[load_col].transform('min')
+        # 原判据：某日读数全部远离全表中位数*0.3 → 判为非日重置
+        non_reset_days = (daily_min > load_num.median() * 0.3)
+        if non_reset_days.mean() > 0.5:
+            # v2.3.3fix(I5): 补本质判据——跨天是否回落。
+            # 日累计表即便日初基准非 0（如每天从 1000 起），跨天也会回落；
+            # 月度累计表跨天是连续递增，不会回落。原判据只认「日初读数接近 0」，
+            # 会把基准非 0 的日累计表误判成月度累计而拒绝转换。
+            _reset_like = False
+            try:
+                _first = pd.to_numeric(df.groupby('__date__')[load_col].first(), errors='coerce')
+                _last = pd.to_numeric(df.groupby('__date__')[load_col].last(), errors='coerce')
+                if len(_first) >= 2:
+                    _cross = _first.values[1:] - _last.values[:-1]
+                    _cross = _cross[~np.isnan(_cross)]
+                    if len(_cross) and (np.sum(_cross < 0) / len(_cross)) > 0.5:
+                        _reset_like = True
+                else:
+                    # v2.3.3fix(I9): 单日数据无跨天回落，差分必然正确（常见：只导一天）
+                    _reset_like = True
+            except Exception:
+                _reset_like = False
+            if not _reset_like:
+                log.error('示数表检测:数据可能为非日重置累积表(月度累计),无法通过差分计算功率.请改用「长表」格式.')
+                df = df.drop(columns=['__ts__', '__date__'])
+                return df
+        # v2.3.3fix(I7): 标记跨天边界——日重置表 23:45→次日 00:00 的回落是正常现象。
+        # shift(-1)：示数差归属到「起始时间」，所以跨天回落落在当天最后一个点上。
+        df['__crossday__'] = df['__date__'].ne(df['__date__'].shift(-1))
+        df = df.drop(columns=['__date__'])
+
         group_cols = [asset_col] if asset_col and asset_col in df.columns else []
         new_load = pd.Series(index=df.index, dtype=float)
 
-        for _, grp in df.groupby(group_cols):
+        for _, grp in (df.groupby(group_cols) if group_cols else [((), df)]):
             if cancel_event and cancel_event.is_set():
                 return df
             grp = grp.sort_values('__ts__')
@@ -924,20 +967,37 @@ def _convert_accumulated_to_power(df, date_col, time_col, load_col, asset_col=No
                 std_delta = valid_delta.std()
                 if std_delta / mean_delta > 0.5:
                     log.warning("累计示数时间间隔不均匀，转换功率可能失真。建议检查数据完整性。")
-            power = loads.diff() / delta_hours
-            power = power.where(delta_hours > 0, np.nan)
+            # v2.3.3fix(I4): 移植 Ultra v2.28 的 diff 前移。
+            # 原实现 loads.diff() 把差值记在后一个时间点上，整条曲线右偏一个采样步长。
+            raw_diff = loads.diff().shift(-1)
+            delta_hours = times.diff().dt.total_seconds() / 3600.0
+            delta_hours_shifted = delta_hours.shift(-1)
+            safe_delta = delta_hours_shifted.clip(lower=0.05, upper=3.0)
+            power = raw_diff / safe_delta
+            # v2.3.3fix(I4): 换表/清零导致的负跳变标记为 NaN（同 Ultra v2.9c）
+            if len(power.dropna()) > 1:
+                avg_step = max(power.dropna().abs().median(), 0.001)
+                neg_spikes = power[power < -5.0 * avg_step]
+                # v2.3.3fix(I7): 跨天回落不算换表/清零
+                if '__crossday__' in grp.columns and len(neg_spikes) > 0:
+                    _keep = ~grp.loc[neg_spikes.index, '__crossday__'].fillna(False).astype(bool)
+                    neg_spikes = neg_spikes[_keep]
+                if len(neg_spikes) > 0:
+                    log.warning(f'检测到 {len(neg_spikes)} 处可能的换表/清零导致的负跳变,已标记为 NaN')
+                    power[neg_spikes.index] = np.nan
             new_load[grp.index] = power
 
         df = df.dropna(subset=['__ts__']).copy()
         df[load_col] = new_load
         df = df.dropna(subset=[load_col])
-        df = df.drop(columns=['__ts__'])
+        df = df.drop(columns=['__ts__', '__crossday__'], errors='ignore')
         log.info("累计示数已自动转换为平均功率（差值/时间间隔）")
         return df
     except Exception as e:
         log.warning(f"累计示数转换失败: {e}，将使用原始数据")
-        if '__ts__' in df.columns:
-            df = df.drop(columns=['__ts__'])
+        for _c in ('__ts__', '__date__', '__crossday__'):
+            if _c in df.columns:
+                df = df.drop(columns=[_c])
         return df
 
 def _parse_long_to_standard(df, date_col, time_col, load_col, multiplier=1.0, asset_col=None, cancel_event=None, convert_accumulated=False):
@@ -1339,6 +1399,9 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
         # 以主体词定夺：含「功率」且不含「电量/电能/kwh」的，按功率处理。
         _is_power_word = ('功率' in cl) or ('kw' in cl and 'kwh' not in cl)
         _is_energy_word = any(k in cl for k in ('电量', '电能', 'kwh', 'mwh', '示数', '电度', '读数', '示值'))
+        # v2.3.3fix(I1): 「四象限无功功率」「A相电流」也含 '功率' 强词，会先于有功列抢占 load_col。
+        # 无功/电流/电压/功率因数不是负荷，命中强词也降级候补；无有功列时仍能兜底选中。
+        _is_reactive_word = any(k in cl for k in ('无功', '电流', '电压', 'amp', 'var', '功率因数', '频率', 'pf'))
         if any(k in cl for k in date_kw):
             result.setdefault('date_col', c)
         if any(k in cl for k in time_kw):
@@ -1346,7 +1409,11 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
         if any(k in cl for k in asset_kw):
             result.setdefault('asset_col', c)
         if any(k in cl for k in load_kw_strong) and not (_is_energy_word and not _is_power_word):
-            result.setdefault('load_col', c)
+            if _is_reactive_word:
+                if not result.get('load_col'):
+                    result.setdefault('load_col_fallback', c)
+            else:
+                result.setdefault('load_col', c)
         elif any(k in cl for k in load_kw_weak) and not result.get('load_col'):
             result.setdefault('load_col_fallback', c)
         if any(k in cl for k in accumulated_kw) and not (_is_power_word and not _is_energy_word):
@@ -1373,8 +1440,13 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
                 result['date_cols_full'] = trans['date_cols']
 
     if sample_df is not None and not sample_df.empty and result.get('format_type') not in ('wide', 'wide_transposed'):
-        if result.get('accumulated_hint') or (result.get('load_col') and _detect_accumulated_pattern(
-            sample_df, result.get('load_col'), result.get('date_col', None), result.get('time_col', None))):
+        # v2.3.3fix(I8): 列名是强信号，数值只是弱信号。列名已明确是功率
+        # （含「功率」或 kw 且非 kwh）时，不因数值单调性改判示数表。
+        _lc = result.get('load_col')
+        _lc_s = _lc if isinstance(_lc, str) else ''
+        _load_named_power = ('功率' in _lc_s) or ('kw' in _lc_s.lower() and 'kwh' not in _lc_s.lower())
+        if (not _load_named_power) and (result.get('accumulated_hint') or (_lc and _detect_accumulated_pattern(
+            sample_df, _lc, result.get('date_col', None), result.get('time_col', None)))):
             result['format_type'] = 'accumulated'
         else:
             result['format_type'] = 'long'
