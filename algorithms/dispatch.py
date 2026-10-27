@@ -657,10 +657,15 @@ def optimal_dispatch_lp(load_kw, buy_price, sell_price, batt_kwh=500, Pmax=250,
     n_vars = 2*T + T + n_demand  # ch + dis + soc(1..T) + peak
 
     # 目标系数 (linprog最小化 -> 取负最大化收益)
+    # v3.2fix(2026-10-27): 原实现放电收益只按 sell_price 算。
+    # sell_price=0（纯自用场景）时放电不产生任何收益，LP 就完全不碰电池——
+    # 但物理上放电是替代购电，省的是 buy_price。现按「自用优先」取较高者：
+    #   放电能量要么自己用掉（省 buy_price），要么卖给电网（得 sell_price）。
     c = np.zeros(n_vars)
     for t in range(T):
         c[t] = buy_price[t] * dt        # ch成本
-        c[T+t] = -sell_price[t] * dt    # dis收益(负=最大化)
+        benefit = max(float(buy_price[t]), float(sell_price[t]))
+        c[T+t] = -benefit * dt          # dis收益(负=最大化)
     if n_demand:
         c[-1] = demand_rate  # 需量成本
 
