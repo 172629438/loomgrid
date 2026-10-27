@@ -75,6 +75,7 @@ BESS_SOC_MIN = 0.05
 
 
 BESS_SOC_MAX = 0.95
+BESS_DOD_DEFAULT = 0.90   # 可用 DOD = SOC_MAX - SOC_MIN，与主程序 BESS_DOD_DEFAULT 保持一致
 
 
 class PeriodType(str, Enum):
