@@ -273,9 +273,9 @@ def periods_to_price_series(
                 cur_min = _parse_time_min(t)
                 # 处理跨午夜时段
                 if start_min <= end_min:
-                    in_range = start_min <= cur_min <= end_min
+                    in_range = start_min <= cur_min < end_min
                 else:
-                    in_range = cur_min >= start_min or cur_min <= end_min
+                    in_range = cur_min >= start_min or cur_min < end_min
                 if in_range:
                     buy_price.iloc[i] = p_price
                     price_type.iloc[i] = ptype
