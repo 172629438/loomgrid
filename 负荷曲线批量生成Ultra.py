@@ -5,7 +5,7 @@
 # ========================================================================
 from __future__ import annotations
 
-ULTRA_VERSION = "3.2.4"            # v3.2.4: 端到端测试——转置宽表判定优先级、总电量列入 load_col、累示表长表形分支
+ULTRA_VERSION = "3.2.5"            # v3.2.5: 测算链路测试——零/负负荷不再产出 -inf% 方案
 ULTRA_BUILD_DATE = "2026-10-27"    # 构建日期
 
 # v2.29: 内置用户手册(按F1或菜单→帮助→用户手册查看)
@@ -31574,6 +31574,13 @@ def scan_capacity(load_profile: list[float], price_spread: float,
             return float('-inf')
         return float(v)
     results.sort(key=_sort_key, reverse=True)
+    # v3.2.5fix(K1): 零负荷/负负荷时年省为 0，IRR 退化为 -inf，原逻辑照样入列，
+    # 界面上会直接显示“-inf%”——既无意义又像程序坏了。过滤无收益方案；
+    # 全被滤掉时返回空列表（调用方已有“未找到可行方案”分支）。
+    results = [r for r in results
+               if getattr(r, 'annual_savings', 0) > 0
+               and isinstance(r.irr_percent, (int, float))
+               and math.isfinite(float(r.irr_percent))]
     return results
 
 
