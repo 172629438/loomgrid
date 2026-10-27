@@ -1,0 +1,27 @@
+# 统一行尾：仓库内一律 LF，检出时不自动转 CRLF
+# 避免 Windows / Linux 之间来回切换导致整个文件显示为「全部改动」
+* text=auto eol=lf
+
+# 源代码
+*.py     text eol=lf
+*.md     text eol=lf
+*.json   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.txt    text eol=lf
+
+# 打包脚本与配置
+*.spec   text eol=lf
+*.cfg    text eol=lf
+*.toml   text eol=lf
+
+# 二进制：不做行尾转换，也不做文本 diff
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.zip    binary
+*.exe    binary
+*.dll    binary
+*.pyd    binary
