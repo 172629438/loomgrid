@@ -21676,6 +21676,19 @@ class MainWindow(QMainWindow):
       - Preview: _open_preview / _on_preview_dialog_closed
       - UI: _init_central_widget / _init_menu_bar
     """
+    def _on_scenario_selected(self, name):
+        """v3.2fix: 主窗口场景切换。
+
+        原实现只存在于 ProfessionalWindow，MainWindow 的 scenario_combo
+        connect 到这里会 AttributeError，导致 _init_central_widget 中途崩溃、
+        整个主界面构建失败。这里补一个最小实现。
+        """
+        try:
+            if name:
+                self._log(f"切换到场景: {name}", "info")
+        except Exception:
+            pass
+
     def __init__(self):
         super().__init__()
         # v2.28: 构造期间完全隐藏,防止启动时短暂闪现(窗口框架无法被setWindowOpacity隐藏)
@@ -21751,14 +21764,23 @@ class MainWindow(QMainWindow):
         try:
             self._init_central_widget()
         except Exception as _ie:
+            import traceback as _tb
+            print("=== _init_central_widget 真实异常 ===", flush=True)
+            _tb.print_exc()
+            print("=== end ===", flush=True)
             self._log(f"主界面构建异常: {_ie}", "error")
         try:
             self._init_status_bar()
         except Exception as _se:
             pass
 
-        self._overlay = DropOverlay(self.file_list)
-        self._overlay.files_dropped.connect(self._on_files_dropped)
+        # v3.2fix: _init_central_widget 若中途失败，file_list 可能不存在或已销毁
+        if getattr(self, 'file_list', None) is not None:
+            try:
+                self._overlay = DropOverlay(self.file_list)
+                self._overlay.files_dropped.connect(self._on_files_dropped)
+            except Exception as _oe:
+                log.debug(f"DropOverlay 初始化失败: {_oe}")
 
         QApplication.instance().installEventFilter(self)
 
