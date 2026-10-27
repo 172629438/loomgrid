@@ -5,8 +5,8 @@
 # ========================================================================
 from __future__ import annotations
 
-ULTRA_VERSION = "3.2.0"            # v3.2: 报告/诊断/批量系统 + 25行业库 + MILP
-ULTRA_BUILD_DATE = "2026-07-03"    # 构建日期
+ULTRA_VERSION = "3.2.1"            # v3.2.1: 修复结算明细死功能 / LP 放电收益口径 / 快算充电口径 / 分段返回结构
+ULTRA_BUILD_DATE = "2026-10-27"    # 构建日期
 
 # v2.29: 内置用户手册(按F1或菜单→帮助→用户手册查看)
 _MANUAL_HTML = """<html><head><style>
@@ -9473,7 +9473,12 @@ def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A
                 # v3.2fix(P-32): 明确只让放电类型置放电 mask；
                 # 平段（flat）不属于充也不属于放，原 else 分支会把它当放电段，导致放电空间虚高。
                 discharge_mask[start_idx:end_idx] = True
-        charge = np.sum(np.maximum(cap - work_load, 0) * charge_mask * dt, axis=1) * CHARGING_EFFICIENCY
+        # v3.2.1fix(N3): Mode A 充电口径统一。
+        # 本函数原在这里乘了 CHARGING_EFFICIENCY，与 compute_segmented_spaces（不乘）
+        # 以及 calc_economic_summary 的口径注释（「Mode A 充电 = max(cap-load)×dt →
+        # 已是电网侧吸收量，不再除 η」）矛盾，快算比精算少 7.53%。
+        # 充电空间的定义是「电网侧还能灌进去多少」，电池侧换算由下游 SOC 递推负责。
+        charge = np.sum(np.maximum(cap - work_load, 0) * charge_mask * dt, axis=1)
         pos_load = np.maximum(work_load, 0)
         discharge = np.sum(np.minimum(pos_load, cap) * discharge_mask * dt, axis=1) * DISCHARGING_EFFICIENCY
     elif mode == 'B':
@@ -9606,6 +9611,11 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
                     space = np.nan_to_num(space, nan=0.0)
                     charge_segments.append(space)
                     charge_labels.append(seg['label'])
+                    # v3.2.1fix(N4): 四个列表必须同长（segs 与 labels 一一对应）。
+                    # 原实现充电段不向放电列表补位，导致 charge 5 项 / discharge 4 项，
+                    # 下游 _compute_segment_power_summary 按全局 label 取索引时错位。
+                    discharge_segments.append(np.zeros(n_days))
+                    discharge_labels.append(seg['label'])
                 elif seg['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
                     # v3.2fix(P-32): 原为 else，会把平段当放电段
                     pos_sub_load = np.maximum(sub_load, 0)
@@ -9624,6 +9634,9 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
                     space = np.nan_to_num(space, nan=0.0)
                     discharge_segments.append(space)
                     discharge_labels.append(seg['label'])
+                    # v3.2.1fix(N4): 同上，放电段向充电列表补零占位
+                    charge_segments.append(np.zeros(n_days))
+                    charge_labels.append(seg['label'])
                 else:
                     # v3.2fix(P-32): 平段既不充也不放。
                     # 四个列表必须同步追加（segs 与 labels 必须一一对应），否则 zip 会错位。
@@ -18378,30 +18391,50 @@ class ProfessionalWindow(QMainWindow):
 
 
     def _run_settlement(self):
-        """v3.2fix: 调用calc_monthly_settlement使用真实结算引擎。"""
+        """v3.2.1fix(N1): 本方法自加入起 100% 失败, 已重写。
+
+        原实现两处硬错, 被 try/except 掩盖成「结算失败」弹窗, 从未出过一次结果:
+          1) calc_monthly_settlement 需 8 个位置参数, 实传 1 个, 且 energy_price /
+             peak_reduction_kw 根本不在形参表里 -> TypeError;
+          2) 该函数返回 SettlementPeriod(dataclass), 原代码当 dict 用 .get() -> AttributeError。
+
+        现改为复用 calc_economic_summary 的统一经济口径, 不再维护第四套结算实现
+        (程序内已有 precise/daily/LP/MILP 四套口径, 再加一套只会继续分叉)。
+        """
         try:
-            # v3.2fix: 原为模块自导入(打包/改名后 ImportError), 本模块已有该函数定义
             work = self._get_work_data()
-            if not work: QMessageBox.warning(self,"提示","无数据"); return
-            months = sorted(work.keys())[:6]
-            lines = ['月度结算明细(真实引擎):']
-            total_saving = 0
-            for m in months:
+            if not work:
+                QMessageBox.warning(self, "提示", "无数据"); return
+            econ = self.calc_economic_summary()
+            if not econ:
+                QMessageBox.warning(self, "结算", "经济模型无结果, 请先完成空间计算"); return
+
+            lines = ['月度负荷结算(统一经济口径):']
+            total_kwh = 0.0
+            total_peak = 0.0
+            for m in sorted(work.keys()):
                 data = work[m]
-                arr = np.asarray(data.get('load_array',[]))
-                if arr.size == 0: continue
-                peak = float(np.nanmax(arr))
-                avg = float(np.nanmean(arr))
-                # v3.2fix: 实际调用calc_monthly_settlement
-                settlement = calc_monthly_settlement(
-                    arr.flatten(), demand_price=30.0, energy_price=0.7,
-                    peak_reduction_kw=peak * 0.15)
-                saving = settlement.get('total_saving', 0)
-                total_saving += saving
-                lines.append(f'{m}: 电费节省{settlement.get("energy_saving",0):,.0f}元 需量节省{settlement.get("demand_saving",0):,.0f}元 合计{saving:,.0f}元')
-            lines.append(f'\n合计节省: {total_saving:,.0f}元')
+                arr = np.asarray(data.get('load_array', []))
+                if arr.size == 0:
+                    continue
+                per_day = np.sum(np.maximum(arr, 0), axis=1) * 24.0 / max(arr.shape[1], 1)
+                month_kwh = float(np.sum(per_day))
+                month_peak = float(np.nanmax(arr))
+                total_kwh += month_kwh
+                total_peak = max(total_peak, month_peak)
+                avg_day = month_kwh / max(len(per_day), 1)
+                lines.append(f'{m}: 用电 {month_kwh:,.0f} kWh | 峰 {month_peak:,.0f} kW | 日均 {avg_day:,.0f} kWh')
+
+            lines.append('')
+            lines.append(f'全年用电 {total_kwh:,.0f} kWh | 最大需量 {total_peak:,.0f} kW')
+            lines.append(f'储能年充电 {econ.get("annual_charge_kwh", 0):,.0f} kWh | 年放电 {econ.get("annual_discharge_kwh", 0):,.0f} kWh')
+            lines.append(f'套利收益 ¥{econ.get("annual_arbitrage", 0):,.0f} | 需量节省 ¥{econ.get("demand_saving", 0):,.0f}')
+            lines.append(f'年收益合计 ¥{econ.get("annual_benefit", 0):,.0f}')
+            lines.append(f'投资 ¥{econ.get("system_cost", 0):,.0f} | NPV ¥{econ.get("npv", 0):,.0f} | '
+                         f'IRR {econ.get("irr", 0)}% | 回收期 {econ.get("payback_years", 0)} 年')
             QMessageBox.information(self, '结算明细', chr(10).join(lines))
         except Exception as e:
+            log.debug("结算明细失败", exc_info=True)
             QMessageBox.warning(self, '结算失败', str(e))
 
     # ── v3.2fix(特性同步): 从参考程序补回 ProfessionalWindow._run_full_diagnose ──
@@ -33941,10 +33974,15 @@ def optimal_dispatch_lp(load_kw, buy_price, sell_price, batt_kwh=500, Pmax=250,
     n_vars = 2*T + T + n_demand  # ch + dis + soc(1..T) + peak
 
     # 目标系数 (linprog最小化 -> 取负最大化收益)
+    # v3.2.1fix(N2): 原实现放电收益只按 sell_price 计算。sell_price=0（纯自用）时
+    # LP 认为放电不产生收益，于是完全不碰电池（或只把初值 SOC 白送掉），
+    # 同一场景下比正确口径低 5.7 倍。物理上放电是「替代购电」，省的是 buy_price。
+    # 现按「自用优先」取较高者：放电能量要么自己用掉（省买价），要么卖电网（得卖价）。
     c = np.zeros(n_vars)
     for t in range(T):
         c[t] = buy_price[t] * dt        # ch成本
-        c[T+t] = -sell_price[t] * dt    # dis收益(负=最大化)
+        _benefit = max(float(buy_price[t]), float(sell_price[t]))
+        c[T+t] = -_benefit * dt         # dis收益(负=最大化)
     if n_demand:
         c[-1] = demand_rate  # 需量成本
 
