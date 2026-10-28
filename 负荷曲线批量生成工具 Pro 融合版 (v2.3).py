@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-负荷曲线批量生成工具 Pro 融合版 (智能增强版 v3.2)
-发布版本：LoomGrid Fusion v2.3.4（基于 v2.3，2026-10-27 端到端测试：转置宽表与累示表长表形的识别修正）
+负荷曲线批量生成工具 Pro 融合版
+发布版本：LoomGrid Fusion v2.3.1（2026-10-28 重新编号：合并原 v2.3.1~v2.3.4 全部修复）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -9447,7 +9447,7 @@ class DropOverlay(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("负荷曲线批量生成工具 Pro 融合版 v3.2")
+        self.setWindowTitle("负荷曲线批量生成工具 Pro 融合版 v2.3.1")
         self.setMinimumSize(900, 600)
 
         self.config_manager = Config()
@@ -10433,7 +10433,7 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
         psutil_status = "已安装" if importlib.util.find_spec("psutil") else "未安装 (内存自适应不可用)"
         taskbar_status = "支持" if self._taskbar_button else "不支持"
         QMessageBox.information(self, "关于",
-            f"负荷曲线批量生成工具 Pro 融合版 v3.2 (全面优化修复版)\n\n"
+            f"负荷曲线批量生成工具 Pro 融合版 v2.3.1 (全面优化修复版)\n\n"
             f"主要更新：\n"
             f"• 策略架构重构：省份 → 策略组 → 月份，支持多季节电价\n"
             f"• 放电空间逻辑修正，等效满足天数\n"

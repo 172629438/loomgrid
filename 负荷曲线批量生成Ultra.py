@@ -5,7 +5,7 @@
 # ========================================================================
 from __future__ import annotations
 
-ULTRA_VERSION = "3.2.8"            # v3.2.8: 修 exe 启动崩溃（unittest 被排除 / windowed 下 sys.stderr 为 None）
+ULTRA_VERSION = "3.2.2"            # v3.2.2（2026-10-28 重新编号）：合并原 v3.2.2~v3.2.8 全部修复
 ULTRA_BUILD_DATE = "2026-10-27"    # 构建日期
 
 # v2.29: 内置用户手册(按F1或菜单→帮助→用户手册查看)
