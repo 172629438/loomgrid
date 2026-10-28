@@ -114,18 +114,18 @@
 
 | 你的情况 | 用这个 |
 |---|---|
-| 明天要交方案，要稳 | **[Fusion v2.3.4](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.4)** |
-| 功能越多越好，愿意跟着踩坑 | **[Ultra v3.2.8](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.8)** |
-| 想读源码，10k 行比 35k 行好读 | **[Fusion v2.3.4](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.4)** |
+| 明天要交方案，要稳 | **[Fusion v2.3.1](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.1)** |
+| 功能越多越好 | **[Ultra v3.2.2](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.2)** |
+| 想读源码，10k 行比 36k 行好读 | **[Fusion v2.3.1](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.1)** |
 | 想研究三层叠加引擎的完整实现 | **[Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0)** |
 | 想看看真实项目的弯路长什么样 | **[Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0)** |
-| 想看某个功能最早怎么写的 | **[Fusion v1.1 ~ v2.2](https://github.com/172629438/loomgrid/releases)** |
+| 想看某个功能最早怎么写的 | **[Fusion v1.1 ~ v2.3.0](https://github.com/172629438/loomgrid/releases)** |
 
 两个现役版本不是「新旧」，是**两条路线**：
 
-| | **Fusion v2.3.4** | **Ultra v3.2.8** |
+| | **Fusion v2.3.1** | **Ultra v3.2.2** |
 |---|---|---|
-| 定位 | **生产推荐** | 测试版（功能最全） |
+| 定位 | **生产推荐** | 功能最全 |
 | 代码量 | 10,421 行 | 35,932 行 |
 | 架构 | 另写一遍，流式处理 | 单文件全功能 |
 | 吞吐 | Ultra 的三成 | 基准 |
@@ -137,7 +137,9 @@
 | 13 个动效组件 | — | ✓ |
 | 稳定性 | 高（跑得久） | 中（功能密度超过测试覆盖） |
 
-> **为什么稳定版推荐的是行数少的那个**：Ultra v3.2.8 在 2026-10 这一轮同时塞进了 MILP、四目标 Pareto、13 步诊断、13 个动效组件、三层引擎回填和 30 余条缺陷修复；v3.2.1 修了 4 条口径、v3.2.2 修了数据接入层的表格式误判（含一条自加入起就 100% 失败的结算功能）。能力上限更高，踩坑概率也更高。这不是设计错了，是还没打磨完。
+> **关于版本号**：2026-10-28 做过一次版本序列重整。原 v3.2.2~v3.2.8 与 v2.3.1~v2.3.3 那些中间版本，源码从未提交进仓库、Release 上的包又打不开，按「每个版本必须有源码、必须有能打开的 exe」的标准撤销了版本号，最终代码统一重新发布为 **Ultra v3.2.2** 与 **Fusion v2.3.1**。原各版本的更新说明全部合并进新版本条目，逐条见 [CHANGELOG](CHANGELOG.md)。
+
+> **为什么稳定版推荐的是行数少的那个**：Ultra 功能密度更高——MILP、四目标 Pareto、13 步诊断、13 个动效组件、三层引擎回填都在里面，能力上限高，路径也多。Fusion 是另写一遍的轻量路线，吞吐是 Ultra 的三成但内存低、跑得久。这不是谁更好，是你要「稳」还是要「全」。
 
 ---
 
@@ -149,15 +151,15 @@
 
 **① 直接用（不装环境）**
 
-到 [Releases](https://github.com/172629438/loomgrid/releases) 选你要的版本——**每个版本一个独立压缩包**，各 163.6 MB，解压后 366 MB，自带完整运行时，不需装 Python。
+到 [Releases](https://github.com/172629438/loomgrid/releases) 选你要的版本——**每个版本一个独立压缩包**，自带完整运行时，不需装 Python。
 
-| 版本 | 适合 |
-|---|---|
-| [**Fusion v2.3.4**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.4) | **正式做方案**，稳定优先选它 |
-| [**Ultra v3.2.8**](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.8) | 功能最全，但在测试阶段，愿意一起踩坑就上 |
-| [Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0) | Ultra 历史快照，含三层叠加引擎原文 |
-| [Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0) | 早期分支，含占位方法，**不要做正式方案** |
-| [Fusion v1.1 ~ v2.2](https://github.com/172629438/loomgrid/releases) | 考古、版本对比 |
+| 版本 | 适合 | 包体 |
+|---|---|---|
+| [**Fusion v2.3.1**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.1) | **正式做方案**，稳定优先选它 | 136 MB（解压 309 MB） |
+| [**Ultra v3.2.2**](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.2) | 功能最全，要 MILP / Pareto / 诊断就上 | 274 MB（解压 675 MB） |
+| [Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0) | Ultra 历史快照，含三层叠加引擎原文 | 139 MB |
+| [Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0) | 早期分支，含占位方法，**不要做正式方案** | 267 MB |
+| [Fusion v1.1 ~ v2.3.0](https://github.com/172629438/loomgrid/releases) | 考古、版本对比 | 各 135 MB |
 
 `lib\` 目录必须和 exe 保持同级，不要单独把 exe 拎出来。
 
@@ -424,14 +426,14 @@ utf-8-sig → gbk → gb18030 → gb2312 → latin1
 
 | 文件 | 内部版本 | 行数 | 定位 | 状态 |
 |---|---|---:|---|---|
-| `负荷曲线批量生成工具 Pro 融合版 (v2.3).py` | v2.3 | ~10.4k | **生产推荐**，要结果稳就选它 | 稳定 |
-| `负荷曲线批量生成Ultra.py` | v3.2.2 | ~35.9k | 功能最全，**仍在测试**，新功能与新动效密集 | 测试中 |
+| `负荷曲线批量生成工具 Pro 融合版 (v2.3).py` | v2.3.1 | ~10.4k | **生产推荐**，要结果稳就选它 | 稳定 |
+| `负荷曲线批量生成Ultra.py` | v3.2.2 | ~36.2k | 功能最全（MILP / Pareto / 13 步诊断） | 稳定 |
 
-> **为什么稳定版推荐的是「旧」版本？**
+> **为什么稳定版推荐的是行数少的那个？**
 >
-> Ultra v3.2 是功能最全的一条线，但它在 2026-10 这一轮里同时塞进了太多东西：MILP 全局规划、四目标 Pareto、13 步诊断、13 个动效组件、三层叠加引擎回填、30 余条缺陷修复。功能堆叠的密度超过了测试覆盖的增长速度——GUI 点击路径至今没有自动化回归，交付前只做过靶向断言和抽样启动测试。
+> Ultra 是功能最全的一条线：MILP 全局规划、四目标 Pareto、13 步诊断、13 个动效组件、三层叠加引擎回填。功能密度高，路径也多——GUI 点击路径至今没有自动化回归，交付前只做过靶向断言和抽样启动测试。
 >
-> 结果就是：**能力上限更高，踩坑概率也更高**。明天就要交方案的场景，用 Fusion v2.3 更稳——它只有 10,421 行，功能是 Ultra 的子集，但每条路径都跑了很久。
+> Fusion 是另写一遍的轻量路线，只有 10,400 行，功能是 Ultra 的子集，但每条路径都跑了很久。二选一的时候：要「稳」选 Fusion，要「全」选 Ultra。
 >
 > Ultra 的问题不是设计错了，是还没打磨完。想一起打磨，非常欢迎——这正是这个仓库开源的意义。
 
@@ -578,7 +580,7 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 - **单文件 3.5 万行**，没有单元测试框架，验证靠脚本巡检（85 项回归 + 12 项算法手算对拍，见 [`tests/`](tests/) 与[缺陷修复报告](docs/缺陷修复报告.md)）。
 - **测算依赖输入质量**。工具不校验外部数据真实性，列映射选错会一路错到底。
 - **GUI 交互流程没有自动化回归测试**。核心算法有，界面点击路径靠人工。
-- **Ultra v3.2.8 处于测试阶段**。功能最全，但新增功能密集、动效组件多，稳定性不如 Fusion v2.3.4。正式交付优先用 Fusion。
+- **Ultra v3.2.2 功能最全，但路径也多**。MILP、Pareto、13 步诊断、13 个动效组件都在里面，稳定性不如 Fusion v2.3.1。正式交付优先用 Fusion。
 - **`legacy/` 里的历史版本仅供考古**，配置格式与现役版本不兼容，不建议使用。
 
 ---
