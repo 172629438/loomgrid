@@ -26,6 +26,30 @@
 
 **本版是 Ultra 的累积版。** 原 v3.2.2 到 v3.2.8 七个版本的全部修复都在里面，下面按主题归类。
 
+### 〇、专业分析窗口打开即崩（2026-10-29 追加）
+
+这是补 README 截图时意外挖出来的：想给「专业分析」界面拍一张图，窗口一构造就抛异常。
+顺着查下去，发现是 v3.2fix 重构留下的残留，**任何用户点「专业分析」都会崩**。
+
+五处硬伤：
+
+| 位置 | 症状 |
+|---|---|
+| `_init_ui` | `tokens['BG_CARD']` —— 这个键在 LIGHT/DARK 里从不存在，直接下标就崩 |
+| `_init_ui` | `right_layout = right_widget = None` 之后再没创建过，却用了两次 |
+| `_init_ui` | `_month_checks` 只在回调里初始化，启动阶段就有人读它 |
+| `_build_left_panel` / `_init_ui` | `_step_labels` 被定义两次（dict 和 list 互相覆盖） |
+| `_recalc_spaces` | 对已销毁的 QLabel 调 setText，抛 libshiboken 异常 |
+
+后两条是同一类问题：重构时属性被覆盖、控件被重建，读的一方拿到的还是旧对象。
+修法是统一键名、把 list 那套改名 `_step_bar_items`、并加 `_safe_step_label()` 包一层。
+
+修完后用注入数据构造窗口，能显示完整界面并跑出真实计算：
+`[自动需量] 1604.7kW, ¥64,188`。
+
+**仍未修**：窗口关闭时 `closeEvent` 读已销毁的 `pv_algo_combo` / `rated_power_spin`，
+会抛 RuntimeError（被 Qt 吞掉，不崩程序）。同一批重构残留的清理顺序问题。
+
 ### 一、打包与启动（原 v3.2.8）
 
 **Release 上的 exe 从 v3.2.0 起就打不开。这版把它修好了。**
