@@ -221,7 +221,28 @@ h1 b{font-weight:600}
   border-bottom:1px solid var(--line-soft);
   background:#06070A;
 }
+.loom{position:relative}
 .loom svg{display:block;width:100%;height:auto;overflow:visible}
+
+/* WebGL 经线层：盖在 svg 上，只画竖线。
+   pointer-events:none —— 探针要继续落在 svg 上。
+   透明度挂和 .warpg 同一套 warp-out 动画，退场节奏完全一致。    */
+#loomGL{
+  position:absolute;inset:0;width:100%;height:100%;
+  pointer-events:none;display:none;
+}
+.js.gl #loomGL{display:block}
+.js.gl .warpg{opacity:0}
+
+@media (prefers-reduced-motion:no-preference){
+  @supports (animation-timeline: view()){
+    .js.gl #loomGL{
+      animation:warp-out linear both;
+      animation-timeline:view();
+      animation-range:exit 0% exit 55%;
+    }
+  }
+}
 /* 织面用 preserveAspectRatio="none" 填充容器，纵向拉伸会连带改变线宽，
    non-scaling-stroke 让描边保持设计值（1.5px 的负荷线到哪都是 1.5px）。 */
 #loomSvg path,#loomSvg line{vector-effect:non-scaling-stroke}
@@ -1262,6 +1283,7 @@ nav.on{
       <span>这一天 <b>充 2,989</b> / <b>放 2,736</b> kWh · 日省 <b>¥1,676</b></span>
       <span>由 <b>optimal_dispatch_lp</b> 求解 · 非示意</span>
     </div>
+    <canvas id="loomGL" aria-hidden="true"></canvas>
     <svg id="loomSvg" viewBox="0 0 1600 380" preserveAspectRatio="none" role="img"
          aria-label="一天 96 点：24 小时分时电价经线、负荷曲线、储能 SOC 轨迹"></svg>
     <noscript>
@@ -2279,6 +2301,142 @@ nav.on{
       pins.push({i, x:(i/(n-1))*lr.width});
       drawPins();
     },{passive:true});
+  })();
+
+  /* ⑦.5 WebGL 经线层 —— 只画竖线，失败就静默留在 SVG 版本
+   *
+   * 为什么只换这一层：96 根 → 476 根（每 3 分钟一根），只有 GPU 能同时
+   * 做到「密度 5 倍」和「任何 DPR 下都是干净 1px」。曲线只有 96 个点，
+   * 留在 SVG 更省事，探针和退场编排也不用改一行。
+   */
+  let glLoom = null;
+  (function initGL(){
+    if(reduce) return;                       // reduce-motion 直接走 SVG
+    const cvs = document.getElementById('loomGL');
+    if(!cvs) return;
+    const gl = cvs.getContext('webgl2', {antialias:false, alpha:true, premultipliedAlpha:false})
+            || cvs.getContext('webgl',  {antialias:false, alpha:true, premultipliedAlpha:false});
+    if(!gl) return;
+
+    const DENS = 5;
+    const LINES = (n - 1) * DENS + 1;
+    const pr = [];
+    for(let i=0;i<n-1;i++) for(let j=0;j<DENS;j++) pr.push(D.price[i] + (D.price[i+1]-D.price[i])*(j/DENS));
+    pr.push(D.price[n-1]);
+
+    const VS = [
+      'attribute vec2 aPos;',
+      'attribute float aOff;',
+      'attribute float aBright;',
+      'uniform float uLineW;',
+      'varying float vB;',
+      'varying float vX;',
+      'void main(){',
+      '  float x = aPos.x + aOff * uLineW;',
+      '  vB = aBright; vX = aPos.x;',
+      '  gl_Position = vec4(x*2.0-1.0, aPos.y*2.0-1.0, 0.0, 1.0);',
+      '}'
+    ].join('\n');
+
+    const FS = [
+      'precision mediump float;',
+      'varying float vB;',
+      'varying float vX;',
+      'uniform float uProgress;',
+      'uniform vec3 uColor;',
+      'void main(){',
+      '  float vis = 1.0 - smoothstep(uProgress-0.008, uProgress+0.008, vX);',
+      '  gl_FragColor = vec4(uColor * vB * vis, vB * vis);',   // 预乘，配合 premultipliedAlpha:false
+      '}'
+    ].join('\n');
+
+    function sh(t, src){
+      const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o);
+      if(!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o));
+      return o;
+    }
+    let prog;
+    try{
+      prog = gl.createProgram();
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+      gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+      gl.linkProgram(prog);
+      if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('link');
+    }catch(e){ return; }
+
+    /* 经线的纵向范围和 SVG 里一致：0.055 → 0.965 */
+    const Y0 = 0.055, Y1 = 0.965;
+    const pminL = Math.min.apply(null, pr), pmaxL = Math.max.apply(null, pr);
+    const pos = [], off = [], bri = [];
+    for(let i=0;i<LINES;i++){
+      const x = i/(LINES-1);
+      const t = (pr[i]-pminL)/(pmaxL-pminL+1e-9);
+      const b = 0.030 + t*0.105;
+      pos.push(x,Y0, x,Y0, x,Y1,  x,Y0, x,Y1, x,Y1);
+      off.push(-1, 1, 1, -1, 1, -1);
+      for(let k=0;k<6;k++) bri.push(b);
+    }
+    function mk(arr){
+      const b = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, b);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.STATIC_DRAW);
+      return b;
+    }
+    const bP = mk(pos), bO = mk(off), bB = mk(bri);
+
+    const aPos = gl.getAttribLocation(prog,'aPos');
+    const aOff = gl.getAttribLocation(prog,'aOff');
+    const aBri = gl.getAttribLocation(prog,'aBright');
+    const uW = gl.getUniformLocation(prog,'uLineW');
+    const uP = gl.getUniformLocation(prog,'uProgress');
+    const uC = gl.getUniformLocation(prog,'uColor');
+
+    let cw = 1, ch = 1;
+    function size(){
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      cw = Math.max(1, Math.floor(cvs.clientWidth * dpr));
+      ch = Math.max(1, Math.floor(cvs.clientHeight * dpr));
+      cvs.width = cw; cvs.height = ch;
+      gl.viewport(0,0,cw,ch);
+    }
+    size();
+
+    function bind(b, loc, sz){
+      gl.bindBuffer(gl.ARRAY_BUFFER, b);
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, sz, gl.FLOAT, false, 0, 0);
+    }
+
+    let prog0 = 0, raf = 0;
+    const t0 = performance.now() + 60;
+
+    function draw(){
+      const p = Math.min(1, Math.max(0, (performance.now()-t0)/1200));
+      prog0 = p;
+      gl.clearColor(0,0,0,0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(prog);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      bind(bP,aPos,2); bind(bO,aOff,1); bind(bB,aBri,1);
+      gl.uniform1f(uW, 1.0/Math.max(1,cw*0.5) * 0.5 * 2);   // 1 物理像素
+      gl.uniform1f(uP, p);
+      gl.uniform3f(uC, 0.929, 0.925, 0.910);
+      gl.drawArrays(gl.TRIANGLES, 0, LINES*6);
+      if(p < 1) raf = requestAnimationFrame(draw);
+      else raf = 0;
+    }
+
+    // 起跑：等首屏编排的经线起点，和 SVG 版对齐
+    setTimeout(()=>{ size(); draw(); }, 160);
+    addEventListener('resize', ()=>{ size(); if(!raf && prog0>=1) draw(); }, {passive:true});
+
+    document.documentElement.classList.add('gl');
+    // CSS animation 的优先级高于普通声明，`.js.gl .warpg{opacity:0}`
+    // 打不过 warp-out 动画，所以直接不画 SVN 那 96 根。
+    const warpEl = document.querySelector('.warpg');
+    if(warpEl) warpEl.style.display = 'none';
+    glLoom = { redraw: draw, resize: size };
   })();
 
   /* ⑧ 编排：经线依次亮起 → 负荷线从左到右描出 → SOC 跟上
