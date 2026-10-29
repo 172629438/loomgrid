@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://172629438.github.io/loomgrid/sitemap.xml
