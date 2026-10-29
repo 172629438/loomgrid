@@ -229,8 +229,21 @@ h1 b{font-weight:600}
    透明度挂和 .warpg 同一套 warp-out 动画，退场节奏完全一致。    */
 #loomGL{
   position:absolute;inset:0;width:100%;height:100%;
-  pointer-events:none;display:none;
+  pointer-events:none;display:none;z-index:1;
 }
+
+/* 首访解码层：先用编码字符占住织面的位置，再淡出交给真曲线。
+   取 Active Theory 的做法——加载状态是数据本身，不是转圈。      */
+.loom-decode{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:10.5px;line-height:1.85;letter-spacing:.08em;
+  color:rgba(237,236,232,.26);white-space:pre;overflow:hidden;
+  pointer-events:none;opacity:0;z-index:2;
+  transition:opacity 320ms var(--ease-out);
+}
+.loom-decode.on{opacity:1}
+@media (max-width:700px){ .loom-decode{display:none} }
+@media (prefers-reduced-motion:reduce){ .loom-decode{display:none} }
 .js.gl #loomGL{display:block}
 .js.gl .warpg{opacity:0}
 
@@ -1283,6 +1296,7 @@ nav.on{
       <span>这一天 <b>充 2,989</b> / <b>放 2,736</b> kWh · 日省 <b>¥1,676</b></span>
       <span>由 <b>optimal_dispatch_lp</b> 求解 · 非示意</span>
     </div>
+    <div class="loom-decode" id="loomDecode" aria-hidden="true"></div>
     <canvas id="loomGL" aria-hidden="true"></canvas>
     <svg id="loomSvg" viewBox="0 0 1600 380" preserveAspectRatio="none" role="img"
          aria-label="一天 96 点：24 小时分时电价经线、负荷曲线、储能 SOC 轨迹"></svg>
@@ -2320,20 +2334,34 @@ nav.on{
 
     const DENS = 5;
     const LINES = (n - 1) * DENS + 1;
-    const pr = [];
-    for(let i=0;i<n-1;i++) for(let j=0;j<DENS;j++) pr.push(D.price[i] + (D.price[i+1]-D.price[i])*(j/DENS));
-    pr.push(D.price[n-1]);
+    function rs(a){
+      const o = [];
+      for(let i=0;i<n-1;i++) for(let j=0;j<DENS;j++) o.push(a[i] + (a[i+1]-a[i])*(j/DENS));
+      o.push(a[n-1]);
+      return o;
+    }
+    const pr = rs(D.price), ld = rs(D.load);
 
+    /* ── 着色器 ──
+       aZ：-1 = 最远，+1 = 最近。
+       三个量随深度变化：线宽、亮度、视差位移。
+       视差写 uTilt * aZ —— 前后层的偏移方向相反，这才是立体感；
+       同向等量偏移只是整层平移，看不出深度。 */
     const VS = [
       'attribute vec2 aPos;',
       'attribute float aOff;',
       'attribute float aBright;',
+      'attribute float aZ;',
       'uniform float uLineW;',
+      'uniform float uTilt;',
       'varying float vB;',
       'varying float vX;',
       'void main(){',
-      '  float x = aPos.x + aOff * uLineW;',
-      '  vB = aBright; vX = aPos.x;',
+      '  float depth = (aZ + 1.0) * 0.5;',
+      '  float w = uLineW * mix(0.55, 1.30, depth);',
+      '  float x = aPos.x + aOff * w + aZ * uTilt;',
+      '  vB = aBright * mix(0.50, 1.0, depth);',
+      '  vX = aPos.x;',
       '  gl_Position = vec4(x*2.0-1.0, aPos.y*2.0-1.0, 0.0, 1.0);',
       '}'
     ].join('\n');
@@ -2346,7 +2374,7 @@ nav.on{
       'uniform vec3 uColor;',
       'void main(){',
       '  float vis = 1.0 - smoothstep(uProgress-0.008, uProgress+0.008, vX);',
-      '  gl_FragColor = vec4(uColor * vB * vis, vB * vis);',   // 预乘，配合 premultipliedAlpha:false
+      '  gl_FragColor = vec4(uColor * vB * vis, vB * vis);',
       '}'
     ].join('\n');
 
@@ -2364,17 +2392,26 @@ nav.on{
       if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('link');
     }catch(e){ return; }
 
-    /* 经线的纵向范围和 SVG 里一致：0.055 → 0.965 */
     const Y0 = 0.055, Y1 = 0.965;
     const pminL = Math.min.apply(null, pr), pmaxL = Math.max.apply(null, pr);
-    const pos = [], off = [], bri = [];
+    const lmin = Math.min.apply(null, ld), lmax = Math.max.apply(null, ld);
+    const pos = [], off = [], bri = [], zz = [];
+    /* 三个量和深度挂钩：
+         亮度（电价）· 线宽（深度）· 纵向长度（深度）
+       纵向长度是这里唯一真正「看得出」的深度线索——均匀竖线阵列里
+       横向视差会被相邻线替换掉，实测加到 10px 也只有 1.7% 像素变动。 */
+    const YSHRINK = 0.032;
     for(let i=0;i<LINES;i++){
       const x = i/(LINES-1);
       const t = (pr[i]-pminL)/(pmaxL-pminL+1e-9);
-      const b = 0.030 + t*0.105;
-      pos.push(x,Y0, x,Y0, x,Y1,  x,Y0, x,Y1, x,Y1);
+      const b = 0.030 + t*0.105;                                   // 电价 → 亮度
+      const z = ((ld[i]-lmin)/(lmax-lmin+1e-9))*2 - 1;             // 负荷 → 深度
+      const depth = (z + 1) * 0.5;                                 // 0 远 → 1 近
+      const y0 = Y0 + (1 - depth) * YSHRINK;
+      const y1 = Y1 - (1 - depth) * YSHRINK;
+      pos.push(x,y0, x,y0, x,y1,  x,y0, x,y1, x,y1);
       off.push(-1, 1, 1, -1, 1, -1);
-      for(let k=0;k<6;k++) bri.push(b);
+      for(let k=0;k<6;k++){ bri.push(b); zz.push(z); }
     }
     function mk(arr){
       const b = gl.createBuffer();
@@ -2382,12 +2419,14 @@ nav.on{
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.STATIC_DRAW);
       return b;
     }
-    const bP = mk(pos), bO = mk(off), bB = mk(bri);
+    const bP = mk(pos), bO = mk(off), bB = mk(bri), bZ = mk(zz);
 
     const aPos = gl.getAttribLocation(prog,'aPos');
     const aOff = gl.getAttribLocation(prog,'aOff');
     const aBri = gl.getAttribLocation(prog,'aBright');
+    const aZ   = gl.getAttribLocation(prog,'aZ');
     const uW = gl.getUniformLocation(prog,'uLineW');
+    const uT = gl.getUniformLocation(prog,'uTilt');
     const uP = gl.getUniformLocation(prog,'uProgress');
     const uC = gl.getUniformLocation(prog,'uColor');
 
@@ -2402,41 +2441,137 @@ nav.on{
     size();
 
     function bind(b, loc, sz){
+      if(loc < 0) return;
       gl.bindBuffer(gl.ARRAY_BUFFER, b);
       gl.enableVertexAttribArray(loc);
       gl.vertexAttribPointer(loc, sz, gl.FLOAT, false, 0, 0);
     }
 
-    let prog0 = 0, raf = 0;
+    /* ── 阻尼谐振子 ──
+       动效 token 里那三个弹簧是 CSS 用的，这里要的是可积分的形式：
+       x'' = -k(x - target) - c·x'，取 ζ=0.72、T≈0.9s → ω=6.98
+       k = ω² = 48.7，c = 2ζω = 10.05。                 */
+    const K = 48.7, C = 10.05;
+    const TILT = 0.014;                    // NDC 位移上限（约 10px @1440）
+    let target = 0, cur = 0, vel = 0, lastT = 0;
+
+    function step(now){
+      const dt = lastT ? Math.min(0.033, (now - lastT) / 1000) : 0.016;
+      lastT = now;
+      const a = -K * (cur - target) - C * vel;
+      vel += a * dt;
+      cur += vel * dt;
+      if(Math.abs(vel) < 0.0009 && Math.abs(cur - target) < 0.0006){
+        cur = target; vel = 0;
+        return true;                        // 已静止
+      }
+      return false;
+    }
+
+    let raf = 0, prog0 = 0;
     const t0 = performance.now() + 60;
 
-    function draw(){
-      const p = Math.min(1, Math.max(0, (performance.now()-t0)/1200));
-      prog0 = p;
+    function render(p, tilt){
       gl.clearColor(0,0,0,0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(prog);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-      bind(bP,aPos,2); bind(bO,aOff,1); bind(bB,aBri,1);
-      gl.uniform1f(uW, 1.0/Math.max(1,cw*0.5) * 0.5 * 2);   // 1 物理像素
+      bind(bP,aPos,2); bind(bO,aOff,1); bind(bB,aBri,1); bind(bZ,aZ,1);
+      gl.uniform1f(uW, 1.2 / Math.max(1, cw));   // 约 1px，随深度在 0.66–1.56 之间
+      gl.uniform1f(uT, tilt);
       gl.uniform1f(uP, p);
       gl.uniform3f(uC, 0.929, 0.925, 0.910);
       gl.drawArrays(gl.TRIANGLES, 0, LINES*6);
-      if(p < 1) raf = requestAnimationFrame(draw);
-      else raf = 0;
     }
 
-    // 起跑：等首屏编排的经线起点，和 SVG 版对齐
-    setTimeout(()=>{ size(); draw(); }, 160);
-    addEventListener('resize', ()=>{ size(); if(!raf && prog0>=1) draw(); }, {passive:true});
+    function loop(now){
+      const p = Math.min(1, Math.max(0, (now - t0) / 1200));
+      prog0 = p;
+      const still = step(now);
+      render(p, cur * TILT);
+      if(p < 1 || !still) raf = requestAnimationFrame(loop);
+      else { raf = 0; lastT = 0; }
+    }
+
+    /* 鼠标只在 hero 内触发视差；离开时回中 */
+    const host = cvs.parentElement;
+    if(host){
+      host.addEventListener('mousemove', e=>{
+        const r = host.getBoundingClientRect();
+        if(!r.width) return;
+        target = ((e.clientX - r.left) / r.width - 0.5) * 2;   // -1..1
+        if(!raf) raf = requestAnimationFrame(loop);
+      }, {passive:true});
+      host.addEventListener('mouseleave', ()=>{
+        target = 0;
+        if(!raf) raf = requestAnimationFrame(loop);
+      }, {passive:true});
+    }
+
+    setTimeout(()=>{ size(); raf = requestAnimationFrame(loop); }, 160);
+    addEventListener('resize', ()=>{
+      size();
+      if(!raf){ prog0 = 1; render(1, cur * TILT); }
+    }, {passive:true});
 
     document.documentElement.classList.add('gl');
     // CSS animation 的优先级高于普通声明，`.js.gl .warpg{opacity:0}`
-    // 打不过 warp-out 动画，所以直接不画 SVN 那 96 根。
+    // 打不过 warp-out 动画，所以直接不画 SVG 那 96 根。
     const warpEl = document.querySelector('.warpg');
     if(warpEl) warpEl.style.display = 'none';
-    glLoom = { redraw: draw, resize: size };
+    glLoom = { render, size };
+  })();
+
+  /* ⑦.6 首访解码层 —— 用编码字符占住织面，再淡出交给真曲线
+   *
+   * Active Theory 的加载器不是 spinner，是编码后的数据本身。
+   * 这里借它的形：字符先随机翻滚，中途逐位「锁定」成数字，
+   * 等织面画完一起退场。只在本次会话第一次进入时出现。
+   */
+  (function decode(){
+    const el = document.getElementById('loomDecode');
+    if(!el || reduce) return;
+    try{ if(sessionStorage.getItem('lg.decoded') === '1'){ el.remove(); return; } }catch(_){}
+    try{ sessionStorage.setItem('lg.decoded', '1'); }catch(_){}
+
+    const CH = '/\\\\01▁▂▃▄▅▆▇';
+    // 按容器实际尺寸算列数行数——固定 62×4 只占中间一小块，
+    // 看着像噪点，不像一屏正在解码的数据。
+    const COLS = Math.max(24, Math.floor(el.clientWidth / 6.3));
+    const ROWS = Math.max(4, Math.min(14, Math.floor(el.clientHeight / 17)));
+    let frame = 0;
+    el.classList.add('on');
+
+    function paint(){
+      const lockRows = frame / 9;                 // 逐行锁定
+      let out = '';
+      for(let r = 0; r < ROWS; r++){
+        let line = '';
+        for(let c = 0; c < COLS; c++){
+          const locked = (r + 1) < lockRows && (c % 3 !== 0);
+          if(locked){
+            const i = Math.round(c / (COLS - 1) * (n - 1));
+            line += String(Math.round(D.price[i] * 100)).padStart(3, '0').slice(-1);
+          }else{
+            line += CH[(Math.random() * CH.length) | 0];
+          }
+        }
+        out += line + (r < ROWS - 1 ? '\n' : '');
+      }
+      el.textContent = out;
+    }
+
+    paint();
+    const tick = setInterval(()=>{
+      frame++;
+      paint();
+      if(frame > 10){
+        clearInterval(tick);
+        el.classList.remove('on');
+        setTimeout(()=>{ if(el.parentElement) el.remove(); }, 420);
+      }
+    }, 66);
   })();
 
   /* ⑧ 编排：经线依次亮起 → 负荷线从左到右描出 → SOC 跟上
