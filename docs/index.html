@@ -1323,8 +1323,11 @@ nav.on{
     <svg id="loomSvg" viewBox="0 0 1600 380" preserveAspectRatio="none" role="img"
          aria-label="一天 96 点：24 小时分时电价经线、负荷曲线、储能 SOC 轨迹"></svg>
     <noscript>
-      <img src="assets/hero.png" alt="一天的负荷曲线、充放电功率与电池 SOC，由线性规划求解得出"
-           style="display:block;width:100%;height:auto;margin-top:14px;border-top:1px solid var(--line-soft)">
+      <picture>
+        <source srcset="assets/hero.webp" type="image/webp">
+        <img src="assets/hero.png" alt="一天的负荷曲线、充放电功率与电池 SOC，由线性规划求解得出"
+             style="display:block;width:100%;height:auto;margin-top:14px;border-top:1px solid var(--line-soft)">
+      </picture>
     </noscript>
     <div class="probe" id="probe">
       <div class="pin pin-a" id="pinA"><i></i></div>
@@ -1431,7 +1434,10 @@ nav.on{
     </p>
 
     <figure class="engines-fig fig reveal">
-      <img src="assets/engines.png" alt="三引擎对拍：LP、逐日仿真、贪心在同一条负荷曲线上的 SOC 轨迹">
+      <picture>
+         <source srcset="assets/engines.webp" type="image/webp">
+         <img src="assets/engines.png" alt="三引擎对拍：LP、逐日仿真、贪心在同一条负荷曲线上的 SOC 轨迹">
+       </picture>
     </figure>
 
     <table class="engtable">
@@ -1541,7 +1547,10 @@ nav.on{
     </div>
 
     <figure class="arch-fig fig reveal">
-      <img src="assets/architecture.png" alt="四层架构：表现层、编排层、领域层、底座层，依赖只向下">
+      <picture>
+         <source srcset="assets/architecture.webp" type="image/webp">
+         <img src="assets/architecture.png" alt="四层架构：表现层、编排层、领域层、底座层，依赖只向下">
+       </picture>
     </figure>
     <p class="sub" style="margin-top:14px">
       四层架构 —— 依赖只向下，领域层不 import 任何 Qt 组件。这是算法能脱离界面单独跑的物理前提。
