@@ -343,25 +343,55 @@ utf-8-sig → gbk → gb18030 → gb2312 → latin1
 
 ### 界面实拍
 
-下面这几张都是**真跑出来的**：脚本造一份商业综合体年度电表数据（45 天 × 96 点，工作日夜峰、周末降 28%、5% 噪声），注入程序，等渲染稳定后直接抓控件。不 P 图、不摆拍。
+下面这些图都是**真跑出来的**：脚本造一份商业综合体年度电表数据（45 天 × 96 点，工作日夜峰、周末降 28%、噪声 6%），注入程序，等渲染稳定后直接抓控件。不 P 图、不摆拍空界面。
 
-**Ultra · 导入数据后**（左侧文件列表、右侧日志与环形进度）
+整套流水线在 `tools/shot_lab.py`，改版后重跑一遍即可刷新全部截图。
+
+#### 数据接入
+
+**主工作台 · 导入后**——左侧文件列表、右侧日志与环形进度、底部快捷模式
 
 ![Ultra 主界面](assets/screenshots/ultra-main-imported.png)
 
-**Ultra · 负荷曲线出图**（深色）
+**数据预览与列映射**——自动识别「表号 / 日期 / 时间 / 正向有功功率」等列，底部实时统计行数列数
+
+![数据预览](assets/screenshots/ultra-data-preview.png)
+
+**光伏月份匹配**——负荷月份与光伏发电月份按表逐一对应
+
+![光伏月份匹配](assets/screenshots/ultra-pv-match.png)
+
+#### 负荷构造
+
+**负荷曲线模拟器**——行业模板（电子制造 / 化工 / 数据中心等）、五项形态参数实时滑块、左侧调右图即时更新，附储能快速测算
+
+![负荷模拟器](assets/screenshots/ultra-load-sim.png)
+
+**园区负荷叠加**——多个用能资产按行业与功率叠加成一条总负荷
+
+![园区模拟](assets/screenshots/ultra-park-sim.png)
+
+#### 分析与出图
+
+**敏感性分析**——电价、系统单价、效率、衰减率逐项拖动，右侧实时给出 IRR 与 NPV 变化
+
+![敏感性分析](assets/screenshots/ultra-sensitivity.png)
+
+**负荷曲线出图**（深色）——连续三日叠加、虚线为日均
 
 ![负荷曲线-深色](assets/screenshots/ultra-curve-dark.png)
 
-**Ultra · 负荷曲线出图**（浅色，带均值线）
+**负荷曲线出图**（浅色，带均值线）
 
 ![负荷曲线-浅色](assets/screenshots/ultra-curve-light.png)
 
-**Fusion · 导入数据后**——两代产品的差别一眼能看出来：Fusion 是原生控件、无装饰，把力气全用在读表与算账上
+#### Fusion
+
+**Fusion · 导入后**——两代产品的差别一眼能看出来：Fusion 是原生控件、无装饰，把力气全用在读表与算账上
 
 ![Fusion 主界面](assets/screenshots/fusion-main-imported.png)
 
-> 截图已知一处瑕疵：Ultra 顶部大标题用了渐变画刷 + 扫光动效，静态帧抓下来是模糊的蓝带。真实运行时它是流动的。没为截图去改这行代码。
+> 两处已知情况：Ultra 顶部大标题用了渐变画刷 + 扫光动效，静态帧抓下来是模糊的蓝带，真实运行时它是流动的；为了不因为截图去改产品外观，这一点没有处理。
 
 <table>
 <tr><td width="26%"><code>WindowAnimator</code></td><td>窗口淡入与位置过渡</td></tr>
