@@ -1334,6 +1334,24 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
 @media (prefers-contrast:more){
   :root{ --ash1:rgba(237,236,232,.78); --ash2:rgba(237,236,232,.58); --ash3:rgba(237,236,232,.40) }
 }
+
+/* ── hero 柔光 ────────────────────────────────────────────────
+   跟着鼠标走的一团极淡金色。不新增元素（用 ::after），不加渲染层
+   （纯 CSS 变量），鼠标离开时淡出到 0。
+   Linear / Vercel 都用这一手：页面看起来是「活的」，但说不出为什么。 */
+#hero{ position:relative; isolation:isolate }
+#hero::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(560px circle at var(--mx,50%) var(--my,42%),
+    rgba(201,162,39,.055), rgba(201,162,39,.018) 38%, transparent 62%);
+  opacity:0;
+  transition:opacity 420ms var(--ease-out);
+  z-index:0;
+}
+#hero.glow::after{ opacity:1 }
+#hero > .wrap, #hero > .loom, #hero > .loom-meta{ position:relative; z-index:1 }
+@media (prefers-reduced-motion:reduce){ #hero::after{ display:none } }
+@media (max-width:700px){ #hero::after{ display:none } }
 </style>
 </head>
 <body>
@@ -2103,6 +2121,47 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     },{rootMargin:'-45% 0px -50% 0px'});
     secs.forEach(s=>spy.observe(s));
   }
+})();
+
+/* ── hero 柔光跟随 ──
+   只在 hero 可见时挂监听（IntersectionObserver 控制），离开就摘掉，
+   不在整页常驻 mousemove。指针是粗的（触屏）直接跳过。 */
+(function(){
+  const hero = document.getElementById('hero');
+  if(!hero) return;
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if(matchMedia('(pointer: coarse)').matches) return;
+
+  let raf = 0, px = 0.5, py = 0.42, live = false;
+
+  function paint(){
+    raf = 0;
+    hero.style.setProperty('--mx', (px*100).toFixed(2)+'%');
+    hero.style.setProperty('--my', (py*100).toFixed(2)+'%');
+  }
+  function onMove(e){
+    const r = hero.getBoundingClientRect();
+    if(!r.width) return;
+    px = (e.clientX - r.left) / r.width;
+    py = (e.clientY - r.top) / r.height;
+    if(!raf) raf = requestAnimationFrame(paint);
+    if(!live){ hero.classList.add('glow'); live = true; }
+  }
+  function onLeave(){ hero.classList.remove('glow'); live = false; }
+
+  const io = new IntersectionObserver(es=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        hero.addEventListener('mousemove', onMove, {passive:true});
+        hero.addEventListener('mouseleave', onLeave, {passive:true});
+      }else{
+        hero.removeEventListener('mousemove', onMove);
+        hero.removeEventListener('mouseleave', onLeave);
+        onLeave();
+      }
+    });
+  }, {threshold:0.05});
+  io.observe(hero);
 })();
 
 /* ── 取景框：停稳后才对齐 ──
