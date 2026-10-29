@@ -43,9 +43,9 @@
 </table>
 </div>
 
-![充放策略演示](assets/demo.gif)
+![充放策略演示](assets/demo.webp)
 
-<div align="center"><sub>谷段充、尖峰放，SOC 全程在保护区间内 —— 这条动画由 <code>algorithms/</code> 里的真实算法驱动</sub></div>
+<div align="center"><sub>一天五段充放，SOC 全程在 8–95% 保护区间内 —— 这条动画的每一个点，都是 <code>algorithms/dispatch.py</code> 的 <code>optimal_dispatch_lp</code> 真跑出来的 LP 最优解，不是手画的示意</sub></div>
 
 ---
 
