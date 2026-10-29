@@ -11,14 +11,14 @@
 
 <br>
 
-[![License](https://img.shields.io/badge/license-MIT-4fd1c5?style=flat-square)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![PySide6](https://img.shields.io/badge/PySide6-6.5%2B-41CD52?style=flat-square&logo=qt&logoColor=white)](https://www.qt.io/qt-for-python)
-![Code](https://img.shields.io/badge/code-89k_lines-8b5cf6?style=flat-square)
-![Algorithms](https://img.shields.io/badge/algorithms-7_modules-f59e0b?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-97_assertions-22c55e?style=flat-square)
-[![Release](https://img.shields.io/github/v/release/172629438/loomgrid?style=flat-square&color=0ea5e9&label=release)](https://github.com/172629438/loomgrid/releases)
-[![Last commit](https://img.shields.io/github/last-commit/172629438/loomgrid?style=flat-square&color=64748b)](https://github.com/172629438/loomgrid/commits)
+[![License](https://img.shields.io/badge/license-MIT-2f6b4f?style=flat-square)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-1f3a5f?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![PySide6](https://img.shields.io/badge/PySide6-6.5%2B-1f3a5f?style=flat-square&logo=qt&logoColor=white)](https://www.qt.io/qt-for-python)
+![Code](https://img.shields.io/badge/code-110k_lines-2b2b2b?style=flat-square)
+![Algorithms](https://img.shields.io/badge/algorithms-8_modules-2b2b2b?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-433_assertions-2b2b2b?style=flat-square)
+[![Release](https://img.shields.io/github/v/release/172629438/loomgrid?style=flat-square&color=9a7b2e&label=release)](https://github.com/172629438/loomgrid/releases)
+[![Last commit](https://img.shields.io/github/last-commit/172629438/loomgrid?style=flat-square&color=6b7280)](https://github.com/172629438/loomgrid/commits)
 
 <br>
 
@@ -29,19 +29,6 @@
 ![LoomGrid — 负荷曲线 × 电价分层 × 储能充放](assets/hero.png)
 
 <div align="center"><sub>负荷曲线 × 峰平谷电价分层 × 储能充放区间 —— 一张图说清这个工具在算什么</sub></div>
-
-<div align="center">
-<table>
-<tr>
-<td align="center" width="50%"><img src="assets/screenshot-main.png" alt="主工作台"></td>
-<td align="center" width="50%"><img src="assets/screenshot-load-simulation.png" alt="负荷模拟"></td>
-</tr>
-<tr>
-<td align="center"><sub><b>主工作台</b> · 拖入文件 → 自动识别列 → 批量生成</sub></td>
-<td align="center"><sub><b>负荷模拟</b> · 25 行业参数 × 三层叠加引擎</sub></td>
-</tr>
-</table>
-</div>
 
 ![充放策略演示](assets/demo.webp)
 
@@ -80,13 +67,13 @@
 
 > 一个储能工程师，为解放自己的重复劳动写出来的桌面工具。读进客户的用电曲线和当地分时电价，算清楚「装多大、怎么充放、能省多少、几年回本」。
 
-不是演示 Demo。3.5 万行 Python + PySide6，96 个类。**不优雅，但真实**——包括走得通的路和绕过的弯。
+不是演示 Demo。3.6 万行 Python + PySide6，96 个类。**不优雅，但真实**——包括走得通的路和绕过的弯。
 
 ### 你可能需要它，如果：
 
 | 你的处境 | 这里有什么 |
 |---|---|
-| 刚接触储能测算，不知道容量怎么定 | 7 个可独立运行的算法模块，每个都能单独跑 |
+| 刚接触储能测算，不知道容量怎么定 | 8 个可独立运行的算法模块，每个都能单独跑 |
 | 想知道充放电空间到底怎么算 | `spaces.py`：给定曲线和电价时段，逐段算可充/可放 |
 | 在选调度策略 | `dispatch.py`：贪心 / 逐日仿真 / 线性规划，三份实现同文件对照 |
 | 要跟人解释「为什么是这个容量」 | `milp.py`：MILP 全局最优，含多设备选型与更换周期（Ultra 版才有） |
@@ -102,7 +89,7 @@
 | 算充放空间 | 逐时段列公式，或凭经验拍 | 逐日 / 分段两种口径自动算 |
 | 试不同容量 | 改一个参数重算一遍 | 敏感性表一次出 6 个容量点 |
 | 出图 | 手调坐标轴、配色 | 深浅双主题批量出图 |
-| 结果对不对 | 靠经验 | 12 项手算对拍 + 85 项回归 |
+| 结果对不对 | 靠经验 | 16 套 433 项断言，含 12 项手算对拍 |
 
 **它不替你做判断。** 峰谷价差取多少、循环按几次、需量按哪个口径——这些还得你自己定。工具的价值是把搬运那七成省下来，让你有时间想这三成。
 
@@ -126,7 +113,7 @@
 | | **Fusion v2.3.1** | **Ultra v3.2.2** |
 |---|---|---|
 | 定位 | **生产推荐** | 功能最全 |
-| 代码量 | 10,421 行 | 35,932 行 |
+| 代码量 | 10,584 行 | 36,175 行 |
 | 架构 | 另写一遍，流式处理 | 单文件全功能 |
 | 吞吐 | Ultra 的三成 | 基准 |
 | 内存占用 | 低 | 高 |
@@ -161,7 +148,7 @@
 | [Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0) | 早期分支，含占位方法，**不要做正式方案** | 267 MB |
 | [Fusion v1.1 ~ v2.3.0](https://github.com/172629438/loomgrid/releases) | 考古、版本对比 | 各 135 MB |
 
-`lib\` 目录必须和 exe 保持同级，不要单独把 exe 拎出来。
+`_internal\` 目录必须和 exe 保持同级，不要单独把 exe 拎出来。
 
 </td>
 <td width="50%" valign="top">
@@ -192,18 +179,18 @@ python examples/quickstart.py
 
 ## 核心算法
 
-七个文件从 3.5 万行主程序里剥离，标准是：不依赖 GUI、不依赖全局状态、能单独 import 就跑。
+八个文件从 3.6 万行主程序里剥离，标准是：不依赖 GUI、不依赖全局状态、能单独 import 就跑。
 
 | 模块 | 内容 | 行数 |
 |---|---:|---:|
-| [`periods.py`](algorithms/periods.py) | 电价时段归一化、类型词表映射、分段合并、价格序列 | 284 |
-| [`spaces.py`](algorithms/spaces.py) | 充放电空间（逐日 / 分段两种口径） | 628 |
+| [`periods.py`](algorithms/periods.py) | 电价时段归一化、类型词表映射、分段合并、价格序列 | 283 |
+| [`spaces.py`](algorithms/spaces.py) | 充放电空间（逐日 / 分段两种口径） | 627 |
 | [`dispatch.py`](algorithms/dispatch.py) | 贪心 / 逐日仿真 / 线性规划三种调度 | 736 |
-| [`milp.py`](algorithms/milp.py) | MILP 容量规划（多设备选型 + 更换周期 + 需量电费） | 411 |
-| [`finance.py`](algorithms/finance.py) | NPV / IRR / 回收期 / LCOE | 213 |
-| [`loadgen.py`](algorithms/loadgen.py) | 三层叠加负荷生成引擎 | 263 |
-| [`diagnostics.py`](algorithms/diagnostics.py) | 负荷指纹分析与行业匹配 | 561 |
-| [`demo.py`](algorithms/demo.py) | 不看源码先看效果：七个模块各调用一遍 | — |
+| [`milp.py`](algorithms/milp.py) | MILP 容量规划（多设备选型 + 更换周期 + 需量电费） | 410 |
+| [`finance.py`](algorithms/finance.py) | NPV / IRR / 回收期 / LCOE | 212 |
+| [`loadgen.py`](algorithms/loadgen.py) | 三层叠加负荷生成引擎 | 262 |
+| [`diagnostics.py`](algorithms/diagnostics.py) | 负荷指纹分析与行业匹配 | 569 |
+| [`demo.py`](algorithms/demo.py) | 不看源码先看效果：七个模块各调用一遍 | 285 |
 
 想直接看效果：`cd algorithms && python demo.py`。用现场构造的数据把七个模块跑一遍，不需要准备任何外部文件。
 
@@ -599,9 +586,9 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 | 绘图 | matplotlib | 3.7+ |
 | Excel | openpyxl | — |
 | 优化求解 | OR-Tools | 可选，缺了自动降级到快速排序法 |
-| 打包 | cx_Freeze | 只在需要重新出 exe 时用 |
+| 打包 | PyInstaller | 只在需要重新出 exe 时用 |
 
-**不装 Python 也能用**：Releases 里的包自带完整运行时（Python + 全部依赖，解压后 366 MB），解压即用。
+**不装 Python 也能用**：Releases 里的包自带完整运行时（Python + 全部依赖），解压即用——Fusion 解压后 309 MB，Ultra 675 MB。
 
 **只想跑算法部分**：numpy / pandas / scipy 三个就够，不用装 Qt。`examples/quickstart.py` 和 `algorithms/demo.py` 都只需要这三个。
 
@@ -611,8 +598,8 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 
 | 现役代码 | 算法模块 | 历史快照 | 已修缺陷 | 验证断言 |
 |:---:|:---:|:---:|:---:|:---:|
-| **89,363** 行 | **7** 个 | **8** 个 | **31** 条 | **97** 项 |
-| Ultra 35,932 / Backup 32,216<br>Reference 31,794 / Fusion 10,421 | 3,096 行<br>均不依赖 GUI | v1.1 ~ v2.3<br>仅做考古 | 致命 5 / 高危 9<br>中危 11 / 低危 6 | 12 项手算对拍<br>85 项回归 |
+| **110,767** 行 | **8** 个 | **12** 个 | **31** 条 | **433** 项 |
+| Ultra 36,175 / Backup 32,215<br>Reference 31,793 / Fusion 10,584 | 3,384 行<br>均不依赖 GUI | v1.1 ~ v2.3.1<br>仅做考古 | 致命 5 / 高危 9<br>中危 11 / 低危 6 | 16 套测试<br>含 12 项手算对拍 |
 
 </div>
 
@@ -621,7 +608,7 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 ## 已知边界
 
 - **`参考程序.py` 里有一批未实现的占位方法**。例如月度结算里的 `有储能电费 = 无储能电费 × 0.85`、快速测算里的 `投资 = 容量 × 750`。这些常数是当年为了先跑通界面拍的，不是测算结果。Ultra 里未采纳这些方法。
-- **单文件 3.5 万行**，没有单元测试框架，验证靠脚本巡检（85 项回归 + 12 项算法手算对拍，见 [`tests/`](tests/) 与[缺陷修复报告](docs/缺陷修复报告.md)）。
+- **单文件 3.6 万行**，没有单元测试框架，验证靠脚本巡检（16 套 433 项断言，含 12 项算法手算对拍，见 [`tests/`](tests/) 与[缺陷修复报告](docs/缺陷修复报告.md)）。
 - **测算依赖输入质量**。工具不校验外部数据真实性，列映射选错会一路错到底。
 - **GUI 交互流程没有自动化回归测试**。核心算法有，界面点击路径靠人工。
 - **Ultra v3.2.2 功能最全，但路径也多**。MILP、Pareto、13 步诊断、13 个动效组件都在里面，稳定性不如 Fusion v2.3.1。正式交付优先用 Fusion。
@@ -662,7 +649,7 @@ python tests/verify_algorithms_math.py
 
 ### 二、改过的地方，必须有回归
 
-`tests/` 下另有 5 套回归脚本，覆盖历次修复的 31 条缺陷，共 85 项断言。每改一处测算相关代码就跑一遍，改坏了当场红。
+`tests/` 下现有 16 套验证脚本，共 433 项断言，覆盖历次修复的 31 条缺陷。每改一处测算相关代码就跑一遍，改坏了当场红。
 
 ### 三、算不出来的，如实写出来
 
@@ -718,7 +705,7 @@ python tests/verify_algorithms_math.py
 | [`docs/深度理解报告.md`](docs/深度理解报告.md) | 七层架构、端到端调用链、充放电空间的物理定义、31 条风险清单 |
 | [`algorithms/README.md`](algorithms/README.md) | 七个算法模块的原理、公式、参数含义与踩过的坑 |
 | [`docs/版本演进.md`](docs/版本演进.md) | 四版本差异、特性迁移史、三次特性丢失与回填记录 |
-| [`docs/缺陷修复报告.md`](docs/缺陷修复报告.md) | 31 条缺陷的定位、修法与验证证据（97 项断言） |
+| [`docs/缺陷修复报告.md`](docs/缺陷修复报告.md) | 31 条缺陷的定位、修法与验证证据（433 项断言） |
 
 ---
 
@@ -734,7 +721,7 @@ python tests/verify_algorithms_math.py
 
 ### 打算做
 
-- **GUI 路径的自动化回归** —— 现在核心算法有 97 项断言兜底，界面点击路径全靠人工。想用 pytest-qt 把主流程串起来，但模态对话框是硬骨头
+- **GUI 路径的自动化回归** —— 现在核心算法有 433 项断言兜底，界面点击路径全靠人工。想用 pytest-qt 把主流程串起来，但模态对话框是硬骨头
 - **单文件的渐进拆分** —— `algorithms/` 是第一步。下一步想把数据加载层和配置层也独立出去，GUI 和业务编排最后再动
 - **行业参数库改成数据文件** —— 25 个行业的负荷特征现在写在代码里，挪成 YAML 之后，懂行业的人不用会 Python 也能贡献
 
@@ -753,7 +740,7 @@ python tests/verify_algorithms_math.py
 
 **为什么 exe 有 164 MB？**
 
-Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，解压后 366 MB。这是 Python 打包程序的固有成本，不是塞了多余东西。11 个版本共用同一套运行时，所以加起来才 1.76 GB 而不是 4.9 GB。
+Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，Fusion 解压后 309 MB、Ultra 675 MB。这是 Python 打包程序的固有成本，不是塞了多余东西。
 
 **为什么 SOC 下限定在 5%，不是 0% 或 10%？**
 
@@ -785,7 +772,7 @@ Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，解压�
 
 **为什么 Fusion 版功能比 Ultra 少？**
 
-因为它是**另写一遍**，不是裁剪。10,421 行对 35,932 行，流式处理、内存占用低、启动快，代价是吞吐只有 Ultra 三成、部分高级分析没实现。想读主流程代码的话，它比 Ultra 好读得多。
+因为它是**另写一遍**，不是裁剪。10,584 行对 36,175 行，流式处理、内存占用低、启动快，代价是吞吐只有 Ultra 三成、部分高级分析没实现。想读主流程代码的话，它比 Ultra 好读得多。
 
 **为什么有些历史版本反而是「坏」的？**
 
