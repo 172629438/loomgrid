@@ -354,7 +354,7 @@ def t_fusion_main(app):
     m = load_mod("f_main", FUSION)
     init_theme(m, app)
     mw = m.MainWindow()
-    stabilize(app, mw, 1440, 900, settle=6)
+    stabilize(app, mw, 1280, 760, settle=6)
     xlsx = write_xlsx(make_load_df(days=45, seed=7),
                       os.path.join(TMP, "fusion_load.xlsx"))
     print(f"    注入 {os.path.basename(xlsx)}")
@@ -363,8 +363,88 @@ def t_fusion_main(app):
     except Exception as e:
         print(f"    _on_files_dropped: {type(e).__name__}: {e}")
     settle_loop(app, 2.0)
-    stabilize(app, mw, 1440, 900, settle=8)
+    stabilize(app, mw, 1280, 760, settle=8)
     return grab(mw, "fusion-main-imported.png")
+
+
+def t_fusion_mapping(app):
+    """列映射 — 自动识别数据格式与四列对应。"""
+    m = load_mod("f_map", FUSION)
+    init_theme(m, app)
+    df = make_load_df(days=3, seed=11)
+    df.insert(0, "表号", "MTR-001")
+    fp = write_xlsx(df, os.path.join(TMP, "fusion_map.xlsx"))
+    cfg = m.Config()
+    dlg = m.MappingDialog(None, fp, "电表数据", cfg)
+    stabilize(app, dlg, 1180, 780, settle=8)
+    settle_loop(app, 1.5)
+    stabilize(app, dlg, 1180, 780, settle=8)
+    return grab(dlg, "fusion-mapping.png")
+
+
+def t_fusion_pro_mode(app):
+    """专业分析模式选择。"""
+    m = load_mod("f_pro", FUSION)
+    init_theme(m, app)
+    cfg = m.Config()
+    sm = getattr(m, "SettingsModel", None)
+    settings = sm() if callable(sm) else None
+    dlg = m.ProfessionalModeDialog(None, cfg, settings, [], "河南", 0)
+    stabilize(app, dlg, 560, 460, settle=10)
+    return grab(dlg, "fusion-pro-mode.png")
+
+
+# 河南 / 山东分时电价：截图用的真实策略数据
+_FUSION_PLANS = [
+    ("河南", "夏季（6-8月）", [6, 7, 8], [
+        {"start": 10, "end": 12, "type": "discharge"},
+        {"start": 14, "end": 16, "type": "discharge"},
+        {"start": 19, "end": 22, "type": "discharge"},
+        {"start": 23, "end": 7, "type": "charge"},
+    ]),
+    ("河南", "冬季（12,1,2月）", [12, 1, 2], [
+        {"start": 8, "end": 11, "type": "discharge"},
+        {"start": 18, "end": 21, "type": "discharge"},
+        {"start": 23, "end": 7, "type": "charge"},
+    ]),
+    ("河南", "春秋季（3-5,9-11月）", [3, 4, 5, 9, 10, 11], [
+        {"start": 10, "end": 12, "type": "discharge"},
+        {"start": 15, "end": 18, "type": "discharge"},
+        {"start": 22, "end": 6, "type": "charge"},
+    ]),
+    ("山东", "全年统一", list(range(1, 13)), [
+        {"start": 8, "end": 11, "type": "discharge"},
+        {"start": 17, "end": 20, "type": "discharge"},
+        {"start": 22, "end": 6, "type": "charge"},
+    ]),
+]
+
+
+def t_fusion_period_mgr(app):
+    """充放时段策略管理 —— 配置里没策略就是空表，所以先写入真实季节策略。"""
+    m = load_mod("f_pm", FUSION)
+    init_theme(m, app)
+    cfg = m.Config()
+    pt = getattr(m, "PeriodType", None)
+    conv = {}
+    if pt is not None:
+        conv = {"charge": getattr(pt, "charge", "charge"),
+                "discharge": getattr(pt, "discharge", "discharge")}
+    for prov, gname, months, periods in _FUSION_PLANS:
+        if prov not in cfg.provinces():
+            cfg.add_province(prov)
+        cfg.add_group(prov, gname, months,
+                      [{**p, "type": conv.get(p["type"], p["type"])}
+                       for p in periods])
+    cfg.set_active_province("河南")
+
+    dlg = m.ChargeDischargeManagerDialog(None, cfg)
+    dlg.refresh_tree()
+    # 默认列宽会把「夏季（6-8月）」截成「夏季（6...」
+    dlg.tree.setColumnWidth(0, 240)
+    dlg.tree.setColumnWidth(1, 220)
+    stabilize(app, dlg, 760, 420, settle=10)
+    return grab(dlg, "fusion-period-manager.png")
 
 
 TARGETS = {
@@ -375,6 +455,9 @@ TARGETS = {
     "ultra-data-preview": t_data_preview,
     "ultra-pv-match": t_pv_match,
     "fusion-main-imported": t_fusion_main,
+    "fusion-mapping": t_fusion_mapping,
+    "fusion-pro-mode": t_fusion_pro_mode,
+    "fusion-period-manager": t_fusion_period_mgr,
 }
 
 

@@ -387,9 +387,23 @@ utf-8-sig → gbk → gb18030 → gb2312 → latin1
 
 #### Fusion
 
-**Fusion · 导入后**——两代产品的差别一眼能看出来：Fusion 是原生控件、无装饰，把力气全用在读表与算账上
+Fusion 是「稳定优先」那条线：原生控件、无装饰，把力气全用在读表与算账上。
+
+**主界面 · 导入后**——极简三区：文件列表 / 进度 / 日志，没有一层多余装饰
 
 ![Fusion 主界面](assets/screenshots/fusion-main-imported.png)
+
+**列映射**——自动识别数据格式（长表 / 正向有功示数表 / 宽表），四列映射一次填好，可保存为下次自动推荐
+
+![Fusion 列映射](assets/screenshots/fusion-mapping.png)
+
+**专业分析模式选择**——需量管理/峰谷套利、纯光伏消纳、混合三种场景，底部实时显示当前省份与策略组数
+
+![Fusion 分析模式](assets/screenshots/fusion-pro-mode.png)
+
+**充放时段策略管理**——按省份分组、按季节建策略组，用月份互斥避免重叠
+
+![Fusion 时段策略](assets/screenshots/fusion-period-manager.png)
 
 > 两处已知情况：Ultra 顶部大标题用了渐变画刷 + 扫光动效，静态帧抓下来是模糊的蓝带，真实运行时它是流动的；为了不因为截图去改产品外观，这一点没有处理。
 
