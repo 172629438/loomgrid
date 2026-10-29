@@ -351,6 +351,26 @@ h1 b{font-weight:600}
   transition:width 180ms linear;
 }
 
+.tune-bar .vol{
+  flex:0 0 auto;width:44px;height:14px;
+  -webkit-appearance:none;appearance:none;
+  background:transparent;cursor:pointer;
+  opacity:0;transition:opacity var(--t-1) var(--ease-out);
+}
+.tune-bar:hover .vol,.tune-bar .vol:focus-visible{opacity:1}
+.tune-bar .vol::-webkit-slider-runnable-track{
+  height:1px;background:rgba(237,236,232,.28);
+}
+.tune-bar .vol::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:7px;height:7px;margin-top:-3px;border-radius:0;
+  background:var(--gold);
+}
+.tune-bar .vol::-moz-range-track{height:1px;background:rgba(237,236,232,.28)}
+.tune-bar .vol::-moz-range-thumb{
+  width:7px;height:7px;border:0;border-radius:0;background:var(--gold);
+}
+
 .tune-bar .x{
   flex:0 0 auto;background:none;border:0;padding:0 2px;cursor:pointer;
   color:var(--ash2);font:inherit;font-size:14px;line-height:1;
@@ -1267,6 +1287,8 @@ input[type=range]::-moz-range-thumb{
     <span class="nm">We Never · Hi Noise</span>
     <span class="tm" id="tuneTime">0:00 / 3:12</span>
   </span>
+  <input class="vol" id="tuneVol" type="range" min="0" max="100" value="90"
+         aria-label="音量" title="音量">
   <button class="x" id="tuneOff" aria-label="关掉音乐">×</button>
   <span class="prog"><i id="tuneProg"></i></span>
 </div>
@@ -1307,7 +1329,10 @@ input[type=range]::-moz-range-thumb{
   const btn = document.getElementById('tuneBtn');
   if(!A || !bar) return;
 
-  const TARGET = 0.62;
+  // 默认 0.9：上轮压到 0.62 是为了不吓人，但听感明显变小变薄。
+  // 用户手动调过的值记在 localStorage，下次沿用。
+  let TARGET = 0.9;
+  try{ const v = parseFloat(localStorage.getItem('lg.tune.vol')); if(v>0 && v<=1) TARGET = v; }catch(_){ }
   const ICON_PLAY  = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 0 L10 5 L0 10 Z"/></svg>';
   const ICON_PAUSE = '<svg viewBox="0 0 10 10" aria-hidden="true"><rect x="0" y="0" width="3" height="10"/><rect x="6" y="0" width="3" height="10"/></svg>';
 
@@ -1326,7 +1351,7 @@ input[type=range]::-moz-range-thumb{
 
   function fadeTo(target){
     const from = A.volume;
-    const steps = 14, dt = 55;
+    const steps = 20, dt = 55;
     let n = 0;
     if(A._fv) clearInterval(A._fv);
     A._fv = setInterval(()=>{
@@ -1414,6 +1439,19 @@ input[type=range]::-moz-range-thumb{
       }
     });
     btn.setAttribute('aria-expanded', 'false');
+  }
+
+  // ── 音量滑块 ──
+  const vol = document.getElementById('tuneVol');
+  if(vol){
+    vol.value = String(Math.round(TARGET * 100));
+    vol.addEventListener('input', ()=>{
+      const v = Math.max(0, Math.min(1, vol.value / 100));
+      TARGET = v;
+      A.volume = v;
+      if(A._fv){ clearInterval(A._fv); A._fv = null; }   // 手动调优先于渐入
+      try{ localStorage.setItem('lg.tune.vol', String(v)); }catch(_){}
+    });
   }
 
   // ── 进度 · 时间 ──
