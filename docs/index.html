@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LoomGrid · 工商业储能测算工作台</title>
-<meta name="description" content="读进客户的用电曲线和当地分时电价，算清楚装多大、怎么充放、能省多少、几年回本。算法可单独运行，433 项断言守着每一个数字。">
+<meta name="description" content="读进客户的电表数据和当地分时电价，算清楚装多大、怎么充放、几年回本。算法可单独运行，433 项断言守着每一个数字。">
 <link rel="icon" href="assets/app.png">
 <script>
 /* 渐进增强：脚本可用才启用入场编排；否则整页静态完整可读 */
@@ -730,7 +730,10 @@ h1 b{font-weight:600}
 /* 行长 448px ≈ 31 个中文字。原先撑满 620px 是 44 字/行，
    超出中文舒适区（30–40 字），末行还会只剩「算。」两个字。 */
 .ver p{font-size:var(--fs-14);color:var(--ash1);margin-top:20px;line-height:1.78;
-  font-weight:300;max-width:448px}
+  font-weight:300;max-width:448px;
+  /* 两段文案行数不同会让下面的代码表错开。锁 2 行高度，
+     短的那张留白，长的正好用完。 */
+  min-height:calc(2 * 1.78em)}
 .ver dl{
   margin-top:22px;display:grid;grid-template-columns:auto 1fr;
   gap:9px 18px;font-family:var(--mono);font-size:var(--fs-12_5);
@@ -1277,10 +1280,10 @@ nav.on{
   <div class="hero-top">
     <div class="hero-copy">
       <h1>Loom<b>Grid</b></h1>
-      <p class="hero-line">把一条负荷曲线，<br>织成一份可交付的储能方案。</p>
+      <p class="hero-line">把一条负荷曲线，<br>织成一份能签的方案。</p>
       <p class="hero-desc">
-        读进客户的用电表和当地分时电价，算清楚装多大、怎么充放、能省多少、几年回本。
-        曲线下面跑的是线性规划，不是拍脑袋的系数表。
+        读进客户的电表数据和当地分时电价，算清楚装多大、怎么充放、几年回本。
+        曲线下面跑的是线性规划，不是经验系数表。
       </p>
       <div class="hero-act">
         <a href="#get">下载 <em>Windows 免安装</em></a>
@@ -1291,10 +1294,10 @@ nav.on{
 
   <div class="loom">
     <div class="loom-meta">
-      <span><b>96</b> 点 / 日 · <b>365</b> 天可批量</span>
+      <span><b>15</b> 分钟粒度 · <b>96</b> 点 / 日 · <b>365</b> 天可批量</span>
       <span>电价经线：<b>谷 0.30</b> → <b>尖 1.20</b> 元/kWh</span>
       <span>这一天 <b>充 2,989</b> / <b>放 2,736</b> kWh · 日省 <b>¥1,676</b></span>
-      <span>由 <b>optimal_dispatch_lp</b> 求解 · 非示意</span>
+      <span><b>optimal_dispatch_lp</b> · 同源数据，非示意</span>
     </div>
     <div class="loom-decode" id="loomDecode" aria-hidden="true"></div>
     <canvas id="loomGL" aria-hidden="true"></canvas>
@@ -1338,11 +1341,11 @@ nav.on{
       <div>
         <h2>一份方案两天，其中一天在搬数据</h2>
         <p class="lead">
-          拉 8,760 行负荷、拆日期时间、查政策填时段、逐段列公式、试不同容量、手调图表颜色——
-          真正需要判断力的部分，<b>只占三成</b>。剩下的都是机械劳动，而机械劳动最容易出错。
+          拉 8,760 行负荷、拆日期时间、查政策填时段、逐段列公式、试不同容量、手调图表颜色。
+          真正需要判断力的部分<b>只占三成</b>，剩下的七成是机械劳动——而机械劳动最容易出错。
         </p>
         <p class="lead" style="margin-top:18px">
-          这个工具只做一件事：把机械的那七成接过去，让人留着精力做那三成。
+          这个工具只做一件事：把那七成接过去。
         </p>
       </div>
 
@@ -1361,10 +1364,10 @@ nav.on{
 <section id="workbench">
   <div class="cut"></div>
   <div class="wrap">
-    <h2>拖进去，它自己认列</h2>
+    <h2>拖进去，它认列</h2>
     <p class="lead">
-      不需要先把数据整理成模板。宽表、长表、正向有功示数表都能进；
-      日期列、时间列、负荷列自动识别，识别错了手动改一次、记住规则，下次不再问。
+      不需要先整理成模板。宽表、长表、正向有功示数表都能进——
+      日期列、时间列、负荷列自动识别。认错了改一次，规则记住，下次不问。
     </p>
 
     <div class="stack">
@@ -1391,7 +1394,7 @@ nav.on{
         </figure>
         <figure class="shot reveal">
           <img src="assets/ultra-curve-dark.png" alt="负荷曲线与 SOC 轨迹">
-          <figcaption><span><b>曲线渲染</b> · 负荷 / SOC 双层，深色主题</span></figcaption>
+          <figcaption><span><b>曲线渲染</b> · 负荷与 SOC 双轴</span></figcaption>
         </figure>
       </div>
     </div>
@@ -1404,8 +1407,8 @@ nav.on{
   <div class="wrap">
     <h2>三个引擎跑同一天，最少那个只省到 1%</h2>
     <p class="lead">
-      不是实现优劣，是场景不同。把三个结果摆在同一个坐标系里，才看得清该用哪个——
-      这也是这套工具敢说自己算得准的办法。
+      不是实现优劣，是场景不同。同一组数据、同一个坐标系，才看得清该用哪个。
+      
     </p>
 
     <figure class="engines-fig fig reveal">
@@ -1502,7 +1505,7 @@ nav.on{
         <h2>每个数字都有出口</h2>
         <p class="lead">
           算法从界面里剥出来独立成包，<code>import</code> 进去就能跑，不依赖任何 GUI；
-          十六套验证脚本、四百多项断言守着每一次改动。
+          十六套验证脚本、四百多项断言守着每一次提交。
         </p>
         <p class="lead" style="margin-top:18px">
           核心链路另有手算对拍：同一组数据用笔算一遍，和程序跑出来的结果比。
@@ -1531,17 +1534,17 @@ nav.on{
 <section id="get">
   <div class="cut"></div>
   <div class="wrap">
-    <h2>两个版本，按你的场景选</h2>
+    <h2>两个版本，一个稳，一个全</h2>
     <p class="lead">
-      都是免安装压缩包，解压双击就能用，不需要装 Python 或任何运行库。
-      要稳用 Fusion，要全用 Ultra。
+      免安装压缩包，解压双击即用，不需要装 Python 或任何运行库。
+      日常算量用 Fusion，出正式方案用 Ultra。
     </p>
 
     <div class="versions">
       <div class="ver">
         <h3>Fusion <span>v2.3.1</span></h3>
         <div class="tagline">生产推荐 · 稳定优先</div>
-        <p>轻量、批处理快，跑一整个文件夹的电表数据不卡。适合日常算量和光伏消纳核算。</p>
+        <p>轻量，批处理快。一整个文件夹的电表数据不卡，适合日常算量与消纳。</p>
         <dl>
           <dt>代码</dt><dd>10,584 行</dd>
           <dt>包体</dt><dd>136 MB</dd>
@@ -1556,7 +1559,7 @@ nav.on{
       <div class="ver">
         <h3>Ultra <span>v3.2.2</span></h3>
         <div class="tagline">功能最全 · 正式方案与投资决策</div>
-        <p>MILP 容量规划、LP 调度、Pareto 前沿与 13 步诊断。要出一份能拿去签的方案，用这个。</p>
+        <p>MILP 容量规划、LP 调度、Pareto 前沿、13 步诊断。要出一份能签的方案，用 Ultra。</p>
         <dl>
           <dt>代码</dt><dd>36,204 行</dd>
           <dt>包体</dt><dd>273 MB</dd>
@@ -1568,7 +1571,7 @@ nav.on{
     </div>
 
     <div class="repo">
-      <div class="u">github.com/172629438/loomgrid<small>算法模块、验证脚本、历史版本源码全部在仓库里 · MIT</small></div>
+      <div class="u">github.com/172629438/loomgrid<small>算法、验证脚本、全部历史版本源码 · MIT</small></div>
       <a class="get" href="https://github.com/172629438/loomgrid">打开仓库</a>
     </div>
   </div>
@@ -1622,7 +1625,7 @@ nav.on{
 
 <div class="tune-ask" id="tuneAsk" role="dialog" aria-labelledby="tuneQ">
   <div class="q" id="tuneQ">放首歌吗？</div>
-  <div class="sub">We Never（Remix）· Hi Noise<br>写这页时循环的那首。浏览器不让网页自己出声，得你点一下。</div>
+  <div class="sub">We Never（Remix）· Hi Noise<br>写这页时循环的那首。浏览器不允许自动出声，需要你点一下。</div>
   <div class="row">
     <button class="yes" id="tuneYes">放一下</button>
     <button class="no" id="tuneNo">不用</button>
