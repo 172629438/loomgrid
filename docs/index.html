@@ -304,6 +304,56 @@ h1 b{font-weight:600}
   .hero-copy{width:calc(100% - 36px)}
 }
 
+/* ── 那首小曲 ──────────────────────────────────────────────────
+   B 站上被叫「Claude Opus 5.5 の小曲」的那首 We Never。
+   放 B 站官方播放器而不是 mp3：曲子是 YAYI / freezepain 的作品，
+   公开仓库里分发音频属于侵权；引用播放器是平台已获授权的方式。
+   iframe 首次点击才注入 —— 不点就一个字节都不加载。
+   ───────────────────────────────────────────────────────────── */
+.tune-btn{
+  font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;
+  transition:color var(--t-1) var(--ease-out);
+}
+.tune-btn:hover{color:var(--ink)}
+.tune-btn .note{
+  display:inline-block;width:11px;height:11px;flex:0 0 auto;
+  border-left:1.5px solid currentColor;border-bottom:1.5px solid currentColor;
+  position:relative;opacity:.75;
+}
+.tune-btn .note::after{
+  content:"";position:absolute;right:-3px;top:-2px;width:3px;height:3px;
+  border-radius:50%;background:currentColor;
+}
+.tune-btn[aria-expanded="true"]{color:var(--gold)}
+.tune-btn[aria-expanded="true"] .note{opacity:1}
+
+.tune-panel{
+  position:fixed;right:20px;bottom:20px;z-index:60;
+  width:340px;max-width:calc(100vw - 40px);
+  background:#0A0C10;border:1px solid rgba(237,236,232,.16);
+  display:none;
+}
+.tune-panel.on{display:block}
+.tune-panel .bar{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:9px 12px;border-bottom:1px solid rgba(237,236,232,.1);
+  font-family:var(--mono);font-size:11px;color:var(--ash2);
+  letter-spacing:.01em;
+}
+.tune-panel .bar b{color:var(--ash1);font-weight:400}
+.tune-panel .x{
+  font:inherit;color:var(--ash2);background:none;border:0;padding:2px 4px;
+  cursor:pointer;line-height:1;font-size:15px;
+  transition:color var(--t-1) var(--ease-out);
+}
+.tune-panel .x:hover{color:var(--ink)}
+.tune-panel .frame{position:relative;width:100%;aspect-ratio:16/9;background:#000}
+.tune-panel iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+@media(max-width:520px){
+  .tune-panel{right:12px;left:12px;bottom:12px;width:auto}
+}
+
 @media(max-width:520px){
   .ctl{gap:10px}
   .ctl .lab{width:72px}
@@ -1153,9 +1203,64 @@ input[type=range]::-moz-range-thumb{
       <a href="https://github.com/172629438/loomgrid/blob/main/CHANGELOG.md">更新记录</a>
       <a href="https://github.com/172629438/loomgrid/tree/main/algorithms">算法源码</a>
       <a href="https://github.com/172629438/loomgrid/releases">全部版本</a>
+      <button class="tune-btn" id="tuneBtn" aria-expanded="false" aria-controls="tunePanel"
+              title="We Never —— 被网友叫做「Claude Opus 5.5 の小曲」的那首">
+        <span class="note" aria-hidden="true"></span>写这页时循环的那首
+      </button>
     </div>
   </div>
 </footer>
+
+<div class="tune-panel" id="tunePanel" role="dialog" aria-label="Claude 小曲播放器">
+  <div class="bar">
+    <span><b>We Never</b> · Claude Opus 5.5 の小曲 · 来自 B 站</span>
+    <button class="x" id="tuneClose" aria-label="关闭播放器">×</button>
+  </div>
+  <div class="frame" id="tuneFrame"></div>
+</div>
+
+<script>
+/* ── 那首小曲：点了才注入 iframe，不点一个字节都不加载 ──
+   关闭时直接移除节点，B 站播放器随之停止（比只 display:none 干净）。 */
+(function tune(){
+  const btn=document.getElementById('tuneBtn');
+  const panel=document.getElementById('tunePanel');
+  const frame=document.getElementById('tuneFrame');
+  const close=document.getElementById('tuneClose');
+  if(!btn||!panel||!frame) return;
+
+  const SRC='https://player.bilibili.com/player.html?bvid=BV1ySaf69EAp'
+    +'&page=1&high_quality=1&danmaku=0&autoplay=1';
+
+  function open(){
+    if(!frame.firstChild){
+      const f=document.createElement('iframe');
+      f.src=SRC;
+      f.allow='autoplay; fullscreen; encrypted-media';
+      f.setAttribute('scrolling','no');
+      f.setAttribute('frameborder','0');
+      f.referrerPolicy='no-referrer-when-downgrade';
+      f.title='We Never —— Claude Opus 5.5 の小曲';
+      frame.appendChild(f);
+    }
+    panel.classList.add('on');
+    btn.setAttribute('aria-expanded','true');
+  }
+  function shut(){
+    panel.classList.remove('on');
+    btn.setAttribute('aria-expanded','false');
+    frame.innerHTML='';
+  }
+
+  btn.addEventListener('click',()=>{
+    panel.classList.contains('on') ? shut() : open();
+  });
+  close.addEventListener('click',shut);
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape' && panel.classList.contains('on')) shut();
+  });
+})();
+</script>
 
 <script src="assets/hero_data.js"></script>
 <script src="assets/compare_data.js"></script>
