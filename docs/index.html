@@ -6,402 +6,585 @@
 <title>LoomGrid · 工商业储能测算工作台</title>
 <meta name="description" content="读进客户的用电曲线和当地分时电价，算清楚装多大、怎么充放、能省多少、几年回本。算法可单独运行，433 项断言守着每一个数字。">
 <link rel="icon" href="assets/app.png">
-<script>document.documentElement.classList.add('js')</script>
+<script>
+/* 渐进增强：脚本可用才启用入场编排；否则整页静态完整可读 */
+document.documentElement.className += ' js';
+</script>
 <style>
+/* ══════════════════════════════════════════════════════════════
+   LoomGrid 落地页 · 方向「经线」
+
+   页面是一台织机：时间轴是经线，数据是纬线，方案是织出来的布。
+   Loom = 织机，Grid = 电网。名字里的隐喻第一次被用起来。
+
+   TOKEN 计划
+   ─────────────────────────────────────────────────────────────
+   色彩   void #08090B（底 88%） · ink #EDECE8（暖白，非纯白）
+          ash 三级 .58/.34/.18 · gold #C9A227（全页 <1.5%）
+          ice #8FDDFF（只给数据：曲线 / SOC）
+   字体   正文 "PingFang SC","Microsoft YaHei",sans-serif
+          数字与刻度 ui-monospace,"JetBrains Mono",Consolas
+   字阶   88 / 42 / 20 / 15 / 12.5  （5 档，标题与正文 5.9× 跳跃）
+   间距   节距 clamp(104px,12vw,176px) · 内容宽 1120px
+   硬约束 圆角 0 · 阴影 0 · 发光 0 · 渐变按钮 0 · 大写 eyebrow 0
+   ─────────────────────────────────────────────────────────────
+   刻意排除（对照反 AI 味清单逐条点名）：
+     全大写 tracked 眉题 / 中点串 / → 尾巴 / 01–04 编号卡 /
+     数字递增 / 万物滚动 fade-up / 彩色 accent >2 / 单一圆角全元素 /
+     hover:scale / 伪真诚标题句
+   ══════════════════════════════════════════════════════════════ */
+
 :root{
-  --bg:#070B12; --bg2:#0A0F18;
-  --ink:#F2F5FA; --dim:rgba(242,245,250,.52); --faint:rgba(242,245,250,.30);
-  --gold:#D4AF37; --gold-l:#F4D77A; --gold-t:#F0CE72;
-  --ice:#8FDDFF; --mint:#8FD1C8; --line:rgba(255,255,255,.075);
+  --void:#08090B;
+  --ink:#EDECE8;
+  --ash1:rgba(237,236,232,.58);
+  --ash2:rgba(237,236,232,.34);
+  --ash3:rgba(237,236,232,.16);
+  --gold:#C9A227;
+  --gold-dim:rgba(201,162,39,.42);
+  --ice:#8FDDFF;
+  --line:rgba(237,236,232,.10);
+  --line-soft:rgba(237,236,232,.055);
   --sans:"PingFang SC","Microsoft YaHei",-apple-system,"Segoe UI",sans-serif;
-  --mono:"JetBrains Mono","Cascadia Mono",Consolas,monospace;
+  --mono:ui-monospace,"JetBrains Mono","Cascadia Mono",Consolas,monospace;
+  --wrap:1120px;
 }
+
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{
-  background:var(--bg);color:var(--ink);font-family:var(--sans);
-  -webkit-font-smoothing:antialiased;overflow-x:hidden;
-  line-height:1.6;
+  background:var(--void);color:var(--ink);
+  font-family:var(--sans);line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
 }
 img{display:block;max-width:100%}
 a{color:inherit;text-decoration:none}
+::selection{background:rgba(201,162,39,.28)}
 
-/* ---------- 通用 ---------- */
-.wrap{width:min(1180px,calc(100% - 48px));margin:0 auto}
-.eyebrow{
-  font-family:var(--mono);font-size:11px;letter-spacing:.28em;
-  text-transform:uppercase;color:var(--faint);
+.wrap{width:min(var(--wrap),calc(100% - 44px));margin:0 auto}
+
+/* ── 经线装置 ───────────────────────────────────────────────
+   整页共用一套 24 小时经线。hero 里它是电价，后面各节里它是
+   极淡的背景纹理（opacity 0.02），让整页读起来是同一块布。   */
+.warp{position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.warp svg{width:100%;height:100%}
+
+/* ── 节 ── */
+section{position:relative;padding:clamp(104px,12vw,176px) 0;scroll-margin-top:58px}
+section > .wrap{position:relative;z-index:1}
+
+/* 节首：一条贯穿线 + 左端金色刻度 */
+.cut{
+  height:1px;background:var(--line-soft);position:relative;
 }
+.cut::before{
+  content:"";position:absolute;left:0;top:-11px;
+  width:1px;height:23px;background:var(--gold-dim);
+}
+
+/* ── 标题系统 ── */
 h2{
-  font-size:clamp(28px,3.6vw,46px);font-weight:700;letter-spacing:-.02em;
-  line-height:1.18;margin-top:14px;
+  font-size:clamp(26px,3.1vw,42px);
+  font-weight:500;letter-spacing:-.022em;line-height:1.26;
+  max-width:22ch;text-wrap:balance;
 }
-h2 em{font-style:normal;color:var(--gold-t)}
+h2 .q{color:var(--ash1)}
 .lead{
-  font-size:clamp(15px,1.5vw,18px);color:var(--dim);
-  max-width:78ch;margin-top:18px;line-height:1.85;
+  font-size:clamp(15px,1.32vw,16.5px);
+  color:var(--ash1);max-width:60ch;margin-top:22px;
+  line-height:1.86;font-weight:300;
 }
-section{padding:clamp(80px,11vw,150px) 0;position:relative}
-.rule{height:1px;background:var(--line);margin:0}
+.lead b{color:var(--ink);font-weight:500}
+.lead code{
+  font-family:var(--mono);font-size:.88em;
+  color:var(--ash1);letter-spacing:-.01em;
+}
+.sub{font-size:12.5px;color:var(--ash2);line-height:1.7}
 
-/* 滚动进场 —— 默认可见；只有 JS 生效时才隐藏（脚本失败/被拦时整页仍可读） */
-.rv{transition:opacity .8s cubic-bezier(.22,1,.36,1),transform .8s cubic-bezier(.22,1,.36,1)}
-html.js .rv{opacity:0;transform:translateY(26px)}
-html.js .rv.in{opacity:1;transform:none}
-.rv.d1{transition-delay:.09s}.rv.d2{transition-delay:.18s}.rv.d3{transition-delay:.27s}.rv.d4{transition-delay:.36s}
-
-/* ---------- 导航 ---------- */
+/* ══════════ 导航 ══════════ */
 nav{
-  position:fixed;top:0;left:0;right:0;z-index:100;
+  position:fixed;top:0;left:0;right:0;z-index:90;
   display:flex;align-items:center;justify-content:space-between;
-  padding:0 clamp(20px,4vw,48px);height:64px;
-  background:rgba(7,11,18,0);backdrop-filter:blur(0);
-  transition:background .35s,backdrop-filter .35s,border-color .35s;
+  padding:0 clamp(18px,3.4vw,40px);height:58px;
   border-bottom:1px solid transparent;
+  transition:background .3s,border-color .3s;
 }
-nav.solid{background:rgba(7,11,18,.82);backdrop-filter:blur(14px);border-bottom-color:var(--line)}
-.nav-brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.01em}
-.nav-brand i{width:5px;height:19px;border-radius:2px;background:linear-gradient(180deg,var(--gold-l),var(--gold));box-shadow:0 0 14px rgba(212,175,55,.55)}
-.nav-brand span{font-weight:200;color:var(--dim)}
-.nav-links{display:flex;gap:30px;font-size:14px;color:var(--dim)}
-.nav-links a{transition:color .2s}
-.nav-links a:hover{color:var(--ink)}
-.nav-cta{
-  font-size:13px;padding:8px 18px;border-radius:7px;
-  border:1px solid rgba(212,175,55,.45);color:var(--gold-t);
-  transition:background .25s,border-color .25s;
-}
-.nav-cta:hover{background:rgba(212,175,55,.10);border-color:rgba(212,175,55,.7)}
-@media(max-width:820px){.nav-links{display:none}}
+nav.on{background:rgba(8,9,11,.86);backdrop-filter:blur(12px);border-bottom-color:var(--line-soft)}
+.brand{display:flex;align-items:center;gap:9px;font-size:15.5px;letter-spacing:-.012em;font-weight:600}
+.brand i{width:1px;height:14px;background:var(--gold);display:block}
+.brand b{font-weight:600}
+.brand span{font-weight:300;color:var(--ash2)}
+.navlist{display:flex;gap:26px;font-size:13px;color:var(--ash2)}
+.navlist a{transition:color .18s}
+.navlist a:hover{color:var(--ink)}
+.navout{font-size:13px;color:var(--ash1);transition:color .18s}
+.navout:hover{color:var(--ink)}
+@media(max-width:860px){.navlist{display:none}}
 
-/* ---------- Hero ---------- */
-#hero{
-  min-height:100vh;display:flex;align-items:center;position:relative;
-  padding-top:64px;overflow:hidden;
+/* ══════════ HERO ══════════ */
+#hero{padding:0;min-height:100vh;display:flex;flex-direction:column;justify-content:flex-end;position:relative}
+
+/* 经线穿屏：96 根竖线从顶部一直延伸到织面，上部渐隐。
+   整个首屏因此是同一块布，而不是“文字 + 下方一张图”。*/
+#hero::before{
+  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(90deg,rgba(237,236,232,.055) 1px,transparent 1px);
+  background-size:calc(100% / 96) 100%;
+  -webkit-mask-image:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.22) 26%,rgba(0,0,0,.55) 62%,#000 88%);
+  mask-image:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.22) 26%,rgba(0,0,0,.55) 62%,#000 88%);
 }
-.hero-bg{position:absolute;inset:0;z-index:0}
-.hero-bg .glow{
-  position:absolute;inset:0;
-  background:
-    radial-gradient(1200px 780px at 14% -14%, rgba(212,175,55,.13), transparent 60%),
-    radial-gradient(1000px 700px at 92% 108%, rgba(78,205,196,.11), transparent 58%),
-    linear-gradient(168deg,#080D15 0%,#0A0F18 48%,#070B12 100%);
+#hero > *{position:relative;z-index:1}
+
+.hero-top{
+  flex:1;display:flex;align-items:center;
+  padding:clamp(80px,9vh,100px) 0 clamp(28px,3.6vh,40px);
 }
-.hero-bg .mesh{
-  position:absolute;inset:0;
-  background-image:
-    linear-gradient(rgba(255,255,255,.016) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(255,255,255,.016) 1px,transparent 1px);
-  background-size:74px 74px;
-  mask-image:radial-gradient(circle at 50% 42%,#000 24%,transparent 76%);
-  -webkit-mask-image:radial-gradient(circle at 50% 42%,#000 24%,transparent 76%);
-}
-.hero-curve{position:absolute;left:0;right:0;bottom:-6%;height:46%;z-index:0;opacity:.30}
-.hero-curve svg{width:100%;height:100%}
-.hero-inner{position:relative;z-index:2;width:min(1180px,calc(100% - 48px));margin:0 auto;padding:60px 0 90px}
-.hero-tag{
-  display:inline-flex;align-items:center;gap:9px;
-  font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;
-  color:var(--gold-t);padding:7px 15px;border-radius:100px;
-  border:1px solid rgba(212,175,55,.28);background:rgba(212,175,55,.055);
-}
-.hero-tag i{width:6px;height:6px;border-radius:50%;background:var(--gold-l);box-shadow:0 0 10px var(--gold)}
+.hero-copy{width:min(var(--wrap),calc(100% - 44px));margin:0 auto}
 h1{
-  font-size:clamp(42px,7.4vw,86px);font-weight:700;letter-spacing:-.035em;
-  line-height:1.02;margin-top:26px;
+  font-size:clamp(54px,8vw,104px);
+  font-weight:400;letter-spacing:-.045em;line-height:.94;
+  margin-bottom:clamp(18px,2.6vw,30px);
 }
-h1 span{font-weight:200;color:rgba(242,245,250,.48)}
-.hero-sub{
-  margin-top:26px;font-size:clamp(15px,1.7vw,20px);color:var(--dim);
-  max-width:58ch;line-height:1.8;font-weight:300;
+h1 b{font-weight:600}
+.hero-line{
+  font-size:clamp(20px,2.2vw,30px);font-weight:400;
+  letter-spacing:-.014em;line-height:1.45;color:var(--ink);
+  max-width:24ch;
 }
-.hero-sub b{color:var(--ink);font-weight:500}
-.hero-meta{
-  display:flex;gap:clamp(24px,4vw,58px);margin-top:44px;flex-wrap:wrap;
+.hero-line .dim{color:var(--ash2)}
+.hero-desc{
+  margin-top:22px;font-size:clamp(14.5px,1.28vw,16px);
+  color:var(--ash1);max-width:56ch;line-height:1.86;font-weight:300;
 }
-.hero-meta div{min-width:96px}
-.hero-meta .n{
-  font-family:var(--mono);font-size:clamp(24px,2.8vw,34px);font-weight:600;
-  letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+.hero-act{margin-top:clamp(30px,4vw,44px);display:flex;gap:34px;flex-wrap:wrap}
+.hero-act a{
+  font-size:14.5px;color:var(--ink);padding-bottom:5px;
+  border-bottom:1px solid var(--ash3);transition:border-color .2s,color .2s;
 }
-.hero-meta .l{font-size:12.5px;color:var(--faint);margin-top:5px;letter-spacing:.06em}
-.hero-meta .gold{color:var(--gold-t)}
-.hero-meta .ice{color:var(--ice)}
-.scroll-hint{
-  position:absolute;left:50%;bottom:26px;transform:translateX(-50%);
-  display:flex;flex-direction:column;align-items:center;gap:8px;
-  font-family:var(--mono);font-size:10.5px;letter-spacing:.26em;color:var(--faint);
-  z-index:2;
-}
-.scroll-hint .bar{width:1px;height:34px;background:linear-gradient(180deg,rgba(212,175,55,.6),transparent);
-  animation:drop 2.1s ease-in-out infinite}
-@keyframes drop{0%,100%{opacity:.25;transform:scaleY(.55)}50%{opacity:1;transform:scaleY(1)}}
-@media(max-width:640px){.scroll-hint{display:none}}
+.hero-act a:hover{border-bottom-color:var(--gold);color:var(--gold)}
+.hero-act a em{font-style:normal;font-family:var(--mono);font-size:11.5px;color:var(--ash2);margin-left:8px;letter-spacing:.02em}
 
-/* ---------- 痛点 ---------- */
-.pain-grid{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-  gap:1px;background:var(--line);border:1px solid var(--line);margin-top:52px;
+/* 织面 —— 全幅，贴上下两条线，不在任何卡片里 */
+.loom{
+  position:relative;width:100%;
+  border-top:1px solid var(--line-soft);
+  border-bottom:1px solid var(--line-soft);
+  background:#06070A;
 }
-.pain{background:var(--bg);padding:30px 26px 28px}
-.pain .n{font-family:var(--mono);font-size:12px;color:var(--faint);letter-spacing:.2em}
-.pain h3{font-size:19px;font-weight:600;margin-top:14px}
-.pain p{font-size:14.5px;color:var(--dim);margin-top:10px;line-height:1.65}
-
-/* ---------- 产品 ---------- */
-.shot{margin-top:44px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#0A0F18}
-.shot img{width:100%}
-.shot-cap{
-  padding:15px 20px;font-size:13px;color:var(--faint);
-  border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:14px;
+.loom svg{display:block;width:100%;height:auto;overflow:visible}
+.loom-meta{
+  position:relative;display:flex;justify-content:space-between;gap:24px;
+  flex-wrap:wrap;padding:12px clamp(18px,3.4vw,40px) 13px;
+  font-family:var(--mono);font-size:11.5px;color:var(--ash2);
+  border-bottom:1px solid var(--line-soft);
 }
-.duo{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:22px;margin-top:26px}
-.duo .shot{margin-top:0}
+.loom-meta b{color:var(--ash1);font-weight:400}
+@media(max-width:700px){.loom-meta{font-size:10.5px;gap:14px}}
 
-/* ---------- 算法 ---------- */
-.algo-wrap{margin-top:52px;display:flex;flex-direction:column;gap:30px}
-.algo-fig{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#0A0F18}
-.algos{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.alg{background:var(--bg);padding:24px 26px;display:flex;flex-direction:column;gap:8px}
-.alg .nm{font-size:19px;font-weight:600}
-.alg .en{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase}
-.alg .val{font-family:var(--mono);font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:6px}
-.alg .pct{font-family:var(--mono);font-size:12px;color:var(--faint)}
-.alg.gold .val{color:var(--gold-t)}
-.alg.ice .val{color:var(--ice)}
-.alg.gray .val{color:rgba(242,245,250,.42)}
-@media(max-width:760px){.algos{grid-template-columns:1fr}}
-
-/* ---------- 可信 ---------- */
-.trust-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-top:52px}
-.trust{background:var(--bg);padding:32px 24px;text-align:center}
-.trust .n{font-family:var(--mono);font-size:clamp(30px,3.6vw,44px);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--gold-t)}
-.trust .l{font-size:13px;color:var(--dim);margin-top:9px;line-height:1.5}
-
-/* ---------- 下载 ---------- */
-.dl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:22px;margin-top:50px}
-.dl{
-  position:relative;border:1px solid var(--line);border-radius:14px;
-  padding:30px 26px 26px;background:var(--bg2);
-  transition:border-color .3s,transform .3s;
+/* ══════════ 01 为什么 ══════════ */
+.why-top{
+  display:grid;grid-template-columns:1fr 1fr;gap:clamp(36px,6vw,90px);
+  align-items:start;
 }
-.dl:hover{border-color:rgba(212,175,55,.34);transform:translateY(-3px)}
-.dl .badge{
-  position:absolute;top:-1px;right:20px;font-family:var(--mono);font-size:10px;
-  letter-spacing:.2em;padding:5px 11px;border-radius:0 0 6px 6px;
-  background:rgba(212,175,55,.16);color:var(--gold-t);
-}
-.dl h3{font-size:21px;font-weight:600}
-.dl .v{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-top:6px;letter-spacing:.08em}
-.dl p{font-size:14px;color:var(--dim);margin-top:14px;line-height:1.65;min-height:44px}
-.dl .sz{font-family:var(--mono);font-size:12px;color:var(--faint);margin-top:16px}
-.dl a{
-  display:inline-flex;align-items:center;gap:7px;margin-top:20px;
-  font-size:14px;font-weight:500;color:var(--gold-t);
-  border-bottom:1px solid rgba(212,175,55,.32);padding-bottom:3px;
-  transition:border-color .25s;
-}
-.dl a:hover{border-color:var(--gold)}
+@media(max-width:880px){.why-top{grid-template-columns:1fr;gap:36px}}
 
-/* ---------- Footer ---------- */
-footer{padding:60px 0 48px;border-top:1px solid var(--line)}
-.foot{display:flex;justify-content:space-between;align-items:flex-start;gap:40px;flex-wrap:wrap}
-.foot-brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:18px}
-.foot-brand i{width:5px;height:21px;border-radius:2px;background:linear-gradient(180deg,var(--gold-l),var(--gold))}
-.foot-brand span{font-weight:200;color:var(--dim)}
-.foot-note{font-size:13px;color:var(--faint);margin-top:12px;line-height:1.8}
-.foot-links{display:flex;gap:26px;font-size:13.5px;color:var(--dim);flex-wrap:wrap}
-.foot-links a:hover{color:var(--ink)}
+.costlist{margin-top:8px}
+.costrow{
+  display:grid;grid-template-columns:1fr auto;gap:18px;
+  align-items:baseline;padding:17px 0;
+  border-bottom:1px solid var(--line-soft);
+}
+.costrow:first-child{border-top:1px solid var(--line-soft)}
+.costrow .k{font-size:15px;color:var(--ash1)}
+.costrow .v{
+  font-family:var(--mono);font-size:13.5px;color:var(--ash2);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.costrow .v b{color:var(--ink);font-weight:500}
+.costrow.hi .v b{color:var(--gold)}
+
+/* ══════════ 02 界面 ══════════ */
+/* 界面截图是浅底的——故意不滤不反色。给它们一个明确的框，
+   它们就成了“产品的脸”，而不是一页白纸贴上来。*/
+.shot{position:relative;border:1px solid rgba(237,236,232,.14);background:#0D0F13}
+.shot img{width:100%;display:block}
+.shot figcaption{
+  padding:11px 14px;font-size:12.5px;color:var(--ash2);
+  display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  border-top:1px solid rgba(237,236,232,.10);
+  background:#0A0C10;
+}
+.shot figcaption b{color:var(--ash1);font-weight:400}
+.stack{margin-top:clamp(34px,4.6vw,56px)}
+.stack > * + *{margin-top:clamp(24px,3.2vw,38px)}
+/* 首图不全幅：编辑式排版，右侧留白比左右对称更有张力 */
+.stack > .shot:first-child{max-width:1000px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,3vw,38px)}
+@media(max-width:820px){.pair{grid-template-columns:1fr}}
+
+/* 技术图版：给图一个明确的界，避免“淡色块浮在页面上”的失误感 */
+.fig{border:1px solid var(--line-soft);background:#0A0C10}
+.fig img{width:100%;display:block}
+
+/* ══════════ 03 算法 ══════════ */
+.engines-fig{margin-top:clamp(34px,4.6vw,52px)}
+.engtable{margin-top:clamp(28px,3.6vw,44px);width:100%;border-collapse:collapse}
+.engtable th{
+  text-align:left;font-family:var(--mono);font-size:11px;font-weight:400;
+  color:var(--ash3);letter-spacing:.04em;padding:0 0 12px;
+  border-bottom:1px solid var(--line);
+}
+.engtable td{
+  padding:20px 0;border-bottom:1px solid var(--line-soft);
+  vertical-align:baseline;
+}
+.engtable .nm{font-size:17px;font-weight:500;letter-spacing:-.012em}
+.engtable .nm small{
+  display:block;font-family:var(--mono);font-size:11px;font-weight:400;
+  color:var(--ash2);letter-spacing:.02em;margin-top:5px;
+}
+.engtable .num{
+  font-family:var(--mono);font-size:clamp(20px,2.4vw,28px);font-weight:500;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em;text-align:right;
+}
+.engtable .rel{
+  font-family:var(--mono);font-size:12px;color:var(--ash2);
+  text-align:right;white-space:nowrap;
+}
+.engtable tr.lp .num{color:var(--gold)}
+.engtable tr.sim .num{color:var(--ink)}
+.engtable tr.greed .num{color:var(--ash2)}
+.engtable td:last-child,.engtable th:last-child{padding-left:26px}
+@media(max-width:640px){
+  .engtable .nm small{display:none}
+  .engtable td{padding:15px 0}
+}
+
+/* ══════════ 04 可信 ══════════ */
+.trust-top{display:grid;grid-template-columns:1.15fr 1fr;gap:clamp(36px,6vw,86px);align-items:start}
+@media(max-width:880px){.trust-top{grid-template-columns:1fr;gap:34px}}
+.metrics{
+  display:grid;grid-template-columns:1fr 1fr;gap:0;
+  border-top:1px solid var(--line-soft);
+}
+.metric{padding:20px 0;border-bottom:1px solid var(--line-soft)}
+.metric:nth-child(odd){padding-right:20px}
+.metric .n{
+  font-family:var(--mono);font-size:clamp(22px,2.7vw,30px);font-weight:500;
+  font-variant-numeric:tabular-nums;letter-spacing:-.025em;
+}
+.metric .l{font-size:12.5px;color:var(--ash2);margin-top:6px}
+.arch-fig{margin-top:clamp(34px,4.6vw,52px)}
+
+/* ══════════ 05 下载 ══════════ */
+.versions{
+  margin-top:clamp(34px,4.6vw,52px);
+  display:grid;grid-template-columns:1fr 1px 1fr;gap:clamp(26px,4vw,52px);
+  border-top:1px solid var(--line-soft);padding-top:clamp(30px,4vw,44px);
+}
+.versions .divider{background:var(--line-soft)}
+@media(max-width:820px){
+  .versions{grid-template-columns:1fr;gap:0}
+  .versions .divider{height:1px;width:100%;margin:34px 0}
+}
+.ver h3{
+  font-size:clamp(22px,2.6vw,30px);font-weight:500;letter-spacing:-.02em;
+  display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+}
+.ver h3 span{
+  font-family:var(--mono);font-size:12px;font-weight:400;
+  color:var(--ash2);letter-spacing:.01em;
+}
+.ver .tagline{font-size:13px;color:var(--ash2);margin-top:10px;letter-spacing:.01em}
+.ver p{font-size:14.5px;color:var(--ash1);margin-top:20px;line-height:1.78;font-weight:300}
+.ver dl{
+  margin-top:22px;display:grid;grid-template-columns:auto 1fr;
+  gap:9px 18px;font-family:var(--mono);font-size:12px;
+}
+.ver dt{color:var(--ash3)}
+.ver dd{color:var(--ash1);text-align:right;font-variant-numeric:tabular-nums}
+.ver .get{
+  display:inline-block;margin-top:26px;font-size:14.5px;
+  padding-bottom:5px;border-bottom:1px solid var(--ash3);
+  transition:border-color .2s,color .2s;
+}
+.ver .get:hover{border-bottom-color:var(--gold);color:var(--gold)}
+.ver .note{font-size:12px;color:var(--ash2);margin-top:14px}
+
+.repo{
+  margin-top:clamp(40px,5vw,62px);padding-top:clamp(26px,3.4vw,36px);
+  border-top:1px solid var(--line-soft);
+  display:flex;justify-content:space-between;align-items:baseline;
+  gap:22px;flex-wrap:wrap;
+}
+.repo .u{font-family:var(--mono);font-size:13px;color:var(--ash1)}
+.repo .u small{display:block;font-size:11.5px;color:var(--ash2);margin-top:6px;font-family:var(--sans)}
+
+/* ══════════ 尾 ══════════ */
+footer{
+  padding:clamp(44px,5vw,64px) 0 clamp(38px,4vw,52px);
+  border-top:1px solid var(--line-soft);
+}
+.foot{display:flex;justify-content:space-between;align-items:flex-start;gap:36px;flex-wrap:wrap}
+.foot .l1{font-size:14.5px;color:var(--ash1);max-width:38ch;line-height:1.8}
+.foot .l2{font-size:12.5px;color:var(--ash2);margin-top:10px;max-width:40ch;line-height:1.75}
+.footlinks{display:flex;gap:24px;flex-wrap:wrap;font-size:12.5px;color:var(--ash2)}
+.footlinks a:hover{color:var(--ash1)}
+
+/* ══════════ 动效：全页唯一一次编排，只在 hero 织面 ══════════ */
+.js .warpline,
+.js .loom-load,
+.js .loom-net,
+.js .loom-fill,
+.js .loom-soc{opacity:0}
+.js .loom-load,
+.js .loom-net,
+.js .loom-fill,
+.js .loom-soc{transition:opacity .55s ease}
+
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .js .warpline,.js .loom-load,.js .loom-net,.js .loom-fill,.js .loom-soc{
+    opacity:1 !important;transition:none !important
+  }
+}
 </style>
 </head>
 <body>
 
 <nav id="nav">
-  <a class="nav-brand" href="#hero"><i></i>Loom<span>Grid</span></a>
-  <div class="nav-links">
-    <a href="#pain">为什么</a>
-    <a href="#product">界面</a>
-    <a href="#algo">算法</a>
+  <a class="brand" href="#hero"><i></i><b>Loom</b><span>Grid</span></a>
+  <div class="navlist">
+    <a href="#why">为什么</a>
+    <a href="#workbench">界面</a>
+    <a href="#engine">算法</a>
     <a href="#trust">怎么验</a>
-    <a href="#download">下载</a>
+    <a href="#get">下载</a>
   </div>
-  <a class="nav-cta" href="https://github.com/172629438/loomgrid/releases">GitHub</a>
+  <a class="navout" href="https://github.com/172629438/loomgrid">GitHub</a>
 </nav>
 
-<!-- ══════════ HERO ══════════ -->
+<!-- ══════════════ HERO ══════════════ -->
 <section id="hero">
-  <div class="hero-bg">
-    <div class="glow"></div>
-    <div class="mesh"></div>
-    <div class="hero-curve"><svg id="heroCurve" viewBox="0 0 1440 520" preserveAspectRatio="none"></svg></div>
-  </div>
 
-  <div class="hero-inner">
-    <div class="hero-tag"><i></i>DESKTOP APP · PYTHON + PYSIDE6</div>
-    <h1>Loom<span>Grid</span></h1>
-    <p class="hero-sub">
-      读进客户的用电曲线和当地分时电价，<br>
-      算清楚<b>装多大、怎么充放、能省多少、几年回本</b>。
-    </p>
-
-    <div class="hero-meta">
-      <div><div class="n gold" data-count="433">433</div><div class="l">项断言</div></div>
-      <div><div class="n ice" data-count="32">32</div><div class="l">个省级电价</div></div>
-      <div><div class="n" data-count="8">8</div><div class="l">个独立算法</div></div>
-      <div><div class="n" data-count="110767" data-suffix="">110.8k</div><div class="l">行代码</div></div>
+  <div class="hero-top">
+    <div class="hero-copy">
+      <h1>Loom<b>Grid</b></h1>
+      <p class="hero-line">把一条负荷曲线，<br>织成一份可交付的储能方案。</p>
+      <p class="hero-desc">
+        读进客户的用电表和当地分时电价，算清楚装多大、怎么充放、能省多少、几年回本。
+        曲线下面跑的是线性规划，不是拍脑袋的系数表。
+      </p>
+      <div class="hero-act">
+        <a href="#get">下载 <em>Windows 免安装</em></a>
+        <a href="https://github.com/172629438/loomgrid/blob/main/README.md">完整说明 <em>README</em></a>
+      </div>
     </div>
   </div>
 
-  <div class="scroll-hint"><span>SCROLL</span><div class="bar"></div></div>
+  <div class="loom">
+    <div class="loom-meta">
+      <span><b>96</b> 点 / 日 · <b>365</b> 天可批量</span>
+      <span>电价经线：<b>谷 0.30</b> → <b>尖 1.20</b> 元/kWh</span>
+      <span>这一天 <b>充 2,989</b> / <b>放 2,736</b> kWh · 日省 <b>¥1,676</b></span>
+      <span>由 <b>optimal_dispatch_lp</b> 求解 · 非示意</span>
+    </div>
+    <svg id="loomSvg" viewBox="0 0 1600 380" preserveAspectRatio="none" role="img"
+         aria-label="一天 96 点：24 小时分时电价经线、负荷曲线、储能 SOC 轨迹"></svg>
+  </div>
+
 </section>
 
-<div class="rule"></div>
-
-<!-- ══════════ 痛点 ══════════ -->
-<section id="pain">
+<!-- ══════════════ 01 为什么 ══════════════ -->
+<section id="why">
+  <div class="cut"></div>
   <div class="wrap">
-    <div class="eyebrow rv">THE MANUAL WAY</div>
-    <h2 class="rv d1">一份方案，<em>两天</em>里有一天在搬数据</h2>
-    <p class="lead rv d2">
-      拉 8760 行负荷、拆日期时间、查政策填时段、逐段列公式、试不同容量、手调图表颜色——
-      真正需要判断力的部分，只占三成。
-    </p>
+    <div class="why-top">
+      <div>
+        <h2>一份方案两天，其中一天在搬数据</h2>
+        <p class="lead">
+          拉 8,760 行负荷、拆日期时间、查政策填时段、逐段列公式、试不同容量、手调图表颜色——
+          真正需要判断力的部分，<b>只占三成</b>。剩下的都是机械劳动，而机械劳动最容易出错。
+        </p>
+        <p class="lead" style="margin-top:18px">
+          这个工具只做一件事：把机械的那七成接过去，让人留着精力做那三成。
+        </p>
+      </div>
 
-    <div class="pain-grid">
-      <div class="pain rv"><div class="n">01</div><h3>数据格式千奇百怪</h3><p>宽表、长表、示数表、跨文件分组，每家的电表导出都不一样。</p></div>
-      <div class="pain rv d1"><div class="n">02</div><h3>时段表靠手填</h3><p>各省分时电价随政策调整，填错一个边界，整份方案作废。</p></div>
-      <div class="pain rv d2"><div class="n">03</div><h3>容量靠试</h3><p>改一个参数重算一遍，试到第几档才知道最优在哪。</p></div>
-      <div class="pain rv d3"><div class="n">04</div><h3>算完不敢信</h3><p>没有第二套算法对拍，出错了也看不出来。</p></div>
-    </div>
-  </div>
-</section>
-
-<div class="rule"></div>
-
-<!-- ══════════ 产品 ══════════ -->
-<section id="product">
-  <div class="wrap">
-    <div class="eyebrow rv">THE WORKBENCH</div>
-    <h2 class="rv d1">拖进去，<em>它自己认列</em></h2>
-    <p class="lead rv d2">
-      不需要先把数据整理成模板。宽表、长表、示数表都能进，
-      日期列、时间列、负荷列自动识别，识别错了也能手动改一次、记住规则。
-    </p>
-
-    <div class="shot rv d2">
-      <img src="assets/ultra-data-preview.png" alt="数据预览与列映射">
-      <div class="shot-cap"><span>数据预览 · 288 行 × 6 列，日期 / 时间 / 负荷三列自动识别</span><span>v3.2.2</span></div>
-    </div>
-
-    <div class="duo">
-      <div class="shot rv"><img src="assets/ultra-main-imported.png" alt="Ultra 主工作台">
-        <div class="shot-cap"><span>主工作台 · 拖入文件 → 自动识别 → 批量生成</span></div></div>
-      <div class="shot rv d1"><img src="assets/ultra-sensitivity.png" alt="敏感性分析">
-        <div class="shot-cap"><span>敏感性 · 五项参数各带 IRR / NPV</span></div></div>
-    </div>
-
-    <div class="duo">
-      <div class="shot rv"><img src="assets/ultra-load-sim.png" alt="负荷曲线模拟器">
-        <div class="shot-cap"><span>负荷模拟器 · 25 行业参数 · 实时预览</span></div></div>
-      <div class="shot rv d1"><img src="assets/ultra-curve-dark.png" alt="负荷曲线与 SOC 轨迹">
-        <div class="shot-cap"><span>曲线渲染 · 负荷/SOC 双层 · 深浅双主题</span></div></div>
+      <div class="costlist">
+        <div class="costrow"><span class="k">整理一份客户的电表数据</span><span class="v">2–4 小时</span></div>
+        <div class="costrow"><span class="k">查当地分时电价并填时段表</span><span class="v">30–60 分钟</span></div>
+        <div class="costrow"><span class="k">试 6 档容量、各算一遍回收期</span><span class="v">3–5 小时</span></div>
+        <div class="costrow"><span class="k">手工核对数字有没有串行</span><span class="v">不可控</span></div>
+        <div class="costrow hi"><span class="k">现在：拖进去，输出</span><span class="v"><b>分钟级</b></span></div>
+      </div>
     </div>
   </div>
 </section>
 
-<div class="rule"></div>
-
-<!-- ══════════ 算法 ══════════ -->
-<section id="algo">
+<!-- ══════════════ 02 界面 ══════════════ -->
+<section id="workbench">
+  <div class="cut"></div>
   <div class="wrap">
-    <div class="eyebrow rv">THE ENGINE</div>
-    <h2 class="rv d1">三个引擎跑同一组数据，<em>差 36 倍</em></h2>
-    <p class="lead rv d2">
-      不是实现优劣，是场景不同。把三个结果摆在一起，才知道该用哪个——
+    <h2>拖进去，它自己认列</h2>
+    <p class="lead">
+      不需要先把数据整理成模板。宽表、长表、正向有功示数表都能进；
+      日期列、时间列、负荷列自动识别，识别错了手动改一次、记住规则，下次不再问。
+    </p>
+
+    <div class="stack">
+      <figure class="shot">
+        <img src="assets/ultra-main-imported.png" alt="Ultra 主工作台" loading="lazy">
+        <figcaption><span><b>主工作台</b> · 拖入文件 → 自动识别列 → 批量生成</span><span>Ultra v3.2.2</span></figcaption>
+      </figure>
+
+      <div class="pair">
+        <figure class="shot">
+          <img src="assets/ultra-data-preview.png" alt="数据预览与列映射" loading="lazy">
+          <figcaption><span><b>数据预览</b> · 288 行 × 6 列，三列自动识别</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="assets/ultra-sensitivity.png" alt="敏感性分析" loading="lazy">
+          <figcaption><span><b>敏感性</b> · 五项参数各带 IRR / NPV</span></figcaption>
+        </figure>
+      </div>
+
+      <div class="pair">
+        <figure class="shot">
+          <img src="assets/ultra-load-sim.png" alt="负荷曲线模拟器" loading="lazy">
+          <figcaption><span><b>负荷模拟器</b> · 25 个行业模板</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="assets/ultra-curve-dark.png" alt="负荷曲线与 SOC 轨迹" loading="lazy">
+          <figcaption><span><b>曲线渲染</b> · 负荷 / SOC 双层，深色主题</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 03 算法 ══════════════ -->
+<section id="engine">
+  <div class="cut"></div>
+  <div class="wrap">
+    <h2>三个引擎跑同一天，差 36 倍</h2>
+    <p class="lead">
+      不是实现优劣，是场景不同。把三个结果摆在同一个坐标系里，才看得清该用哪个——
       这也是这套工具敢说自己算得准的办法。
     </p>
 
-    <div class="algo-wrap">
-      <div class="algo-fig rv d2">
-        <img src="assets/engines.png" alt="三引擎对拍">
-      </div>
-      <div class="rv d3">
-        <div class="algos">
-          <div class="alg gold"><div class="nm">LP</div><div class="en">linear programming</div><div class="val">¥1676</div><div class="pct">基准 · 100%</div></div>
-          <div class="alg ice"><div class="nm">逐日仿真</div><div class="en">daily simulation</div><div class="val">¥1258</div><div class="pct">LP 的 75%</div></div>
-          <div class="alg gray"><div class="nm">贪心</div><div class="en">greedy</div><div class="val">¥46</div><div class="pct">LP 的 3%</div></div>
-        </div>
-        <p class="lead" style="margin-top:26px;font-size:15px">
-          贪心只省 46 元，不是它差——它的设计场景是有光伏或风电时的自发自用，
-          纯套利下不会主动从电网买电充。<b style="color:var(--ink)">用错场景比用错算法更危险。</b>
+    <figure class="engines-fig fig">
+      <img src="assets/engines.png" alt="三引擎对拍：LP、逐日仿真、贪心在同一条负荷曲线上的 SOC 轨迹" loading="lazy">
+    </figure>
+
+    <table class="engtable">
+      <thead>
+        <tr><th>引擎</th><th style="text-align:right">日收益</th><th style="text-align:right">相对 LP</th></tr>
+      </thead>
+      <tbody>
+        <tr class="lp">
+          <td class="nm">LP<small>linear programming · 跨时段全局最优</small></td>
+          <td class="num">¥1,676</td>
+          <td class="rel">基准</td>
+        </tr>
+        <tr class="sim">
+          <td class="nm">逐日仿真<small>daily simulation · 按时段规则推进</small></td>
+          <td class="num">¥1,258</td>
+          <td class="rel">75%</td>
+        </tr>
+        <tr class="greed">
+          <td class="nm">贪心<small>greedy · 新能源消纳优先</small></td>
+          <td class="num">¥46</td>
+          <td class="rel">3%</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="lead" style="margin-top:26px;max-width:64ch">
+      贪心只省 46 元，不是它差——它的设计前提是有光伏或风电时自发自用，
+      纯套利场景下不会主动从电网买电充。<b>用错场景，比用错算法更危险。</b>
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════ 04 可信 ══════════════ -->
+<section id="trust">
+  <div class="cut"></div>
+  <div class="wrap">
+    <div class="trust-top">
+      <div>
+        <h2>每个数字都有出口</h2>
+        <p class="lead">
+          算法从界面里剥出来独立成包，<code>import</code> 进去就能跑，不依赖任何 GUI；
+          十六套验证脚本、四百多项断言守着每一次改动。
+        </p>
+        <p class="lead" style="margin-top:18px">
+          核心链路另有手算对拍：同一组数据用笔算一遍，和程序跑出来的结果比。
+          差一分钱就算失败。
         </p>
       </div>
+
+      <div class="metrics">
+        <div class="metric"><div class="n">433</div><div class="l">项验证断言</div></div>
+        <div class="metric"><div class="n">16</div><div class="l">套验证脚本</div></div>
+        <div class="metric"><div class="n">12</div><div class="l">项手算对拍</div></div>
+        <div class="metric"><div class="n">110.8k</div><div class="l">行源码</div></div>
+      </div>
     </div>
+
+    <figure class="arch-fig fig">
+      <img src="assets/architecture.png" alt="四层架构：表现层、编排层、领域层、底座层，依赖只向下" loading="lazy">
+    </figure>
+    <p class="sub" style="margin-top:14px">
+      四层架构 —— 依赖只向下，领域层不 import 任何 Qt 组件。这是算法能脱离界面单独跑的物理前提。
+    </p>
   </div>
 </section>
 
-<div class="rule"></div>
-
-<!-- ══════════ 可信 ══════════ -->
-<section id="trust">
+<!-- ══════════════ 05 下载 ══════════════ -->
+<section id="get">
+  <div class="cut"></div>
   <div class="wrap">
-    <div class="eyebrow rv">WHY TRUST IT</div>
-    <h2 class="rv d1">每个数字都有<em>出口</em></h2>
-    <p class="lead rv d2">
-      算法从界面里剥出来独立成包，能脱离 GUI 单独 import 就跑；
-      十六套验证脚本、四百多项断言守着每一次改动。
+    <h2>两个版本，按你的场景选</h2>
+    <p class="lead">
+      都是免安装压缩包，解压双击就能用，不需要装 Python 或任何运行库。
+      要稳用 Fusion，要全用 Ultra。
     </p>
 
-    <div class="trust-grid">
-      <div class="trust rv"><div class="n" data-count="433">433</div><div class="l">项验证断言</div></div>
-      <div class="trust rv d1"><div class="n" data-count="16">16</div><div class="l">套验证脚本</div></div>
-      <div class="trust rv d2"><div class="n" data-count="110767">110.8k</div><div class="l">行源码</div></div>
-      <div class="trust rv d3"><div class="n" data-count="12">12</div><div class="l">项手算对拍</div></div>
+    <div class="versions">
+      <div class="ver">
+        <h3>Fusion <span>v2.3.1</span></h3>
+        <div class="tagline">生产推荐 · 稳定优先</div>
+        <p>轻量、批处理快，跑一整个文件夹的电表数据不卡。适合日常算量和光伏消纳核算。</p>
+        <dl>
+          <dt>代码</dt><dd>10,584 行</dd>
+          <dt>包体</dt><dd>136 MB</dd>
+          <dt>解压后</dt><dd>309 MB</dd>
+          <dt>引擎</dt><dd>贪心 · 逐日仿真</dd>
+        </dl>
+        <a class="get" href="https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.1">下载 Fusion v2.3.1</a>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="ver">
+        <h3>Ultra <span>v3.2.2</span></h3>
+        <div class="tagline">功能最全 · 正式方案与投资决策</div>
+        <p>MILP 容量规划、LP 调度、Pareto 前沿与 13 步诊断。要出一份能拿去签的方案，用这个。</p>
+        <dl>
+          <dt>代码</dt><dd>36,204 行</dd>
+          <dt>包体</dt><dd>273 MB</dd>
+          <dt>解压后</dt><dd>675 MB</dd>
+          <dt>引擎</dt><dd>LP · MILP · 贪心 · 仿真</dd>
+        </dl>
+        <a class="get" href="https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.2">下载 Ultra v3.2.2</a>
+      </div>
     </div>
 
-    <div class="shot rv d2" style="margin-top:44px">
-      <img src="assets/architecture.png" alt="四层架构">
-      <div class="shot-cap"><span>四层架构 —— 依赖只向下，领域层不认 GUI，这是算法能单独跑的前提</span></div>
-    </div>
-  </div>
-</section>
-
-<div class="rule"></div>
-
-<!-- ══════════ 下载 ══════════ -->
-<section id="download">
-  <div class="wrap">
-    <div class="eyebrow rv">GET IT</div>
-    <h2 class="rv d1">两个版本，<em>按你的场景选</em></h2>
-    <p class="lead rv d2">
-      要稳用 Fusion，要全用 Ultra。两个都是免安装压缩包，解压双击即用，不需要装 Python。
-    </p>
-
-    <div class="dl-grid">
-      <div class="dl rv">
-        <div class="badge">生产推荐</div>
-        <h3>Fusion</h3>
-        <div class="v">v2.3.1 · 10,584 行</div>
-        <p>轻量稳定，批处理快。适合日常算量、光伏消纳核算。</p>
-        <div class="sz">136 MB · 解压 309 MB</div>
-        <a href="https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.1">下载 →</a>
-      </div>
-      <div class="dl rv d1">
-        <div class="badge" style="background:rgba(143,221,255,.14);color:var(--ice)">功能最全</div>
-        <h3>Ultra</h3>
-        <div class="v">v3.2.2 · 36,204 行</div>
-        <p>MILP 容量规划、LP 调度、Pareto 与诊断。适合正式方案与投资决策。</p>
-        <div class="sz">273 MB · 解压 675 MB</div>
-        <a href="https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.2">下载 →</a>
-      </div>
-      <div class="dl rv d2">
-        <div class="badge" style="background:rgba(143,209,200,.12);color:var(--mint)">看源码</div>
-        <h3>Repository</h3>
-        <div class="v">github.com/172629438/loomgrid</div>
-        <p>算法模块、验证脚本、历史版本源码全部在仓库里。</p>
-        <div class="sz">MIT License</div>
-        <a href="https://github.com/172629438/loomgrid">打开仓库 →</a>
-      </div>
+    <div class="repo">
+      <div class="u">github.com/172629438/loomgrid<small>算法模块、验证脚本、历史版本源码全部在仓库里 · MIT</small></div>
+      <a class="get" href="https://github.com/172629438/loomgrid">打开仓库</a>
     </div>
   </div>
 </section>
@@ -409,13 +592,10 @@ footer{padding:60px 0 48px;border-top:1px solid var(--line)}
 <footer>
   <div class="wrap foot">
     <div>
-      <div class="foot-brand"><i></i>Loom<span>Grid</span></div>
-      <div class="foot-note">
-        一个储能工程师为解放自己的重复劳动写出来的桌面工具。<br>
-        不优雅，但真实——包括走得通的路和绕过的弯。
-      </div>
+      <div class="l1">一个储能工程师为解放自己的重复劳动写出来的桌面工具。</div>
+      <div class="l2">不优雅，但真实——包括走得通的路，和绕过的那些弯。</div>
     </div>
-    <div class="foot-links">
+    <div class="footlinks">
       <a href="https://github.com/172629438/loomgrid/blob/main/README.md">完整说明</a>
       <a href="https://github.com/172629438/loomgrid/blob/main/CHANGELOG.md">更新记录</a>
       <a href="https://github.com/172629438/loomgrid/tree/main/algorithms">算法源码</a>
@@ -424,72 +604,121 @@ footer{padding:60px 0 48px;border-top:1px solid var(--line)}
   </div>
 </footer>
 
+<script src="assets/hero_data.js"></script>
 <script>
-/* ── 导航渐变 ── */
-const nav=document.getElementById('nav');
-addEventListener('scroll',()=>nav.classList.toggle('solid',scrollY>60),{passive:true});
+/* ══════════════════════════════════════════════════════════════
+   织面：用真实 LP 解绘制。数据来自 tools/demo_anim/hero_data.py
+   跑 optimal_dispatch_lp 的输出，不是手画的示意曲线。
+   ══════════════════════════════════════════════════════════════ */
 
-/* ── 滚动进场 ── */
-const io=new IntersectionObserver((es)=>{
-  es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
-},{threshold:.14,rootMargin:'0px 0px -8% 0px'});
-document.querySelectorAll('.rv').forEach(el=>io.observe(el));
-
-/* ── 数字递增 ── */
-function animate(el){
-  const target=+el.dataset.count;
-  const dur=1500, t0=performance.now();
-  const fmt=n=>n>=10000?(n/1000).toFixed(1).replace(/\.0$/,'')+'k':n.toLocaleString('en-US');
-  function step(t){
-    const p=Math.min((t-t0)/dur,1);
-    const e=1-Math.pow(1-p,3);           // easeOutCubic
-    el.textContent=fmt(Math.round(target*e));
-    if(p<1) requestAnimationFrame(step);
-    else el.textContent=fmt(target);
-  }
-  requestAnimationFrame(step);
-}
-const cio=new IntersectionObserver((es)=>{
-  es.forEach(e=>{if(e.isIntersecting){animate(e.target);cio.unobserve(e.target);}});
-},{threshold:.6});
-document.querySelectorAll('[data-count]').forEach(el=>cio.observe(el));
-
-/* ── Hero 背景曲线 ── */
+/* ── 导航状态 ── */
 (function(){
-  const svg=document.getElementById('heroCurve');
-  const E='http://www.w3.org/2000/svg';
-  const W=1440,H=520;
-  const mk=(t,a)=>{const n=document.createElementNS(E,t);for(const k in a)n.setAttribute(k,a[k]);return n;};
-  const defs=mk('defs',{});
-  defs.innerHTML=`
-    <linearGradient id="hc" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#8FDDFF" stop-opacity="0"/>
-      <stop offset="22%" stop-color="#8FDDFF" stop-opacity=".55"/>
-      <stop offset="58%" stop-color="#D4AF37" stop-opacity=".7"/>
-      <stop offset="100%" stop-color="#D4AF37" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="hf" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgba(143,221,255,.14)"/>
-      <stop offset="100%" stop-color="rgba(143,221,255,0)"/>
-    </linearGradient>`;
-  svg.appendChild(defs);
+  const nav=document.getElementById('nav');
+  const on=()=>nav.classList.toggle('on',scrollY>40);
+  addEventListener('scroll',on,{passive:true}); on();
+})();
 
-  // 一条与 hero 图同源的商业综合体日曲线（96 点算法形状的简化）
-  const pts=[];
-  const N=96;
-  for(let i=0;i<N;i++){
-    const h=i/4;
-    const g=(c,s,a)=>a*Math.exp(-((h-c)**2)/(2*s*s));
-    let v=150+g(10.2,2.6,780)+g(12.4,.8,-220)+g(16.4,2.4,880)+g(19.6,1.6,460)+g(3.5,2,55);
-    v=Math.max(v,90);
-    pts.push([ (i/(N-1))*W, H-((v-60)/1250)*(H*0.78)-H*0.14 ]);
+/* ── 织面 ── */
+(function(){
+  const D = window.HERO_DATA;
+  const svg = document.getElementById('loomSvg');
+  if(!D || !svg){ return; }
+
+  const NS='http://www.w3.org/2000/svg';
+  const W = 1600, H = 380;
+  const n = D.hours.length;
+
+  const h0 = H*0.08;          // 曲线区顶
+  const h1 = H*0.655;         // 曲线区底
+  const socTop = H*0.795;     // SOC 带顶
+  const socBot = H*0.945;     // SOC 带底
+
+  const maxLoad = Math.max.apply(null, D.load) * 1.06;
+  const x = i => (i/(n-1))*W;
+  const yLoad = v => h1 - (v/maxLoad)*(h1-h0);
+  const ySoc = v => socBot - ((v*100-8)/(95-8))*(socBot-socTop);
+
+  const el = (t,a)=>{ const e=document.createElementNS(NS,t); for(const k in a) e.setAttribute(k,a[k]); return e; };
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ① 24 小时经线 —— 透明度就是电价，96 根对应 96 个采样点 */
+  const pmin = Math.min.apply(null,D.price), pmax = Math.max.apply(null,D.price);
+  const gWarp = el('g',{});
+  for(let i=0;i<n;i++){
+    const t = (D.price[i]-pmin)/(pmax-pmin+1e-9);
+    const op = 0.030 + t*0.105;
+    const line = el('line',{
+      x1:x(i).toFixed(1), y1:H*0.055, x2:x(i).toFixed(1), y2:H*0.965,
+      stroke:'rgba(237,236,232,'+op.toFixed(3)+')','stroke-width':1
+    });
+    line.setAttribute('class','warpline');
+    gWarp.appendChild(line);
   }
-  let d='',a='M 0 '+H+' ';
-  pts.forEach(([x,y],i)=>{ d+=(i?'L ':'M ')+x.toFixed(1)+' '+y.toFixed(1)+' '; a+='L '+x.toFixed(1)+' '+y.toFixed(1)+' '; });
-  a+='L '+W+' '+H+' Z';
-  svg.appendChild(mk('path',{d:a,fill:'url(#hf)'}));
-  svg.appendChild(mk('path',{d,fill:'none',stroke:'url(#hc)','stroke-width':2.2,
-    'stroke-linejoin':'round','stroke-linecap':'round'}));
+  /* 整点加粗一点，读得出时辰 */
+  for(let hr=0; hr<=24; hr+=2){
+    const i = Math.min(n-1, Math.round(hr/24*(n-1)));
+    gWarp.appendChild(el('line',{
+      x1:x(i).toFixed(1), y1:H*0.055, x2:x(i).toFixed(1), y2:H*0.965,
+      stroke:'rgba(237,236,232,.13)','stroke-width':1
+    }));
+  }
+  svg.appendChild(gWarp);
+
+  /* ② 只留三层：电价经线（背景）· 负荷（纬线）· SOC（成品）。
+   *    净负荷在充电时段会跑到负荷线之上，两条线平行时读者分不清
+   *    哪条是“原始”、哪条是“削峰后”——叠层越多越读不懂，删掉。
+   */
+
+  const pathOf = (arr, yfn) => arr.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+yfn(v).toFixed(1)).join(' ');
+
+  /* ③ 负荷曲线（纬线） */
+  const pLoad = el('path',{d:pathOf(D.load, yLoad),fill:'none',stroke:'rgba(237,236,232,.86)',
+    'stroke-width':1.5,'stroke-linejoin':'round','stroke-linecap':'round',
+    class:'loom-load'});
+  svg.appendChild(pLoad);
+
+  /* ④ SOC 带 */
+  const dSocTop = pathOf(D.soc, ySoc);
+  const dSocArea = dSocTop + ' L '+W+' '+socBot+' L 0 '+socBot+' Z';
+  const gSoc = el('g',{class:'loom-soc'});
+  gSoc.appendChild(el('path',{d:dSocArea,fill:'rgba(143,221,255,.09)'}));
+  gSoc.appendChild(el('path',{d:dSocTop,fill:'none',stroke:'rgba(143,221,255,.62)',
+    'stroke-width':1.2,'stroke-linejoin':'round'}));
+  svg.appendChild(gSoc);
+
+  /* ⑤ 时间刻标 */
+  const gAxis = el('g',{});
+  [0,4,8,12,16,20,24].forEach(hr=>{
+    const i = Math.min(n-1, Math.round(hr/24*(n-1)));
+    const tx = Math.min(W-22, Math.max(22, x(i)));
+    const anchor = hr===0?'start':(hr===24?'end':'middle');
+    const t = el('text',{
+      x:tx.toFixed(1), y:(H*0.992).toFixed(1),
+      fill:'rgba(237,236,232,.34)','font-size':11.5,
+      'font-family':'ui-monospace,Consolas,monospace','text-anchor':anchor
+    });
+    t.textContent = hr+':00';
+    gAxis.appendChild(t);
+  });
+  svg.appendChild(gAxis);
+
+  /* ⑥ 唯一一次编排：经线依次亮起 → 负荷 → SOC */
+  if(reduce){
+    document.querySelectorAll('.warpline').forEach(l=>l.style.opacity=1);
+    pLoad.style.opacity=1; gSoc.style.opacity=1;
+    return;
+  }
+
+  const STEP = 22;
+  const T0 = 160;
+  const warpLines = Array.prototype.slice.call(document.querySelectorAll('.warpline'));
+  warpLines.forEach((l,i)=>{
+    setTimeout(()=>{ l.style.transition='opacity .55s ease'; l.style.opacity=1; }, T0 + i*STEP);
+  });
+
+  const tCurve = T0 + warpLines.length*STEP + 80;
+  setTimeout(()=>{ pLoad.style.opacity = 1; }, tCurve + 60);
+  setTimeout(()=>{ gSoc.style.opacity = 1; }, tCurve + 420);
 })();
 </script>
 </body>
