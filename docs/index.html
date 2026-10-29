@@ -1366,16 +1366,30 @@ input[type=range]::-moz-range-thumb{
   function showAsk(){ if(!want) return; ask.classList.add('on'); }
   function hideAsk(){ ask.classList.remove('on'); }
 
-  /* 真正去放。成功返回 true；被浏览器拒绝返回 false */
+  /* 真正去放。成功返回 true；被浏览器拒绝返回 false。
+     注意：Chrome 在没有用户手势时 play() 返回的 Promise 会一直 pending
+     ——既不 resolve 也不 reject，光等 catch 是等不到的。所以用超时竞速，
+     1.5 秒还没起来就按「被拒」处理，把询问卡弹出来。 */
   async function tryPlay(){
     A.volume = 0;
+    let timer;
+    const timeout = new Promise((_, rej)=>{
+      timer = setTimeout(()=>rej(new Error('play-timeout')), 1500);
+    });
     try{
-      await A.play();
+      await Promise.race([A.play(), timeout]);
+      clearTimeout(timer);
       fadeTo(TARGET);
       showBar();
       return true;
     }catch(err){
-      // NotAllowedError = 缺用户手势；其它错误（文件缺失等）也走询问
+      clearTimeout(timer);
+      // 极少数情况：竞速输了但其实已经播起来，那就别打断
+      if(!A.paused && A.currentTime > 0){
+        fadeTo(TARGET);
+        showBar();
+        return true;
+      }
       showAsk();
       return false;
     }
@@ -1392,8 +1406,11 @@ input[type=range]::-moz-range-thumb{
     if(!want){ hideBar(); return; }
     tryPlay();
   }
-  if(document.readyState === 'complete') setTimeout(boot, 900);
-  else window.addEventListener('load', ()=>setTimeout(boot, 900));
+  if(document.readyState === 'loading'){
+    window.addEventListener('DOMContentLoaded', ()=>setTimeout(boot, 900));
+  }else{
+    setTimeout(boot, 900);
+  }
 
   // ── 二、询问卡 ──
   yes.addEventListener('click', async ()=>{
