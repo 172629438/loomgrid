@@ -228,8 +228,7 @@ h1 b{font-weight:600}
 .fig img{width:100%;display:block}
 
 /* ══════════ 03 算法 ══════════ */
-.engines-fig{margin-top:clamp(34px,4.6vw,52px)}
-.engtable{margin-top:clamp(28px,3.6vw,44px);width:100%;border-collapse:collapse}
+.engines-fig{margin-top:clamp(34px,4.6vw,52px)}.engtable{margin-top:clamp(28px,3.6vw,44px);width:100%;border-collapse:collapse}
 .engtable th{
   text-align:left;font-family:var(--mono);font-size:11px;font-weight:400;
   color:var(--ash3);letter-spacing:.04em;padding:0 0 12px;
@@ -260,6 +259,123 @@ h1 b{font-weight:600}
   .engtable .nm small{display:none}
   .engtable td{padding:15px 0}
 }
+
+/* ══════════ 配置对照器 ══════════ */
+.calc{
+  margin-top:clamp(34px,4.6vw,52px);
+  border-top:1px solid var(--line-soft);
+  padding-top:clamp(26px,3.4vw,36px);
+}
+.calc-head{
+  display:flex;justify-content:space-between;align-items:baseline;
+  gap:18px;flex-wrap:wrap;margin-bottom:26px;
+}
+.calc-head h3{font-size:16px;font-weight:500;letter-spacing:-.01em}
+.calc-head span{font-family:var(--mono);font-size:11.5px;color:var(--ash2)}
+
+.ctl{display:flex;align-items:baseline;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.ctl .lab{
+  font-family:var(--mono);font-size:11.5px;color:var(--ash2);
+  width:76px;flex:0 0 auto;letter-spacing:.02em;
+}
+.ctl .opts{display:flex;gap:1px;background:var(--line-soft)}
+.ctl button{
+  font-family:var(--mono);font-size:12px;color:var(--ash2);
+  background:var(--void);border:0;padding:9px 14px;cursor:pointer;
+  transition:color .18s,background .18s;
+}
+.ctl button:hover{color:var(--ink)}
+.ctl button.on{color:var(--gold);background:rgba(201,162,39,.10)}
+
+.ctl input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  flex:1 1 260px;height:1px;background:var(--line);outline:none;
+  margin:0;cursor:pointer;
+}
+.ctl input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:11px;height:11px;background:var(--gold);border-radius:50%;
+  cursor:grab;box-shadow:0 0 0 4px rgba(8,9,11,1);
+}
+.ctl input[type=range]::-moz-range-thumb{
+  width:11px;height:11px;background:var(--gold);border:0;border-radius:50%;
+}
+.ctl input[type=range]:focus-visible{outline:1px solid var(--gold-dim);outline-offset:6px}
+.ctl .val{
+  font-family:var(--mono);font-size:13px;color:var(--ink);
+  font-variant-numeric:tabular-nums;min-width:64px;text-align:right;
+}
+
+.calc-out{margin-top:clamp(26px,3.4vw,38px)}
+.crow{
+  display:grid;grid-template-columns:12ch 1fr 9ch 6ch;
+  align-items:center;gap:clamp(12px,2vw,24px);
+  padding:15px 0;border-bottom:1px solid var(--line-soft);
+}
+.crow:first-child{border-top:1px solid var(--line-soft)}
+.crow .cn{font-size:15px;letter-spacing:-.01em}
+.crow .cn small{
+  display:block;font-family:var(--mono);font-size:10.5px;
+  color:var(--ash3);margin-top:4px;letter-spacing:.02em;
+}
+.crow .bar{
+  height:1px;background:rgba(237,236,232,.10);position:relative;
+}
+.crow .bar i{
+  position:absolute;left:0;top:-1px;height:3px;display:block;
+  transition:width .42s cubic-bezier(.22,1,.36,1);
+}
+.crow .cv{
+  font-family:var(--mono);font-size:clamp(17px,2vw,22px);font-weight:500;
+  font-variant-numeric:tabular-nums;text-align:right;letter-spacing:-.02em;
+}
+.crow .cp{font-family:var(--mono);font-size:12px;color:var(--ash2);text-align:right}
+.crow.lp .bar i{background:var(--gold)}
+.crow.sim .bar i{background:rgba(143,221,255,.72)}
+.crow.gr .bar i{background:rgba(237,236,232,.34)}
+.crow.lp .cv{color:var(--gold)}
+.crow.sim .cv{color:var(--ink)}
+.crow.gr .cv{color:var(--ash2)}
+
+.calc-yr{
+  margin-top:16px;font-family:var(--mono);font-size:11.5px;
+  color:var(--ash2);line-height:1.8;
+}
+.calc-yr b{color:var(--ash1);font-weight:400}
+.calc-note{margin-top:10px;font-size:11.5px;color:var(--ash3);line-height:1.7}
+@media(max-width:640px){
+  .crow{grid-template-columns:1fr auto;gap:8px 14px}
+  .crow .bar{grid-column:1 / -1;order:3}
+  .crow .cp{display:none}
+  .ctl .lab{width:64px}
+}
+
+/* ══════════ 织面跟随带 ══════════
+   滚出首屏后，顶部长出一条 40px 的缩微织面，游标随阅读进度行进。
+   这不是装饰——它把「读完整页」映射成「过完这一天」，
+   和首屏那道经线是同一套语言。只在 900px 以上出现，不占内容区。*/
+.ribbon{
+  position:fixed;left:0;right:0;top:58px;height:40px;z-index:85;
+  background:rgba(8,9,11,.88);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line-soft);
+  opacity:0;transform:translateY(-6px);pointer-events:none;
+  transition:opacity .38s ease,transform .38s cubic-bezier(.22,1,.36,1);
+}
+.ribbon.on{opacity:1;transform:none}
+.ribbon svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.ribbon .cur{
+  position:absolute;top:0;bottom:0;width:1px;background:var(--gold);
+  transition:left .12s linear;
+}
+.ribbon .cur::after{
+  content:"";position:absolute;left:-2px;top:-2px;width:5px;height:5px;
+  background:var(--gold);border-radius:50%;
+}
+.ribbon .lbl{
+  position:absolute;right:14px;top:50%;transform:translateY(-50%);
+  font-family:var(--mono);font-size:10.5px;color:var(--ash2);letter-spacing:.04em;
+}
+@media(max-width:900px){.ribbon{display:none}}
 
 /* ══════════ 04 可信 ══════════ */
 .trust-top{display:grid;grid-template-columns:1.15fr 1fr;gap:clamp(36px,6vw,86px);align-items:start}
@@ -464,6 +580,12 @@ h2{position:relative}
 
 <div id="prog"></div>
 
+<div class="ribbon" id="ribbon" aria-hidden="true">
+  <svg id="ribbonSvg" viewBox="0 0 1600 40" preserveAspectRatio="none"></svg>
+  <div class="cur" id="ribbonCur" style="left:0"></div>
+  <div class="lbl" id="ribbonLbl">0%</div>
+</div>
+
 <nav id="nav">
   <a class="brand" href="#hero"><i></i><b>Loom</b><span>Grid</span></a>
   <div class="navlist">
@@ -591,7 +713,7 @@ h2{position:relative}
 <section id="engine">
   <div class="cut"></div>
   <div class="wrap">
-    <h2>三个引擎跑同一天，差 36 倍</h2>
+    <h2>三个引擎跑同一天，最少那个只省到 1%</h2>
     <p class="lead">
       不是实现优劣，是场景不同。把三个结果摆在同一个坐标系里，才看得清该用哪个——
       这也是这套工具敢说自己算得准的办法。
@@ -613,21 +735,72 @@ h2{position:relative}
         </tr>
         <tr class="sim">
           <td class="nm">逐日仿真<small>daily simulation · 按时段规则推进</small></td>
-          <td class="num">¥1,258</td>
-          <td class="rel">75%</td>
+          <td class="num">¥1,199</td>
+          <td class="rel">72%</td>
         </tr>
         <tr class="greed">
           <td class="nm">贪心<small>greedy · 新能源消纳优先</small></td>
-          <td class="num">¥46</td>
-          <td class="rel">3%</td>
+          <td class="num">¥11</td>
+          <td class="rel">1%</td>
         </tr>
       </tbody>
     </table>
 
     <p class="lead" style="margin-top:26px;max-width:64ch">
-      贪心只省 46 元，不是它差——它的设计前提是有光伏或风电时自发自用，
+      贪心只省 11 元，不是它差——它的设计前提是有光伏或风电时自发自用，
       纯套利场景下不会主动从电网买电充。<b>用错场景，比用错算法更危险。</b>
     </p>
+
+    <!-- ══ 配置对照器 ══ -->
+    <div class="calc" id="calc">
+      <div class="calc-head">
+        <h3>自己调一套配置</h3>
+        <span id="calcMeta">三个引擎、同一负荷、逐点计价</span>
+      </div>
+
+      <div class="ctl">
+        <span class="lab">容量 kWh</span>
+        <div class="opts" id="optCap"></div>
+      </div>
+      <div class="ctl">
+        <span class="lab">功率 kW</span>
+        <div class="opts" id="optPm"></div>
+      </div>
+      <div class="ctl">
+        <span class="lab">峰谷价差</span>
+        <input type="range" id="rngSpread" min="0.4" max="1.1" step="0.01" value="0.9"
+               aria-label="峰谷价差 元每千瓦时">
+        <span class="val" id="valSpread">0.90 元</span>
+      </div>
+
+      <div class="calc-out" id="calcOut">
+        <div class="crow lp">
+          <div class="cn">LP<small>跨时段全局最优</small></div>
+          <div class="bar"><i id="barLp" style="width:0"></i></div>
+          <div class="cv" id="outLp">–</div>
+          <div class="cp" id="pctLp">–</div>
+        </div>
+        <div class="crow sim">
+          <div class="cn">逐日仿真<small>按时段规则推进</small></div>
+          <div class="bar"><i id="barSim" style="width:0"></i></div>
+          <div class="cv" id="outSim">–</div>
+          <div class="cp" id="pctSim">–</div>
+        </div>
+        <div class="crow gr">
+          <div class="cn">贪心<small>新能源消纳优先</small></div>
+          <div class="bar"><i id="barGr" style="width:0"></i></div>
+          <div class="cv" id="outGr">–</div>
+          <div class="cp" id="pctGr">–</div>
+        </div>
+      </div>
+
+      <div class="calc-yr" id="calcYr">–</div>
+      <div class="calc-note">
+        数据由 <code style="font-family:var(--mono)">tools/demo_anim/compare_data.py</code>
+        在 6×4×5 网格上真跑出来（120 格 × 3 引擎），前端只对价差做线性插值。
+        口径：基准购电成本 − 实际购电成本，含充放效率，逐点计价。
+      </div>
+    </div>
   </div>
 </section>
 
@@ -728,6 +901,7 @@ h2{position:relative}
 </footer>
 
 <script src="assets/hero_data.js"></script>
+<script src="assets/compare_data.js"></script>
 <script>
 /* ══════════════════════════════════════════════════════════════
    织面：用真实 LP 解绘制。数据来自 tools/demo_anim/hero_data.py
@@ -969,6 +1143,153 @@ h2{position:relative}
   const tCurve = T0 + warpLines.length*STEP + 80;
   setTimeout(()=>{ pLoad.style.opacity = 1; }, tCurve + 60);
   setTimeout(()=>{ gSoc.style.opacity = 1; }, tCurve + 420);
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   织面跟随带：滚出首屏后顶部长出缩微织面，游标随阅读进度行进
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+  const D = window.HERO_DATA;
+  const bar = document.getElementById('ribbon');
+  const svg = document.getElementById('ribbonSvg');
+  if(!D || !bar || !svg) return;
+
+  const NS='http://www.w3.org/2000/svg';
+  const W=1600, H=40, n=D.hours.length;
+  const maxLoad=Math.max.apply(null,D.load)*1.06;
+  const x=i=>(i/(n-1))*W;
+  const y=v=>H-4-((v/maxLoad)*(H-9));
+
+  const mk=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+
+  // 电价经线：只留 48 根，够看密度又不孜
+  for(let i=0;i<n;i+=2){
+    const t=(D.price[i]-0.30)/(1.20-0.30);
+    svg.appendChild(mk('line',{
+      x1:x(i).toFixed(1),y1:3,x2:x(i).toFixed(1),y2:H-3,
+      stroke:'rgba(237,236,232,'+(0.02+t*0.05).toFixed(3)+')','stroke-width':1
+    }));
+  }
+  // 负荷曲线
+  const d=D.load.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
+  svg.appendChild(mk('path',{d,fill:'none',stroke:'rgba(237,236,232,.34)',
+    'stroke-width':1.2,'stroke-linejoin':'round'}));
+
+  const cur=document.getElementById('ribbonCur');
+  const lbl=document.getElementById('ribbonLbl');
+  let raf=0, idle=0;
+
+  /* 只在「正在滚动」时显示：停止 1.2 秒后淡出。
+     常驻的 fixed 条会永久遮住顶部 40px 内容，阅读时碍事。 */
+  function upd(){
+    raf=0;
+    const y0=scrollY;
+    const heroEnd=document.getElementById('hero').offsetHeight;
+    const total=document.documentElement.scrollHeight-innerHeight;
+    const inRange=y0>heroEnd*0.72 && y0<total-40;
+
+    if(inRange){
+      const p=Math.max(0,Math.min(1,(y0-heroEnd*0.72)/(total-heroEnd*0.72)));
+      cur.style.left=(p*100).toFixed(2)+'%';
+      lbl.textContent=Math.round(p*100)+'%';
+      bar.classList.add('on');
+      clearTimeout(idle);
+      idle=setTimeout(()=>bar.classList.remove('on'), 1200);
+    }else{
+      bar.classList.remove('on');
+      clearTimeout(idle);
+    }
+  }
+  addEventListener('scroll',()=>{ if(!raf) raf=requestAnimationFrame(upd); },{passive:true});
+  addEventListener('resize',upd,{passive:true});
+  upd();
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   配置对照器：三个引擎 × 120 格真实解，前端只对价差插值
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+  const D = window.COMPARE_DATA;
+  const root = document.getElementById('calc');
+  if(!D || !root) return;
+
+  const CAPS = D.meta.caps, PMS = D.meta.pms, SPS = D.meta.spreads;
+  let ci = CAPS.indexOf(2000), pj = PMS.indexOf(400);
+  if(ci < 0) ci = Math.floor(CAPS.length / 2);
+  if(pj < 0) pj = Math.floor(PMS.length / 2);
+
+  const el = id => document.getElementById(id);
+
+  function buildOpts(host, arr, cur, onPick){
+    host.innerHTML = '';
+    arr.forEach((v, i)=>{
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = v.toLocaleString('en-US');
+      if(i === cur) b.className = 'on';
+      b.addEventListener('click', ()=>{
+        Array.prototype.forEach.call(host.children, c=>c.classList.remove('on'));
+        b.classList.add('on');
+        onPick(i);
+      });
+      host.appendChild(b);
+    });
+  }
+
+  buildOpts(el('optCap'), CAPS, ci, i=>{ ci = i; render(); });
+  buildOpts(el('optPm'), PMS, pj, i=>{ pj = i; render(); });
+
+  function pick(engine, spread){
+    const row = D.data[engine][ci][pj];
+    if(spread <= SPS[0]) return row[0];
+    if(spread >= SPS[SPS.length-1]) return row[row.length-1];
+    for(let k=0; k<SPS.length-1; k++){
+      if(spread >= SPS[k] && spread <= SPS[k+1]){
+        const t = (spread - SPS[k]) / (SPS[k+1] - SPS[k]);
+        const a = row[k], b = row[k+1];
+        if(a === null || a === undefined) return b;
+        if(b === null || b === undefined) return a;
+        return a + (b - a) * t;
+      }
+    }
+    return row[0];
+  }
+
+  const fmt = v => '¥' + Math.round(v).toLocaleString('en-US');
+
+  function render(){
+    const sp = parseFloat(el('rngSpread').value);
+    el('valSpread').textContent = sp.toFixed(2) + ' 元';
+
+    const lp = pick('lp', sp) || 0;
+    const sim = pick('sim', sp) || 0;
+    const gr = pick('greedy', sp) || 0;
+    const max = Math.max(lp, sim, gr, 1);
+
+    el('outLp').textContent = fmt(lp);
+    el('outSim').textContent = fmt(sim);
+    el('outGr').textContent = fmt(gr);
+
+    el('barLp').style.width = (lp / max * 100).toFixed(1) + '%';
+    el('barSim').style.width = (sim / max * 100).toFixed(1) + '%';
+    el('barGr').style.width = (gr / max * 100).toFixed(1) + '%';
+
+    el('pctLp').textContent = '100%';
+    el('pctSim').textContent = lp > 0 ? Math.round(sim / lp * 100) + '%' : '–';
+    el('pctGr').textContent = lp > 0 ? Math.round(gr / lp * 100) + '%' : '–';
+
+    const capTxt = CAPS[ci].toLocaleString('en-US');
+    const pmTxt = PMS[pj].toLocaleString('en-US');
+    el('calcYr').innerHTML =
+      capTxt + ' kWh / ' + pmTxt + ' kW / 价差 ' + sp.toFixed(2) + ' 元' +
+      ' 　→ 年化（×365）：LP <b>' + fmt(lp*365) + '</b> · 仿真 <b>' + fmt(sim*365) +
+      '</b> · 贪心 <b>' + fmt(gr*365) + '</b>';
+  }
+
+  el('rngSpread').addEventListener('input', render, {passive:true});
+
+  /* 默认点对齐首页图：2000 kWh / 400 kW / 0.90 元 → LP ¥1676 */
+  render();
 })();
 </script>
 </body>
