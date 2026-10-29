@@ -1269,6 +1269,71 @@ nav.on{
   }
   #why > .cut{ display:none }
 }
+
+/* ── 界面细节：这些是「说不出哪里不一样，但一眼看出做没做」的部分 ── */
+
+/* 选区：默认的蓝色在一块黑金页面上很突兀。用金色低透明度，
+   反白文字保持可读。 */
+::selection{ background:rgba(201,162,39,.30); color:var(--ink) }
+::-moz-selection{ background:rgba(201,162,39,.30); color:var(--ink) }
+
+/* 焦点环：自定义样式但保留可见性。
+   用 outline 而不是 box-shadow —— outline 不占布局，也不吃 overflow。 */
+:focus-visible{
+  outline:1px solid var(--gold);
+  outline-offset:3px;
+  border-radius:0;
+}
+:focus:not(:focus-visible){ outline:none }
+
+/* 滚动条：默认的浅色宽条在深色页上像一道疤。
+   10px、无圆角（和全站 0 圆角一致）、hover 才提亮。 */
+html{ scrollbar-color:rgba(237,236,232,.16) #08090B; scrollbar-width:thin }
+::-webkit-scrollbar{ width:10px; height:10px }
+::-webkit-scrollbar-track{ background:#08090B }
+::-webkit-scrollbar-thumb{
+  background:rgba(237,236,232,.14);
+  border:2px solid #08090B;
+  border-radius:0;
+}
+::-webkit-scrollbar-thumb:hover{ background:rgba(237,236,232,.28) }
+::-webkit-scrollbar-corner{ background:#08090B }
+
+/* 中西文混排：浏览器默认不给中文与西文之间留空，
+   「MILP 容量规划」读起来会黏在一起。text-autospace 按 CJK 规范自动补
+   1/4 字宽（Chrome 119+；不支持的浏览器安静地忽略，不坏事）。 */
+body{
+  text-autospace:normal;
+  font-kerning:normal;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+/* 表格与数字块：等宽数字，避免「¥1,676 / ¥1,199」逐位跳动 */
+td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
+
+/* 打印：有人会把说明打出来带给客户看。
+   黑底白字进纸就是一片黑，所以反过来——但保留结构。 */
+@media print{
+  html,body{ background:#fff !important; color:#111 !important }
+  nav,.tune,.tune-ask,.loom-decode,#loomGL,.probe,
+  #prog,footer .footlinks,.hero-act{ display:none !important }
+  section{ break-inside:avoid; padding:24px 0 !important }
+  h1,h2,h3{ color:#000 !important }
+  .lead,.sub,p{ color:#333 !important }
+  .cut{ background:#ccc !important }
+  a{ color:#000 !important; text-decoration:underline }
+  img{ max-width:100% !important }
+  .js #why .why-top > div:first-child > *,
+  .js #why .costrow,.js #trust .metric,.js #get .ver{
+    animation:none !important; opacity:1 !important; transform:none !important;
+  }
+}
+
+/* 高对比度模式：把最弱的几档文字提上来 */
+@media (prefers-contrast:more){
+  :root{ --ash1:rgba(237,236,232,.78); --ash2:rgba(237,236,232,.58); --ash3:rgba(237,236,232,.40) }
+}
 </style>
 </head>
 <body>
@@ -2432,16 +2497,24 @@ nav.on{
        纵向长度是这里唯一真正「看得出」的深度线索——均匀竖线阵列里
        横向视差会被相邻线替换掉，实测加到 10px 也只有 1.7% 像素变动。 */
     const YSHRINK = 0.032;
+    /* 整点线：原 SVG 里有 13 根 alpha .13 的线（每 2 小时一根），
+       它们是整幅图里唯一更亮的东西——格子感、时辰感全靠这 13 根。
+       换 WebGL 时漏掉了，整片就变成一片均匀的灰，读不出时间。 */
+    const HOURSTEP = LINES > 1 ? (LINES - 1) / 12 : 0;    // 12 段 = 每 2 小时
     for(let i=0;i<LINES;i++){
       const x = i/(LINES-1);
       const t = (pr[i]-pminL)/(pmaxL-pminL+1e-9);
-      const b = 0.030 + t*0.105;                                   // 电价 → 亮度
+      let b = 0.030 + t*0.105;                                     // 电价 → 亮度
+      let wBoost = 1;                                              // 整点加宽
+      const dz = HOURSTEP > 0 ? Math.abs(i - Math.round(i / HOURSTEP) * HOURSTEP) : 9;
+      if(dz < 0.55){ b = b * 1.35 + 0.045; wBoost = 1.9; }          // 命中整点：叠加而非取最大值
       const z = ((ld[i]-lmin)/(lmax-lmin+1e-9))*2 - 1;             // 负荷 → 深度
       const depth = (z + 1) * 0.5;                                 // 0 远 → 1 近
       const y0 = Y0 + (1 - depth) * YSHRINK;
       const y1 = Y1 - (1 - depth) * YSHRINK;
       pos.push(x,y0, x,y0, x,y1,  x,y0, x,y1, x,y1);
-      off.push(-1, 1, 1, -1, 1, -1);
+      off.push(-1 * wBoost, 1 * wBoost, 1 * wBoost,
+               -1 * wBoost, 1 * wBoost, -1 * wBoost);
       for(let k=0;k<6;k++){ bri.push(b); zz.push(z); }
     }
     function mk(arr){
@@ -2517,7 +2590,11 @@ nav.on{
     }
 
     function loop(now){
-      const p = Math.min(1, Math.max(0, (now - t0) / 1200));
+      /* 原 SVG 是 96 根逐根淡入（22ms 间隔，约 2.1 秒），有「一根根亮起来」的节奏。
+         均匀匀速扫过丢掉了这个节奏——改成：总时长 2400ms，
+         前 10% 留给经线起头，曲线在 62% 之后开始走。 */
+      const raw = Math.min(1, Math.max(0, (now - t0) / 2400));
+      const p = raw < 0.55 ? (raw / 0.55) * 0.62 : 0.62 + ((raw - 0.55) / 0.45) * 0.38;
       prog0 = p;
       const still = step(now);
       render(p, cur * TILT);
