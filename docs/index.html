@@ -1171,6 +1171,18 @@ nav.on{
    为什么不用 mandatory：workbench 2435px、engine 2270px 都超过一屏，
    mandatory 会把这些节卡在半截，读者滚不动——那是比没有分页更糟的手感。
    proximity 只在「离吸附点足够近」时接手，够不到就放行。       */
+/* 短节撑满：内容不足一屏时，垂直居中 + 去掉节首分割线。
+   分割线的作用是「在连续滚动里标出节界」，一旦整屏切换，
+   屏与屏之间本身就是界，那条线反而多余。                    */
+@media (min-width:900px){
+  #why{
+    min-height:100vh;
+    min-height:100svh;
+    display:grid;align-content:center;
+  }
+  #why > .cut{ display:none }
+}
+
 @media (min-width:900px) and (prefers-reduced-motion:no-preference){
   html{ scroll-snap-type:y proximity; scroll-padding-top:0px }
   /* 六节全部设 start：节首会被吸住，节内超过一屏的部分自由滚——
