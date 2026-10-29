@@ -317,7 +317,7 @@ h1 b{font-weight:600}
 .tune{
   position:fixed;right:0;bottom:12px;z-index:60;
   display:flex;align-items:stretch;
-  width:342px;max-width:calc(100vw - 8px);
+  width:348px;max-width:calc(100vw - 8px);
   background:rgba(9,11,15,.96);
   border:1px solid rgba(237,236,232,.13);border-right:0;
   border-radius:0;                       /* 全站圆角 0，收边也守住 */
@@ -337,11 +337,12 @@ h1 b{font-weight:600}
 /* 收边后唯一露出来的那 12px——它不是“残余”，是抽屉的拉手：
    中央一根短竖线告诉你这里能拉开，底部金色是唱到哪了。 */
 .edge{
-  position:relative;flex:0 0 12px;width:12px;
+  position:relative;flex:0 0 12px;width:12px;min-width:0;
   background:linear-gradient(180deg,rgba(16,18,24,.97),rgba(10,12,16,.97));
   border-left:1px solid rgba(237,236,232,.2);
   cursor:pointer;overflow:hidden;
-  transition:border-color var(--t-2) var(--ease-out);
+  transition:flex-basis 280ms var(--spring-soft),
+             border-color var(--t-2) var(--ease-out);
 }
 .edge:hover{border-left-color:rgba(201,162,39,.75)}
 /* 拉手：中央 20px 的短竖线 */
@@ -373,21 +374,42 @@ h1 b{font-weight:600}
   50%    { opacity:.95 }
 }
 
+/* 展开时 edge 完全折起来（宽 12→0），否则左侧会多一道空槽，
+   让面板看起来左边比右边宽。 */
+.tune.open .edge{
+  flex-basis:0;width:0;
+  background:transparent;
+  border-left-color:transparent;
+}
+.tune.open .edge i,
+.tune.open .edge::before,
+.tune.open .edge::after{ opacity:0 }
+
 .body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
 
 .tune-wave{
-  display:block;width:100%;height:54px;
-  border-bottom:1px solid rgba(237,236,232,.07);
+  display:block;
+  width:calc(100% - 28px);height:46px;
+  margin:14px 14px 0;
+  border-bottom:1px solid rgba(237,236,232,.06);
 }
 
 .tune-ctl{
-  display:flex;align-items:center;gap:8px;
-  padding:9px 12px 10px;
-  font-family:var(--mono);font-size:11.5px;color:var(--ash2);
+  display:flex;align-items:center;gap:10px;
+  padding:11px 14px 9px;
+  font-family:var(--mono);font-size:12px;line-height:1.7;
+  letter-spacing:.008em;color:var(--ash2);
+}
+
+/* 底行：进度占满，音量贴右。拆行之前五个元素挤在 330px 里，
+   平均间距只有 8px——那不是紧凑，是拥挤。 */
+.tune-foot{
+  display:flex;align-items:center;gap:12px;
+  padding:0 14px 12px;
 }
 
 .tune .pp{
-  flex:0 0 auto;width:24px;height:24px;padding:0;
+  flex:0 0 auto;width:22px;height:22px;padding:0;
   background:none;border:1px solid rgba(237,236,232,.22);
   color:var(--ink);cursor:pointer;line-height:1;
   display:flex;align-items:center;justify-content:center;
@@ -410,10 +432,10 @@ h1 b{font-weight:600}
 }
 
 .tune .vol{
-  flex:0 0 auto;width:38px;height:14px;
+  flex:0 0 auto;width:46px;height:14px;
   -webkit-appearance:none;appearance:none;
   background:transparent;cursor:pointer;
-  opacity:0;transition:opacity var(--t-1) var(--ease-out);
+  opacity:.42;transition:opacity var(--t-2) var(--ease-out);
 }
 .tune.open:hover .vol,.tune .vol:focus-visible{opacity:1}
 .tune .vol::-webkit-slider-runnable-track{height:1px;background:rgba(237,236,232,.28)}
@@ -432,7 +454,7 @@ h1 b{font-weight:600}
 .tune .x:hover{color:var(--ink)}
 
 .tune-seek{
-  position:relative;height:2px;margin:0 12px 10px;
+  position:relative;flex:1 1 auto;height:2px;margin:0;
   background:rgba(237,236,232,.1);cursor:pointer;touch-action:none;
 }
 .tune-seek i{display:block;height:100%;width:0;background:var(--gold);transition:width 140ms linear}
@@ -1077,6 +1099,72 @@ a.get{
   a.get{ transition:none }
   .engtable tbody tr{ transition:none }
 }
+/* ── 毛玻璃 ────────────────────────────────────────────────────
+   只给功能层：导航、播放器、探针读数、询问卡、顶部织面带。
+   内容区（正文、卡片、表格）一律不铺——玻璃是功能的语言，
+   不是壁纸。
+
+   质疑点：光「加模糊」不高级。质感的来源是那道 1px 的 inset
+   高光边（上亮下隐），加上降饱和的底色。苹果 HIG 说的
+   「高光边缘」就是这个。
+   ───────────────────────────────────────────────────────────── */
+:root{
+  --glass-tint:rgba(9,11,15,.62);
+  --glass-line:rgba(237,236,232,.085);
+  --glass-hi:rgba(237,236,232,.06);
+  --glass-blur:blur(22px) saturate(165%);
+}
+
+nav.on{
+  background:var(--glass-tint);
+  -webkit-backdrop-filter:var(--glass-blur);
+  backdrop-filter:var(--glass-blur);
+  border-bottom-color:var(--glass-line);
+  box-shadow:inset 0 1px 0 var(--glass-hi);
+}
+
+.ribbon{
+  background:rgba(8,9,11,.66);
+  -webkit-backdrop-filter:blur(18px) saturate(150%);
+  backdrop-filter:blur(18px) saturate(150%);
+  border-bottom-color:var(--glass-line);
+  box-shadow:inset 0 1px 0 var(--glass-hi);
+}
+
+/* 不支持模糊时：回到接近不透明的实底，视觉上别塌 */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  nav.on,.ribbon,.tune,.tune-ask,.probe-card{
+    background:rgba(9,11,15,.94) !important;
+    box-shadow:none;
+  }
+}
+/* 系统开了「降低透明度」：同样回实底 */
+@media(prefers-reduced-transparency:reduce){
+  nav.on,.ribbon{ background:rgba(9,11,15,.96); -webkit-backdrop-filter:none; backdrop-filter:none }
+  .tune,.tune-ask,.probe-card{ background:rgba(9,11,15,.97); -webkit-backdrop-filter:none; backdrop-filter:none }
+}
+
+/* 播放器与浮层用同一套玻璃 */
+.tune{
+  background:var(--glass-tint);
+  -webkit-backdrop-filter:var(--glass-blur);
+  backdrop-filter:var(--glass-blur);
+  border-color:var(--glass-line);border-right:0;
+  box-shadow:inset 0 1px 0 var(--glass-hi);
+}
+.tune-ask{
+  background:rgba(9,11,15,.74);
+  -webkit-backdrop-filter:blur(20px) saturate(160%);
+  backdrop-filter:blur(20px) saturate(160%);
+  border-color:var(--glass-line);
+  box-shadow:inset 0 1px 0 var(--glass-hi);
+}
+.probe-card{
+  background:rgba(9,11,15,.74);
+  -webkit-backdrop-filter:blur(16px) saturate(150%);
+  backdrop-filter:blur(16px) saturate(150%);
+  box-shadow:inset 0 1px 0 var(--glass-hi);
+}
 </style>
 </head>
 <body>
@@ -1435,13 +1523,15 @@ a.get{
     </button>
     <span class="nm">We Never（Remix）</span>
     <span class="tm" id="tuneTime">0:00 / 3:12</span>
-    <input class="vol" id="tuneVol" type="range" min="0" max="100" value="90"
-           aria-label="音量" title="音量">
     <button class="x" id="tuneOff" aria-label="关掉音乐">×</button>
   </div>
-  <div class="tune-seek" id="tuneSeek" role="slider" aria-label="播放进度"
-       aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
-    <i id="tuneProg"></i>
+  <div class="tune-foot">
+    <div class="tune-seek" id="tuneSeek" role="slider" aria-label="播放进度"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+      <i id="tuneProg"></i>
+    </div>
+    <input class="vol" id="tuneVol" type="range" min="0" max="100" value="90"
+           aria-label="音量" title="音量">
   </div>
   </div>
 </div>
