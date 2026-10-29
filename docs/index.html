@@ -48,6 +48,36 @@ document.documentElement.className += ' js';
   --sans:"PingFang SC","Microsoft YaHei",-apple-system,"Segoe UI",sans-serif;
   --mono:ui-monospace,"JetBrains Mono","Cascadia Mono",Consolas,monospace;
   --wrap:1120px;
+
+  /* ── 动效 token ────────────────────────────────────────────────
+     时间：四档。140 以下给颜色/透明度，600 以上给整块进出。
+     缓动：默认 cubic-bezier，浏览器支持 linear() 时换成真弹簧
+           （阻尼谐振子方程采样，见 tools/motion_tokens.py）。
+
+     为什么不全用弹簧：CSS transition 被中途打断时有个
+     "reversing shortening factor"，会把剩余时长按比例压短——
+     弹簧本来 620ms，中途反向可能只跑 150ms，看起来像撞墙。
+     所以弹簧只给"一次性、不会被打断"的过渡（幕布、条形、金线）；
+     高频交互（探针、hover）用普通 ease，反而不违和。
+     ───────────────────────────────────────────────────────────── */
+  --t-1:120ms;   /* 微：颜色、透明度 */
+  --t-2:220ms;   /* 小：下划线、按钮 */
+  --t-3:380ms;   /* 中：面板、条形 */
+  --t-4:620ms;   /* 大：幕布、整块 */
+
+  --ease-out:cubic-bezier(.22,1,.36,1);
+  --ease-in-out:cubic-bezier(.65,0,.35,1);
+  --spring-tight:cubic-bezier(.34,1.32,.64,1);
+  --spring-soft:cubic-bezier(.22,1,.36,1);
+  --spring-snap:cubic-bezier(.2,1.7,.5,1);
+}
+
+@supports (transition-timing-function: linear(0,1)){
+  :root{
+    --spring-tight:linear(0, 0.0839, 0.2657, 0.4706, 0.6565, 0.8045, 0.9106, 0.9789, 1.0174, 1.0347, 1.0384, 1.0345, 1.0272, 1.0194, 1.0124, 1.0069, 1.003, 1.0006, 0.9992, 0.9986, 0.9985, 0.9987, 0.999, 0.9993, 1);
+    --spring-soft:linear(0, 0.0437, 0.1446, 0.2697, 0.3986, 0.5193, 0.6257, 0.7156, 0.7891, 0.8473, 0.8924, 0.9264, 0.9515, 0.9695, 0.9821, 0.9906, 0.9962, 0.9996, 1.0016, 1.0026, 1.0029, 1.0029, 1.0027, 1.0023, 1.0019, 1.0015, 1.0012, 1.0009, 1.0007, 1);
+    --spring-snap:linear(0, 0.1146, 0.3633, 0.6349, 0.8625, 1.0181, 1.1011, 1.1262, 1.1139, 1.0832, 1.0488, 1.0194, 0.9989, 0.9878, 0.9841, 0.9854, 0.9891, 0.9935, 0.9973, 1, 1.0015, 1.002, 1.0019, 1.0014, 1.0009, 1.0004, 1);
+  }
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -173,6 +203,9 @@ h1 b{font-weight:600}
   background:#06070A;
 }
 .loom svg{display:block;width:100%;height:auto;overflow:visible}
+/* 织面用 preserveAspectRatio="none" 填充容器，纵向拉伸会连带改变线宽，
+   non-scaling-stroke 让描边保持设计值（1.5px 的负荷线到哪都是 1.5px）。 */
+#loomSvg path,#loomSvg line{vector-effect:non-scaling-stroke}
 .loom-meta{
   position:relative;display:flex;justify-content:space-between;gap:24px;
   flex-wrap:wrap;padding:12px clamp(18px,3.4vw,40px) 13px;
@@ -255,6 +288,30 @@ h1 b{font-weight:600}
 .engtable tr.sim .num{color:var(--ink)}
 .engtable tr.greed .num{color:var(--ash2)}
 .engtable td:last-child,.engtable th:last-child{padding-left:26px}
+/* 窄屏：六个配置按钮在 390 宽度下会顶边，收窄内边距与字号 */
+/* ── 窄屏：让织面看得清 ────────────────────────────────────────
+   390 宽下按比例算只有 92px 高，三条曲线挤成一张扁纸，读不出形状。
+   给固定高度让内容纵向拉伸；首屏也顺势上移，把曲线推进第一屏。 */
+@media(max-width:700px){
+  .loom svg{height:clamp(172px,46vw,238px)}
+  .hero-top{align-items:flex-end;padding:clamp(44px,7.5vh,64px) 0 clamp(22px,3vh,30px)}
+  .loom-meta{padding:10px 18px 11px;font-size:11px;gap:6px 18px}
+  /* 窄屏只留三条：规模、电价范围、当日充放省。
+     技术出处（第 4 项）在移动端价值最低，让位给真数据。 */
+  .loom-meta span:nth-child(4){display:none}
+  #hero{min-height:auto}                       /* 不再凑满一屏，把下一节推进视线 */
+  h1{font-size:clamp(44px,11.4vw,54px)}
+  .hero-copy{width:calc(100% - 36px)}
+}
+
+@media(max-width:520px){
+  .ctl{gap:10px}
+  .ctl .lab{width:72px}
+  .ctl button{padding:8px 9px;font-size:11px}
+  .crow{grid-template-columns:9ch 1fr 8ch 5ch;gap:10px}
+  .crow .nm{font-size:12px}
+}
+
 @media(max-width:640px){
   .engtable .nm small{display:none}
   .engtable td{padding:15px 0}
@@ -278,7 +335,7 @@ h1 b{font-weight:600}
   font-family:var(--mono);font-size:11.5px;color:var(--ash2);
   width:76px;flex:0 0 auto;letter-spacing:.02em;
 }
-.ctl .opts{display:flex;gap:1px;background:var(--line-soft)}
+.ctl .opts{display:flex;gap:1px;background:var(--line-soft);flex-wrap:wrap}
 .ctl button{
   font-family:var(--mono);font-size:12px;color:var(--ash2);
   background:var(--void);border:0;padding:9px 14px;cursor:pointer;
@@ -323,7 +380,7 @@ h1 b{font-weight:600}
 }
 .crow .bar i{
   position:absolute;left:0;top:-1px;height:3px;display:block;
-  transition:width .42s cubic-bezier(.22,1,.36,1);
+  transition:width var(--t-2) var(--ease-out);
 }
 .crow .cv{
   font-family:var(--mono);font-size:clamp(17px,2vw,22px);font-weight:500;
@@ -359,7 +416,7 @@ h1 b{font-weight:600}
   background:rgba(8,9,11,.88);backdrop-filter:blur(10px);
   border-bottom:1px solid var(--line-soft);
   opacity:0;transform:translateY(-6px);pointer-events:none;
-  transition:opacity .38s ease,transform .38s cubic-bezier(.22,1,.36,1);
+  transition:opacity var(--t-3) var(--ease-out),transform var(--t-3) var(--spring-soft);
 }
 .ribbon.on{opacity:1;transform:none}
 .ribbon svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
@@ -468,7 +525,7 @@ footer{
 .navlist a{position:relative}
 .navlist a::after{
   content:"";position:absolute;left:0;right:100%;bottom:-7px;height:1px;
-  background:var(--gold);transition:right .34s cubic-bezier(.22,1,.36,1);
+  background:var(--gold);transition:right var(--t-2) var(--spring-tight);
 }
 .navlist a.on{color:var(--ink)}
 .navlist a.on::after{right:0}
@@ -480,7 +537,7 @@ footer{
 }
 .hero-act a::after,.ver .get::after{
   content:"";position:absolute;left:0;bottom:0;height:1px;width:0;background:var(--gold);
-  transition:width .34s cubic-bezier(.22,1,.36,1);
+  transition:width var(--t-2) var(--spring-tight);
 }
 .hero-act a:hover::after,.ver .get:hover::after{width:100%}
 .hero-act a:hover,.ver .get:hover{color:var(--gold)}
@@ -509,13 +566,44 @@ footer{
 .probe-card .r{display:grid;grid-template-columns:auto 1fr;gap:0 12px;margin-top:5px}
 .probe-card .r span:nth-child(2n){text-align:right;color:var(--ink)}
 .probe.on .probe-rule,.probe.on .probe-mark,.probe.on .probe-card{opacity:1}
+/* 对比模式下，悬停卡退场——此时读者要比的是两点，不是第三点 */
+.probe.pinned .probe-rule,.probe.pinned .probe-mark,.probe.pinned .probe-card:not(.cmp){opacity:0 !important}
+
+/* 锁定线：点一下钉住一个时刻，再点第二个出对比 */
+.pin{
+  position:absolute;top:42px;bottom:0;width:1px;
+  opacity:0;transition:opacity var(--t-2) var(--ease-out);
+  pointer-events:none;
+}
+.pin.on{opacity:1}
+.pin-a{background:rgba(201,162,39,.72)}
+.pin-b{background:rgba(143,221,255,.72)}
+.pin i{
+  position:absolute;left:-3px;top:-3px;width:7px;height:7px;border-radius:50%;
+}
+.pin-a i{background:var(--gold);box-shadow:0 0 0 2px rgba(8,9,11,1)}
+.pin-b i{background:var(--ice);box-shadow:0 0 0 2px rgba(8,9,11,1)}
+.pin span{
+  position:absolute;top:8px;left:6px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;white-space:nowrap;
+}
+.pin-a span{color:var(--gold)}
+.pin-b span{color:var(--ice)}
+
+.probe-card.cmp{top:auto;bottom:16px}
+.probe-card.cmp .h{display:flex;align-items:center;gap:8px}
+.probe-card.cmp .arw{color:var(--ash3)}
+.probe-card.cmp #cmpB{color:var(--ice)}
+.probe-card.cmp #cmpA{color:var(--gold)}
+.cmp.on{opacity:1 !important}
+@media(prefers-reduced-motion:reduce){.pin{transition:none !important}}
 
 /* 标题进入：一根 1px 金线从左展开，不做位移 */
 h2{position:relative}
 .js h2::after{
   content:"";position:absolute;left:0;bottom:-16px;height:1px;width:0;
   background:linear-gradient(90deg,var(--gold),rgba(201,162,39,.12));
-  transition:width .56s cubic-bezier(.22,1,.36,1) .1s;
+  transition:width var(--t-4) var(--spring-tight) .1s;
 }
 .js .seen h2::after{width:min(132px,34%)}
 
@@ -523,7 +611,7 @@ h2{position:relative}
 .js .engtable tbody tr{opacity:0;transform:translateY(9px)}
 .js .engtable.in tbody tr{
   opacity:1;transform:none;
-  transition:opacity .42s ease,transform .42s cubic-bezier(.22,1,.36,1);
+  transition:opacity var(--t-3) var(--ease-out),transform var(--t-3) var(--spring-soft);
 }
 .js .engtable.in tbody tr:nth-child(2){transition-delay:.09s}
 .js .engtable.in tbody tr:nth-child(3){transition-delay:.18s}
@@ -545,13 +633,169 @@ h2{position:relative}
 .js .reveal.in{
   -webkit-mask-size:100% 100%;
           mask-size:100% 100%;
-  transition:-webkit-mask-size .74s cubic-bezier(.22,1,.36,1),mask-size .74s cubic-bezier(.22,1,.36,1);
+  transition:-webkit-mask-size var(--t-4) var(--spring-soft),mask-size var(--t-4) var(--spring-soft);
+}
+
+/* ── 原生滚动驱动 ─────────────────────────────────────────────
+   支持 animation-timeline 时，揭示与金线改由滚动位置直接驱动，
+   跑在合成器线程上——不占主线程，快速滚动也不掉帧，
+   而且进度是真连续的（IO 只能给"进入/未进入"两个状态）。
+
+   不支持时保持下面的 .in 类方案（JS + IntersectionObserver）。
+   两套共存的关键：动画优先级高于普通声明，所以支持时 keyframes 赢。
+   ───────────────────────────────────────────────────────────── */
+@supports (animation-timeline: view()){
+  /* 幕布：元素从 10% 进入视口开始揭开，到 78% 处揭完 */
+  .js .reveal{
+    transition:none;
+    animation:reveal-mask linear both;
+    animation-timeline:view();
+    animation-range:entry 10% entry 78%;
+  }
+  @keyframes reveal-mask{
+    from{ -webkit-mask-size:100% 0%; mask-size:100% 0%; }
+    to  { -webkit-mask-size:100% 100%; mask-size:100% 100%; }
+  }
+
+  /* 标题金线：比幕布早一点起、早一点收，形成先后 */
+  .js h2::after{
+    transition:none;
+    animation:rule-grow linear both;
+    animation-timeline:view();
+    animation-range:entry 4% entry 52%;
+  }
+  @keyframes rule-grow{
+    from{ width:0 }
+    to  { width:min(132px,34%) }
+  }
+
+  /* 织面带游标：跟随根滚动进度，连续无 JS 参与 */
+  .ribbon .cur{
+    transition:none;
+    animation:ribbon-travel linear both;
+    animation-timeline:scroll(root block);
+  }
+  @keyframes ribbon-travel{
+    from{ left:0 }
+    to  { left:100% }
+  }
+
+  /* ── hero 织面的滚动编排 ──
+     不是整块淡出，而是拆成三层错开退场。区间用 exit——
+     「元素开始滑出视口顶部 → 完全离开」，正好等于「滚出首屏」。
+     （用 cover 会让首屏元素一加载就处在中段，y=0 就已经淡了一半。）
+
+     实测退场先后（滚动 620px 时）：SOC 0.25 / 经线 0.70 / 负荷 0.95
+       10–78%  SOC 带最先退到底——它在最下沿，最先离开视线
+        0–55%  电价经线次之——信息密度最低，先让位
+       32–100% 负荷线最后离场——纬线是主角，留到最后
+
+     读起来像"这一天被织完、布被收走"。 */
+  .js #hero .warpg{
+    animation:warp-out linear both;
+    animation-timeline:view();
+    animation-range:exit 0% exit 55%;
+  }
+  @keyframes warp-out{
+    from{ opacity:1 }
+    to  { opacity:.18 }
+  }
+  .js #hero .socg{
+    animation:soc-sink linear both;
+    animation-timeline:view();
+    animation-range:exit 10% exit 78%;
+  }
+  @keyframes soc-sink{
+    from{ opacity:1; transform:translateY(0) }
+    to  { opacity:.25; transform:translateY(14px) }
+  }
+  .js #hero .loadg{
+    animation:load-out linear both;
+    animation-timeline:view();
+    animation-range:exit 32% exit 100%;
+  }
+  @keyframes load-out{
+    from{ opacity:1 }
+    to  { opacity:.3 }
+  }
+
+  /* 算法表三行：随元素进入逐行落位 */
+  .js .engtable.in tbody tr{
+    transition:none;
+    animation:row-in linear both;
+    animation-timeline:view();
+    animation-range:entry 6% entry 46%;
+  }
+  .js .engtable.in tbody tr:nth-child(2){ animation-range:entry 14% entry 54%; }
+  .js .engtable.in tbody tr:nth-child(3){ animation-range:entry 22% entry 62%; }
+  @keyframes row-in{
+    from{ opacity:0; transform:translateY(9px) }
+    to  { opacity:1; transform:none }
+  }
+}
+
+
+/* ── 细节抛光 ─────────────────────────────────────────────────
+   这些不属于"设计"，属于"不掉链子"：键盘用户能看见焦点、
+   滚动条不刺眼、选中文字不违和、数字切换不抖宽度。
+   ───────────────────────────────────────────────────────────── */
+
+/* 焦点环：只在键盘导航时出现，鼠标点击不显示 */
+:focus{outline:none}
+:focus-visible{
+  outline:1px solid var(--gold);
+  outline-offset:4px;
+}
+
+/* 选中色：金色半透明，和强调色一致 */
+::selection{background:rgba(201,162,39,.28);color:var(--ink)}
+
+/* 滚动条：深底细条，不抢视觉 */
+html{scrollbar-color:rgba(237,236,232,.18) transparent;scrollbar-width:thin}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{
+  background:rgba(237,236,232,.14);
+  border:3px solid var(--void);
+  border-radius:6px;
+}
+::-webkit-scrollbar-thumb:hover{background:rgba(237,236,232,.26)}
+
+/* 等宽数字：数值切换时宽度不抖 */
+.num,.calc-out,.probe-card,.engtable td{font-variant-numeric:tabular-nums}
+
+/* 图片加载：占位底色，避免白闪 */
+img{background:rgba(237,236,232,.03)}
+img[src]{background:none}
+
+/* 滑块：自绘拇指，去掉系统默认样式 */
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  height:22px;background:transparent;cursor:ew-resize;
+}
+input[type=range]::-webkit-slider-runnable-track{
+  height:1px;background:rgba(237,236,232,.2);
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:11px;height:11px;margin-top:-5px;
+  background:var(--gold);
+  border-radius:0;                     /* 全站圆角 0，拇指用方块 */
+  transition:transform var(--t-1) var(--ease-out);
+}
+input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.25)}
+input[type=range]:focus-visible::-webkit-slider-thumb{
+  box-shadow:0 0 0 4px rgba(201,162,39,.22);
+}
+input[type=range]::-moz-range-track{height:1px;background:rgba(237,236,232,.2)}
+input[type=range]::-moz-range-thumb{
+  width:11px;height:11px;border:0;background:var(--gold);border-radius:0;
 }
 
 @media(prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
   .js .reveal{-webkit-mask-image:none !important;mask-image:none !important;transition:none !important}
-  .js .warpline,.js .loom-load,.js .loom-soc{opacity:1 !important;transition:none !important}
+  .js .warpline,.js .loom-load,.js .soc-in{opacity:1 !important;transition:none !important}
   .js h2::after{width:min(132px,34%) !important;transition:none !important}
   .js .engtable tbody tr{opacity:1 !important;transform:none !important;transition:none !important}
   #prog{transition:none}
@@ -564,13 +808,9 @@ h2{position:relative}
 /* ══════════ 动效：全页唯一一次编排，只在 hero 织面 ══════════ */
 .js .warpline,
 .js .loom-load,
-.js .loom-net,
-.js .loom-fill,
-.js .loom-soc{opacity:0}
+.js .soc-in{opacity:0}
 .js .loom-load,
-.js .loom-net,
-.js .loom-fill,
-.js .loom-soc{transition:opacity .55s ease}
+.js .soc-in{transition:opacity var(--t-3) var(--ease-out)}
 
 @media(prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
@@ -628,9 +868,23 @@ h2{position:relative}
     </div>
     <svg id="loomSvg" viewBox="0 0 1600 380" preserveAspectRatio="none" role="img"
          aria-label="一天 96 点：24 小时分时电价经线、负荷曲线、储能 SOC 轨迹"></svg>
+    <noscript>
+      <img src="assets/hero.png" alt="一天的负荷曲线、充放电功率与电池 SOC，由线性规划求解得出"
+           style="display:block;width:100%;height:auto;margin-top:14px;border-top:1px solid var(--line-soft)">
+    </noscript>
     <div class="probe" id="probe">
+      <div class="pin pin-a" id="pinA"><i></i></div>
+      <div class="pin pin-b" id="pinB"><i></i></div>
       <div class="probe-rule" id="probeRule"></div>
       <div class="probe-mark" id="probeMark"></div>
+      <div class="probe-card cmp" id="cmpCard">
+        <div class="h"><span id="cmpA">–</span><span class="arw">→</span><span id="cmpB">–</span></div>
+        <div class="r">
+          <span>负荷</span><span id="cmpLoad">–</span>
+          <span>SOC</span><span id="cmpSoc">–</span>
+          <span>电价</span><span id="cmpPrice">–</span>
+        </div>
+      </div>
       <div class="probe-card" id="probeCard">
         <div class="h" id="probeTime">00:00</div>
         <div class="r">
@@ -945,12 +1199,17 @@ h2{position:relative}
   }
 })();
 
-/* ── 幕布揭示 · 节进入 ── */
+/* ── 幕布揭示 · 节进入 ──
+   支持 CSS 滚动驱动时由 @supports 里的 keyframes 接管，
+   这里只保留「节进入」与「8 秒兜底」两件事，避免两套机制打架。 */
 (function(){
   if(!('IntersectionObserver' in window)) return;
 
-  // 图片幕布
-  const items=document.querySelectorAll('.reveal');
+  const sdaSupported = window.CSS && CSS.supports
+    && CSS.supports('animation-timeline', 'view()');
+
+  // 图片幕布（支持滚动驱动时跳过）
+  const items = sdaSupported ? [] : document.querySelectorAll('.reveal');
   if(items.length){
     const io=new IntersectionObserver((es)=>{
       es.forEach(e=>{
@@ -971,7 +1230,9 @@ h2{position:relative}
 
   // 算法表
   const tb=document.querySelector('.engtable');
-  if(tb){
+  if(tb && sdaSupported){
+    tb.classList.add('in');      // keyframes 接管，类只作为触发门
+  }else if(tb){
     const to=new IntersectionObserver((es)=>{
       es.forEach(e=>{
         if(e.isIntersecting){ e.target.classList.add('in'); to.unobserve(e.target); }
@@ -1014,7 +1275,7 @@ h2{position:relative}
 
   /* ① 24 小时经线 —— 透明度就是电价，96 根对应 96 个采样点 */
   const pmin = Math.min.apply(null,D.price), pmax = Math.max.apply(null,D.price);
-  const gWarp = el('g',{});
+  const gWarp = el('g',{class:'warpg'});
   for(let i=0;i<n;i++){
     const t = (D.price[i]-pmin)/(pmax-pmin+1e-9);
     const op = 0.030 + t*0.105;
@@ -1046,15 +1307,19 @@ h2{position:relative}
   const pLoad = el('path',{d:pathOf(D.load, yLoad),fill:'none',stroke:'rgba(237,236,232,.86)',
     'stroke-width':1.5,'stroke-linejoin':'round','stroke-linecap':'round',
     class:'loom-load'});
-  svg.appendChild(pLoad);
+  const gLoad = el('g',{class:'loadg'});
+  gLoad.appendChild(pLoad);
+  svg.appendChild(gLoad);
 
   /* ④ SOC 带 */
   const dSocTop = pathOf(D.soc, ySoc);
   const dSocArea = dSocTop + ' L '+W+' '+socBot+' L 0 '+socBot+' Z';
-  const gSoc = el('g',{class:'loom-soc'});
-  gSoc.appendChild(el('path',{d:dSocArea,fill:'rgba(143,221,255,.09)'}));
-  gSoc.appendChild(el('path',{d:dSocTop,fill:'none',stroke:'rgba(143,221,255,.62)',
-    'stroke-width':1.2,'stroke-linejoin':'round'}));
+  const pSocFill = el('path',{d:dSocArea,fill:'rgba(143,221,255,.09)',class:'soc-in'});
+  const pSocLine = el('path',{d:dSocTop,fill:'none',stroke:'rgba(143,221,255,.62)',
+    'stroke-width':1.2,'stroke-linejoin':'round',class:'soc-in'});
+  const gSoc = el('g',{class:'socg'});          // 外层只承载退场编排
+  gSoc.appendChild(pSocFill);
+  gSoc.appendChild(pSocLine);
   svg.appendChild(gSoc);
 
   /* ⑤ 时间刻标 */
@@ -1127,6 +1392,81 @@ h2{position:relative}
       if(e.touches[0]) show(e.touches[0].clientX,e.touches[0].clientY);
     },{passive:true});
     host.addEventListener('touchend',hide,{passive:true});
+
+    /* ── 点击锁定：最多两个点，第三次清空重来 ── */
+    const pinA=document.getElementById('pinA'), pinB=document.getElementById('pinB');
+    const cmp=document.getElementById('cmpCard');
+    const cmpA=document.getElementById('cmpA'), cmpB=document.getElementById('cmpB');
+    const cl=document.getElementById('cmpLoad'), cs=document.getElementById('cmpSoc'),
+          cp=document.getElementById('cmpPrice');
+    let pins=[];
+
+    const hhmm = i => {
+      const hh=Math.floor(D.hours[i]), mm=Math.round((D.hours[i]-hh)*60);
+      return pad(hh,2)+':'+pad(mm,2);
+    };
+    const dlt = (a,b,unit,dec) => {
+      const d=b-a;
+      const s=(d>0?'+':'')+(dec?d.toFixed(dec):Math.round(d))+unit;
+      return s;
+    };
+
+    function idxAt(clientX){
+      const lr=host.getBoundingClientRect();
+      if(!lr.width) return -1;
+      const t=Math.max(0,Math.min(1,(clientX-lr.left)/lr.width));
+      return Math.max(0,Math.min(n-1,Math.round(t*(n-1))));
+    }
+
+    function drawPins(){
+      [pinA,pinB].forEach((el,k)=>{
+        const p=pins[k];
+        if(!p){ el.classList.remove('on'); el.querySelector('span')?.remove(); return; }
+        el.style.left=p.x.toFixed(1)+'px';
+        let lab=el.querySelector('span');
+        if(!lab){ lab=document.createElement('span'); el.appendChild(lab); }
+        lab.textContent=hhmm(p.i);
+        el.classList.add('on');
+      });
+      if(pins.length===2){
+        const [a,b]=pins;
+        const i=a.i, j=b.i;
+        cmpA.textContent=hhmm(i);
+        cmpB.textContent=hhmm(j);
+        cl.textContent=Math.round(D.load[i])+' → '+Math.round(D.load[j])
+          +' kW  '+dlt(D.load[i],D.load[j],'');
+        cs.textContent=Math.round(D.soc[i]*100)+'% → '+Math.round(D.soc[j]*100)+'%  '
+          +dlt(D.soc[i]*100,D.soc[j]*100,' pt');
+        cp.textContent=D.price[i].toFixed(2)+' → '+D.price[j].toFixed(2)+' 元  '
+          +dlt(D.price[i],D.price[j],'',2);
+        const lr=host.getBoundingClientRect();
+        const mid=(a.x+b.x)/2;
+        const cw=cmp.offsetWidth||150;
+        cmp.style.left=Math.max(cw/2+6,Math.min(lr.width-cw/2-6,mid)).toFixed(1)+'px';
+        cmp.classList.add('on');
+      }else{
+        cmp.classList.remove('on');
+      }
+      box.classList.toggle('pinned', pins.length >= 2);
+    }
+
+    host.addEventListener('click', e=>{
+      const i=idxAt(e.clientX);
+      if(i<0) return;
+      if(pins.length>=2) pins=[];
+      const lr=host.getBoundingClientRect();
+      pins.push({i, x:(i/(n-1))*lr.width});
+      drawPins();
+    });
+    host.addEventListener('touchstart', e=>{
+      if(!e.touches[0]) return;
+      const i=idxAt(e.touches[0].clientX);
+      if(i<0) return;
+      if(pins.length>=2) pins=[];
+      const lr=host.getBoundingClientRect();
+      pins.push({i, x:(i/(n-1))*lr.width});
+      drawPins();
+    },{passive:true});
   })();
 
   /* ⑧ 唯一一次编排：经线依次亮起 → 负荷 → SOC */
@@ -1145,7 +1485,7 @@ h2{position:relative}
 
   const tCurve = T0 + warpLines.length*STEP + 80;
   setTimeout(()=>{ pLoad.style.opacity = 1; }, tCurve + 60);
-  setTimeout(()=>{ gSoc.style.opacity = 1; }, tCurve + 420);
+  setTimeout(()=>{ document.querySelectorAll('.soc-in').forEach(e=>e.style.opacity=1); }, tCurve + 420);
 })();
 
 /* ══════════════════════════════════════════════════════════════
