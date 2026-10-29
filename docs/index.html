@@ -1166,6 +1166,67 @@ nav.on{
   backdrop-filter:blur(16px) saturate(150%);
   box-shadow:inset 0 1px 0 var(--glass-hi);
 }
+
+/* ── 取景框：短节之间吸附，长节内部自由滚 ─────────────────────
+   为什么不用 mandatory：workbench 2435px、engine 2270px 都超过一屏，
+   mandatory 会把这些节卡在半截，读者滚不动——那是比没有分页更糟的手感。
+   proximity 只在「离吸附点足够近」时接手，够不到就放行。       */
+@media (min-width:900px) and (prefers-reduced-motion:no-preference){
+  html{ scroll-snap-type:y proximity; scroll-padding-top:0px }
+  /* 六节全部设 start：节首会被吸住，节内超过一屏的部分自由滚——
+     因为 proximity 的判定距离远小于一节的高度，滚到节中间时
+     最近的吸附点也在几百像素之外，不会把读者拽回去。 */
+  section[id]{ scroll-snap-align:start }
+  footer{ scroll-snap-align:end }
+}
+
+/* ── 节内逐层铺开 ──────────────────────────────────────────────
+   动画预先挂上并暂停（fill:both 让元素停在第一帧＝透明），
+   .seen 到了才放行。这样既不会闪，也不会在无脚本时藏内容
+   （整块挂在 .js 下，没脚本就是普通文档）。
+   延迟按「先读标题、再看论据、最后看数字」的顺序排。       */
+.js #why .why-top > div:first-child > *,
+.js #why .costrow,
+.js #trust .metric,
+.js #get .ver{
+  animation:rise 520ms var(--ease-out) both;
+  animation-play-state:paused;
+}
+.js #why.seen .why-top > div:first-child > *,
+.js #why.seen .costrow,
+.js #trust.seen .metric,
+.js #get.seen .ver{ animation-play-state:running }
+
+/* 左栏：标题 → 两段论据 */
+.js #why .why-top > div:first-child > *:nth-child(1){ animation-delay:0ms }
+.js #why .why-top > div:first-child > *:nth-child(2){ animation-delay:90ms }
+.js #why .why-top > div:first-child > *:nth-child(3){ animation-delay:180ms }
+
+/* 右栏账本：五行依次落位，像一页页翻 */
+.js #why .costrow:nth-child(1){ animation-delay:200ms }
+.js #why .costrow:nth-child(2){ animation-delay:270ms }
+.js #why .costrow:nth-child(3){ animation-delay:340ms }
+.js #why .costrow:nth-child(4){ animation-delay:410ms }
+.js #why .costrow:nth-child(5){ animation-delay:480ms }
+
+/* 四个数字 */
+.js #trust .metric:nth-child(1){ animation-delay:120ms }
+.js #trust .metric:nth-child(2){ animation-delay:190ms }
+.js #trust .metric:nth-child(3){ animation-delay:260ms }
+.js #trust .metric:nth-child(4){ animation-delay:330ms }
+
+/* 两张版本卡 */
+.js #get .versions .ver:nth-of-type(1){ animation-delay:100ms }
+.js #get .versions .ver:nth-of-type(2){ animation-delay:220ms }
+
+@media (prefers-reduced-motion: reduce){
+  .js #why .why-top > div:first-child > *,
+  .js #why .costrow,
+  .js #trust .metric,
+  .js #get .ver{
+    animation:none; opacity:1; transform:none;
+  }
+}
 </style>
 </head>
 <body>
@@ -2196,23 +2257,66 @@ nav.on{
     },{passive:true});
   })();
 
-  /* ⑧ 唯一一次编排：经线依次亮起 → 负荷 → SOC */
+  /* ⑧ 编排：经线依次亮起 → 负荷线从左到右描出 → SOC 跟上
+   *
+   * 为什么不用淡入：淡入说的是“这张图出现了”，描线说的是“这一天正在被织出来”。
+   * 经线是经，负荷是纬，纬线本就是一根线从一头穿到另一头的。
+   */
   if(reduce){
     document.querySelectorAll('.warpline').forEach(l=>l.style.opacity=1);
     pLoad.style.opacity=1; gSoc.style.opacity=1;
     return;
   }
 
-  const STEP = 22;
   const T0 = 160;
+  const STEP = 11;                       // 96 根 × 11ms ≈ 1.06s
   const warpLines = Array.prototype.slice.call(document.querySelectorAll('.warpline'));
   warpLines.forEach((l,i)=>{
     setTimeout(()=>{ l.style.transition='opacity var(--t-3) var(--ease-out)'; l.style.opacity=1; }, T0 + i*STEP);
   });
 
-  const tCurve = T0 + warpLines.length*STEP + 80;
-  setTimeout(()=>{ pLoad.style.opacity = 1; }, tCurve + 60);
-  setTimeout(()=>{ document.querySelectorAll('.soc-in').forEach(e=>e.style.opacity=1); }, tCurve + 420);
+  const tCurve = T0 + warpLines.length*STEP;   // ≈ 1.22s，经线织完
+  const DRAW = 1900;                            // 描线时长
+
+  /* 描线：stroke-dasharray 设成全长，dashoffset 从全长走到 0。
+     路径已经被 append，getTotalLength() 能读到真实长度。 */
+  function drawLine(p, delay){
+    if(!p || !p.getTotalLength) return;
+    const len = p.getTotalLength();
+    p.style.strokeDasharray = len + ' ' + len;
+    p.style.strokeDashoffset = len;
+    p.style.opacity = 1;
+    p.animate(
+      [{strokeDashoffset: len}, {strokeDashoffset: 0}],
+      {duration: DRAW, delay: delay, easing: 'cubic-bezier(.4,.06,.42,1)', fill: 'forwards'}
+    );
+  }
+
+  /* SOC 填充带：从左往右揭开，和线同步 */
+  function revealFill(p, delay){
+    if(!p) return;
+    // fill:both 才会在 delay 期间应用第一帧；只用 forwards 的话，
+    // 动画没开始时 clip 是 none，整块填充会提前露出来。
+    p.animate(
+      [{clipPath: 'inset(0 100% 0 0)', opacity: 1},
+       {clipPath: 'inset(0 0 0 0)',   opacity: 1}],
+      {duration: DRAW, delay: delay, easing: 'cubic-bezier(.4,.06,.42,1)', fill: 'both'}
+    );
+  }
+
+  drawLine(pLoad, tCurve + 120);
+  revealFill(pSocFill, tCurve + 380);
+  drawLine(pSocLine, tCurve + 380);
+
+  /* 时间轴最后才出现 —— 先看曲线，再对时间 */
+  const axisTexts = Array.prototype.slice.call(gAxis.querySelectorAll('text'));
+  axisTexts.forEach((t,i)=>{
+    t.style.opacity = 0;
+    setTimeout(()=>{
+      t.style.transition = 'opacity 520ms var(--ease-out)';
+      t.style.opacity = 1;
+    }, tCurve + 1400 + i*70);
+  });
 })();
 
 /* ══════════════════════════════════════════════════════════════
