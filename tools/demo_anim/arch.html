@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>LoomGrid 四层架构</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:2400px; height:1220px; overflow:hidden; }
+  body {
+    background:#070B12;
+    font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;
+    color:#F2F5FA; position:relative;
+  }
+  .bg {
+    position:absolute; inset:0;
+    background:
+      radial-gradient(1300px 700px at 10% -8%, rgba(212,175,55,.09), transparent 62%),
+      radial-gradient(1100px 660px at 94% 106%, rgba(78,205,196,.08), transparent 60%),
+      linear-gradient(170deg,#080D15 0%,#0A0F18 48%,#070B12 100%);
+  }
+  .grid {
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.016) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.016) 1px, transparent 1px);
+    background-size:72px 72px;
+    mask-image: radial-gradient(circle at 50% 40%, #000 30%, transparent 80%);
+    -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 30%, transparent 80%);
+  }
+  .stage { position:absolute; inset:0; padding:64px 132px 52px 88px; display:flex; flex-direction:column; }
+
+  /* 标题 */
+  header { display:flex; align-items:flex-end; justify-content:space-between; }
+  .mark { width:9px; height:30px; border-radius:2px;
+    background:linear-gradient(180deg,#F4D77A,#D4AF37 55%,rgba(212,175,55,.18));
+    box-shadow:0 0 18px rgba(212,175,55,.5); }
+  .hrow { display:flex; align-items:center; gap:14px; }
+  .h1 { font-size:46px; font-weight:700; letter-spacing:-.02em; }
+  .h1 span { font-weight:200; color:rgba(242,245,250,.5); }
+  .meta { text-align:right; font-size:17px; color:rgba(242,245,250,.52);
+    letter-spacing:.05em; line-height:1.7; font-family:'Mono',monospace; }
+  .meta b { color:rgba(242,245,250,.86); font-weight:600; }
+
+  /* 层 */
+  .layers { flex:1; margin-top:34px; position:relative;
+    display:flex; flex-direction:column; gap:14px; }
+  .layer { display:flex; align-items:stretch; flex:1; min-height:0; }
+  .lmark {
+    width:6px; border-radius:3px; margin-right:22px; flex-shrink:0;
+  }
+  .lname { width:200px; flex-shrink:0; padding-top:6px; }
+  .lname .cn { font-size:31px; font-weight:600; letter-spacing:.02em; }
+  .lname .en { font-size:13px; letter-spacing:.22em; text-transform:uppercase;
+    color:rgba(242,245,250,.36); margin-top:5px; }
+  .lmods { flex:1; display:flex; gap:14px; min-height:0; }
+  .mod {
+    flex:1; padding:20px 22px; display:flex; flex-direction:column; justify-content:center;
+    background:rgba(255,255,255,.028);
+    border:1px solid rgba(255,255,255,.075);
+    border-radius:10px;
+  }
+  .mod .t { font-size:23px; font-weight:600; letter-spacing:.01em; }
+  .mod .d { font-size:15px; color:rgba(242,245,250,.50); margin-top:8px;
+    line-height:1.45; }
+  .mod .c { font-size:13px; color:rgba(242,245,250,.30); margin-top:12px;
+    font-family:'Mono',Consolas,monospace; letter-spacing:.02em; }
+
+  /* 四层配色 */
+  .p1 .lmark { background:linear-gradient(180deg,#7FB3E8,#4A7FB5); }
+  .p1 .lname .cn { color:#9CC6EE; }
+  .p1 .mod { border-color:rgba(122,174,222,.22); background:rgba(74,127,181,.06); }
+
+  .p2 .lmark { background:linear-gradient(180deg,#8FD1C8,#4E9E92); }
+  .p2 .lname .cn { color:#8FD1C8; }
+  .p2 .mod { border-color:rgba(120,190,180,.20); background:rgba(78,158,146,.055); }
+
+  /* 领域层：重点 */
+  .p3 { position:relative; }
+  .p3 .lmark { background:linear-gradient(180deg,#F4D77A,#D4AF37);
+    box-shadow:0 0 24px rgba(212,175,55,.45); }
+  .p3 .lname .cn { color:#F0CE72; }
+  .p3 .mod { border-color:rgba(212,175,55,.34); background:rgba(212,175,55,.075); }
+  .p3 .mod .t { color:#F5E0A0; }
+  .p3 .mod .d { color:rgba(245,224,160,.62); }
+
+  .p4 .lmark { background:linear-gradient(180deg,#8A93A6,#5A6478); }
+  .p4 .lname .cn { color:#9AA3B5; }
+  .p4 .mod { border-color:rgba(140,150,170,.18); background:rgba(120,130,150,.05); }
+
+  /* 右侧依赖箭头 */
+  .dep {
+    position:absolute; right:-52px; top:0; bottom:0; width:52px;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  .dep .line { flex:1; width:1px;
+    background:linear-gradient(180deg,rgba(212,175,55,.04),rgba(212,175,55,.45) 42%,rgba(212,175,55,.45) 58%,rgba(212,175,55,.04));
+  }
+  .dep .tip { width:0; height:0;
+    border-left:6px solid transparent; border-right:6px solid transparent;
+    border-top:10px solid rgba(212,175,55,.55); }
+  .dep .lb {
+    position:absolute; top:50%; transform:translateY(-50%) rotate(90deg);
+    white-space:nowrap; font-size:12px; letter-spacing:.32em;
+    color:rgba(242,245,250,.50);
+  }
+
+  /* 底部判断 */
+  footer { display:flex; align-items:flex-start; gap:18px;
+    padding-top:22px; border-top:1px solid rgba(255,255,255,.075); }
+  .fbar { width:3px; align-self:stretch; border-radius:2px;
+    background:linear-gradient(180deg,rgba(212,175,55,.85),rgba(212,175,55,.12)); }
+  .ftext { font-size:19px; line-height:1.65; color:rgba(242,245,250,.72); }
+  .ftext b { color:#F0CE72; font-weight:600; }
+  .fright { margin-left:auto; text-align:right; font-size:14px;
+    color:rgba(242,245,250,.34); line-height:1.8; letter-spacing:.06em; }
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="grid"></div>
+
+  <div class="stage">
+    <header>
+      <div class="hrow">
+        <span class="mark"></span>
+        <div class="h1">LoomGrid <span>四层架构</span></div>
+      </div>
+      <div class="meta">
+        <b>36,204</b> 行 · <b>96</b> 个类 · <b>270</b> 个顶层函数<br>
+        依赖只向下，领域层不认 GUI
+      </div>
+    </header>
+
+    <div class="layers">
+      <div class="dep">
+        <div class="line"></div>
+        <div class="lb">depends on</div>
+        <div class="tip"></div>
+      </div>
+
+      <div class="layer p1">
+        <div class="lmark"></div>
+        <div class="lname"><div class="cn">表现层</div><div class="en">Presentation</div></div>
+        <div class="lmods">
+          <div class="mod"><div class="t">主工作台</div><div class="d">拖入 · 映射 · 批量</div><div class="c">MainWindow</div></div>
+          <div class="mod"><div class="t">专业分析</div><div class="d">112 方法 · 11 页签</div><div class="c">ProfessionalWindow</div></div>
+          <div class="mod"><div class="t">对话框族</div><div class="d">模拟 / 预览 / 结算</div><div class="c">23 个 Dialog</div></div>
+          <div class="mod"><div class="t">图表渲染</div><div class="d">深浅双主题 · 96 点</div><div class="c">RenderScheduler</div></div>
+        </div>
+      </div>
+
+      <div class="layer p2">
+        <div class="lmark"></div>
+        <div class="lname"><div class="cn">编排层</div><div class="en">Orchestration</div></div>
+        <div class="lmods">
+          <div class="mod"><div class="t">数据加载</div><div class="d">Excel / CSV 宽表</div><div class="c">DataProvider</div></div>
+          <div class="mod"><div class="t">列类型识别</div><div class="d">日期 · 时间 · 负荷</div><div class="c">classify_column</div></div>
+          <div class="mod"><div class="t">分组与映射</div><div class="d">跨文件规则复用</div><div class="c">GroupSummary</div></div>
+          <div class="mod"><div class="t">计算调度</div><div class="d">多线程 · 进度回传</div><div class="c">QThread + Signal</div></div>
+        </div>
+      </div>
+
+      <div class="layer p3">
+        <div class="lmark"></div>
+        <div class="lname"><div class="cn">领域层</div><div class="en">Domain</div></div>
+        <div class="lmods">
+          <div class="mod"><div class="t">Load</div><div class="d">负荷清洗 · 指纹</div><div class="c">load.py · loadgen.py</div></div>
+          <div class="mod"><div class="t">Tariff</div><div class="d">32 省分时时段</div><div class="c">periods.py</div></div>
+          <div class="mod"><div class="t">Space</div><div class="d">充放电空间</div><div class="c">spaces.py</div></div>
+          <div class="mod"><div class="t">Dispatch</div><div class="d">贪心 / 仿真 / LP</div><div class="c">dispatch.py · milp.py</div></div>
+        </div>
+      </div>
+
+      <div class="layer p4">
+        <div class="lmark"></div>
+        <div class="lname"><div class="cn">底座层</div><div class="en">Foundation</div></div>
+        <div class="lmods">
+          <div class="mod"><div class="t">Config</div><div class="d">配置迁移</div><div class="c">column_mapping_config</div></div>
+          <div class="mod"><div class="t">Cache</div><div class="d">结果缓存</div><div class="c">MemoryLimitedCache</div></div>
+          <div class="mod"><div class="t">Threading</div><div class="d">任务隔离</div><div class="c">QThread · lock</div></div>
+          <div class="mod"><div class="t">Logging</div><div class="d">运行留痕</div><div class="c">loguru · logs/</div></div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="fbar"></div>
+      <div class="ftext">
+        领域层<b>不 import 任何 Qt 组件</b>——<code>algorithms/</code> 里那 8 个模块可以脱离界面单独跑，
+        这是它敢把 MILP 和 LP 放在一起对拍的前提。
+      </div>
+      <div class="fright">
+        github.com/172629438/loomgrid<br>
+        Ultra v3.2.2 · Fusion v2.3.1
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
