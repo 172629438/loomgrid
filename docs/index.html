@@ -70,6 +70,18 @@ document.documentElement.className += ' js';
   --spring-tight:cubic-bezier(.34,1.32,.64,1);
   --spring-soft:cubic-bezier(.22,1,.36,1);
   --spring-snap:cubic-bezier(.2,1.7,.5,1);
+
+  /* 字号：8 档。19 → 8 的依据是「人眼分辨不出来、代码里却各写各的」——
+     10.5/11 合并、11.5/12/12.5 合并、13~14.52 合并、15~17 合并。
+     合并后每档都有明确职责，改版时只改这里。               */
+  --fs-11:11px;      /* 刻度：表头、单位、播放器时间 */
+  --fs-12_5:12.5px;  /* 小字：元信息、说明、标签 */
+  --fs-14:14px;      /* 紧凑：导航、按钮、卡内正文 */
+  --fs-16:16px;      /* 正文 */
+  --fs-28:28px;      /* 金额：表格与对照器统一 */
+  --fs-30:30px;      /* 展示数字、h3、hero 副标题 */
+  --fs-42:42px;      /* h2 */
+  --fs-104:104px;    /* h1 */
 }
 
 @supports (transition-timing-function: linear(0,1)){
@@ -125,16 +137,19 @@ h2{
 }
 h2 .q{color:var(--ash1)}
 .lead{
-  font-size:clamp(15px,1.32vw,16.5px);
-  color:var(--ash1);max-width:60ch;margin-top:22px;
+  font-size:clamp(var(--fs-14),1.32vw,var(--fs-16));
+  color:var(--ash1);max-width:64ch;margin-top:28px;
   line-height:1.86;font-weight:300;
+  /* 字号收敛后 60ch 的绝对宽度变窄，正文最后一行会被挤成孤字（实测
+     #workbench 的 lead 末行只剩「问。」）。pretty 专门避免这个。 */
+  text-wrap:pretty;
 }
 .lead b{color:var(--ink);font-weight:500}
 .lead code{
-  font-family:var(--mono);font-size:.88em;
+  font-family:var(--mono);font-size:var(--fs-14);
   color:var(--ash1);letter-spacing:-.01em;
 }
-.sub{font-size:12.5px;color:var(--ash2);line-height:1.7}
+.sub{font-size:var(--fs-12_5);color:var(--ash2);line-height:1.7;text-wrap:pretty}
 
 /* ══════════ 导航 ══════════ */
 nav{
@@ -145,14 +160,14 @@ nav{
   transition:background var(--t-2) var(--ease-out),border-color var(--t-2) var(--ease-out);
 }
 nav.on{background:rgba(8,9,11,.86);backdrop-filter:blur(12px);border-bottom-color:var(--line-soft)}
-.brand{display:flex;align-items:center;gap:9px;font-size:15.5px;letter-spacing:-.012em;font-weight:600}
+.brand{display:flex;align-items:center;gap:9px;font-size:var(--fs-16);letter-spacing:-.012em;font-weight:600}
 .brand i{width:1px;height:14px;background:var(--gold);display:block}
 .brand b{font-weight:600}
 .brand span{font-weight:300;color:var(--ash2)}
-.navlist{display:flex;gap:26px;font-size:13px;color:var(--ash2)}
+.navlist{display:flex;gap:26px;font-size:var(--fs-14);color:var(--ash2)}
 .navlist a{transition:color var(--t-1) var(--ease-out)}
 .navlist a:hover{color:var(--ink)}
-.navout{font-size:13px;color:var(--ash1);transition:color var(--t-1) var(--ease-out)}
+.navout{font-size:var(--fs-14);color:var(--ash1);transition:color var(--t-1) var(--ease-out)}
 .navout:hover{color:var(--ink)}
 @media(max-width:860px){.navlist{display:none}}
 
@@ -188,16 +203,16 @@ h1 b{font-weight:600}
 }
 .hero-line .dim{color:var(--ash2)}
 .hero-desc{
-  margin-top:22px;font-size:clamp(14.5px,1.28vw,16px);
+  margin-top:22px;font-size:clamp(var(--fs-14),1.28vw,var(--fs-16));
   color:var(--ash1);max-width:56ch;line-height:1.86;font-weight:300;
 }
 .hero-act{margin-top:clamp(30px,4vw,44px);display:flex;gap:34px;flex-wrap:wrap}
 .hero-act a{
-  font-size:14.5px;color:var(--ink);padding-bottom:5px;
+  font-size:var(--fs-14);color:var(--ink);padding-bottom:5px;
   border-bottom:1px solid var(--ash3);transition:border-color var(--t-1) var(--ease-out),color var(--t-1) var(--ease-out);
 }
 .hero-act a:hover{border-bottom-color:var(--gold);color:var(--gold)}
-.hero-act a em{font-style:normal;font-family:var(--mono);font-size:11.5px;color:var(--ash2);margin-left:8px;letter-spacing:.02em}
+.hero-act a em{font-style:normal;font-family:var(--mono);font-size:var(--fs-12_5);color:var(--ash2);margin-left:8px;letter-spacing:.02em}
 
 /* 织面 —— 全幅，贴上下两条线，不在任何卡片里 */
 .loom{
@@ -213,12 +228,12 @@ h1 b{font-weight:600}
 .loom-meta{
   position:relative;display:flex;justify-content:space-between;gap:24px;
   flex-wrap:wrap;padding:14px clamp(18px,3.4vw,40px) 15px;
-  font-family:var(--mono);font-size:12px;line-height:1.7;
+  font-family:var(--mono);font-size:var(--fs-12_5);line-height:1.7;
   letter-spacing:.008em;color:var(--ash2);
   border-bottom:1px solid var(--line-soft);
 }
 .loom-meta b{color:var(--ash1);font-weight:400}
-@media(max-width:700px){.loom-meta{font-size:10.5px;gap:14px}}
+@media(max-width:700px){.loom-meta{font-size:var(--fs-11);gap:14px}}
 
 /* ══════════ 01 为什么 ══════════ */
 .why-top{
@@ -234,9 +249,9 @@ h1 b{font-weight:600}
   border-bottom:1px solid var(--line-soft);
 }
 .costrow:first-child{border-top:1px solid var(--line-soft)}
-.costrow .k{font-size:15px;color:var(--ash1)}
+.costrow .k{font-size:var(--fs-16);color:var(--ash1)}
 .costrow .v{
-  font-family:var(--mono);font-size:13.5px;color:var(--ash2);
+  font-family:var(--mono);font-size:var(--fs-14);color:var(--ash2);
   font-variant-numeric:tabular-nums;white-space:nowrap;
 }
 .costrow .v b{color:var(--ink);font-weight:500}
@@ -248,7 +263,7 @@ h1 b{font-weight:600}
 .shot{position:relative;border:1px solid rgba(237,236,232,.14);background:#0D0F13}
 .shot img{width:100%;display:block}
 .shot figcaption{
-  padding:11px 14px;font-size:12.5px;color:var(--ash2);
+  padding:11px 14px;font-size:var(--fs-12_5);color:var(--ash2);
   display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
   border-top:1px solid rgba(237,236,232,.10);
   background:#0A0C10;
@@ -268,7 +283,7 @@ h1 b{font-weight:600}
 /* ══════════ 03 算法 ══════════ */
 .engines-fig{margin-top:clamp(34px,4.6vw,52px)}.engtable{margin-top:clamp(28px,3.6vw,44px);width:100%;border-collapse:collapse}
 .engtable th{
-  text-align:left;font-family:var(--mono);font-size:11px;font-weight:400;
+  text-align:left;font-family:var(--mono);font-size:var(--fs-11);font-weight:400;
   color:var(--ash3);letter-spacing:.04em;padding:0 0 12px;
   border-bottom:1px solid var(--line);
 }
@@ -276,9 +291,9 @@ h1 b{font-weight:600}
   padding:20px 0;border-bottom:1px solid var(--line-soft);
   vertical-align:baseline;
 }
-.engtable .nm{font-size:17px;font-weight:500;letter-spacing:-.012em}
+.engtable .nm{font-size:var(--fs-16);font-weight:500;letter-spacing:-.012em}
 .engtable .nm small{
-  display:block;font-family:var(--mono);font-size:11px;font-weight:400;
+  display:block;font-family:var(--mono);font-size:var(--fs-11);font-weight:400;
   color:var(--ash2);letter-spacing:.02em;margin-top:5px;
 }
 .engtable .num{
@@ -286,7 +301,7 @@ h1 b{font-weight:600}
   font-variant-numeric:tabular-nums;letter-spacing:-.02em;text-align:right;
 }
 .engtable .rel{
-  font-family:var(--mono);font-size:12px;color:var(--ash2);
+  font-family:var(--mono);font-size:var(--fs-12_5);color:var(--ash2);
   text-align:right;white-space:nowrap;
 }
 .engtable tr.lp .num{color:var(--gold)}
@@ -300,7 +315,7 @@ h1 b{font-weight:600}
 @media(max-width:700px){
   .loom svg{height:clamp(172px,46vw,238px)}
   .hero-top{align-items:flex-end;padding:clamp(44px,7.5vh,64px) 0 clamp(22px,3vh,30px)}
-  .loom-meta{padding:10px 18px 11px;font-size:11px;gap:6px 18px}
+  .loom-meta{padding:10px 18px 11px;font-size:var(--fs-11);gap:6px 18px}
   /* 窄屏只留三条：规模、电价范围、当日充放省。
      技术出处（第 4 项）在移动端价值最低，让位给真数据。 */
   .loom-meta span:nth-child(4){display:none}
@@ -402,7 +417,7 @@ h1 b{font-weight:600}
 .tune-ctl{
   display:flex;align-items:center;gap:10px;
   padding:11px 14px 9px;
-  font-family:var(--mono);font-size:12px;line-height:1.7;
+  font-family:var(--mono);font-size:var(--fs-12_5);line-height:1.7;
   letter-spacing:.008em;color:var(--ash2);
 }
 
@@ -432,7 +447,7 @@ h1 b{font-weight:600}
   letter-spacing:.005em;
 }
 .tune .tm{
-  flex:0 0 auto;color:var(--ash3);font-size:10.5px;
+  flex:0 0 auto;color:var(--ash3);font-size:var(--fs-11);
   font-variant-numeric:tabular-nums;
 }
 
@@ -453,7 +468,7 @@ h1 b{font-weight:600}
 
 .tune .x{
   flex:0 0 auto;background:none;border:0;padding:0 1px;cursor:pointer;
-  color:var(--ash2);font:inherit;font-size:14px;line-height:1;
+  color:var(--ash2);font:inherit;font-size:var(--fs-14);line-height:1;
   transition:color var(--t-1) var(--ease-out);
 }
 .tune .x:hover{color:var(--ink)}
@@ -478,14 +493,14 @@ h1 b{font-weight:600}
   transition:opacity var(--t-3) var(--ease-out),transform var(--t-3) var(--spring-soft);
 }
 .tune-ask.on{opacity:1;transform:none;pointer-events:auto}
-.tune-ask .q{font-size:13.5px;color:var(--ink);letter-spacing:-.005em;margin-bottom:4px}
+.tune-ask .q{font-size:var(--fs-14);color:var(--ink);letter-spacing:-.005em;margin-bottom:4px}
 .tune-ask .sub{
-  font-family:var(--mono);font-size:11px;color:var(--ash3);
+  font-family:var(--mono);font-size:var(--fs-11);color:var(--ash3);
   line-height:1.65;margin-bottom:14px;
 }
 .tune-ask .row{display:flex;gap:8px}
 .tune-ask button{
-  font-family:var(--mono);font-size:11.5px;cursor:pointer;
+  font-family:var(--mono);font-size:var(--fs-12_5);cursor:pointer;
   padding:7px 14px;border-radius:0;
   transition:background var(--t-1) var(--ease-out),color var(--t-1) var(--ease-out),
              border-color var(--t-1) var(--ease-out),transform 110ms var(--ease-out);
@@ -515,9 +530,9 @@ h1 b{font-weight:600}
 @media(max-width:520px){
   .ctl{gap:10px}
   .ctl .lab{width:72px}
-  .ctl button{padding:8px 9px;font-size:11px}
+  .ctl button{padding:8px 9px;font-size:var(--fs-11)}
   .crow{grid-template-columns:9ch 1fr 8ch 5ch;gap:10px}
-  .crow .nm{font-size:12px}
+  .crow .nm{font-size:var(--fs-12_5)}
 }
 
 @media(max-width:640px){
@@ -535,17 +550,17 @@ h1 b{font-weight:600}
   display:flex;justify-content:space-between;align-items:baseline;
   gap:18px;flex-wrap:wrap;margin-bottom:26px;
 }
-.calc-head h3{font-size:16px;font-weight:500;letter-spacing:-.01em}
-.calc-head span{font-family:var(--mono);font-size:11.5px;color:var(--ash2)}
+.calc-head h3{font-size:var(--fs-16);font-weight:500;letter-spacing:-.01em}
+.calc-head span{font-family:var(--mono);font-size:var(--fs-12_5);color:var(--ash2)}
 
 .ctl{display:flex;align-items:baseline;gap:16px;margin-bottom:16px;flex-wrap:wrap}
 .ctl .lab{
-  font-family:var(--mono);font-size:11.5px;color:var(--ash2);
+  font-family:var(--mono);font-size:var(--fs-12_5);color:var(--ash2);
   width:76px;flex:0 0 auto;letter-spacing:.02em;
 }
 .ctl .opts{display:flex;gap:1px;background:var(--line-soft);flex-wrap:wrap}
 .ctl button{
-  font-family:var(--mono);font-size:12px;color:var(--ash2);
+  font-family:var(--mono);font-size:var(--fs-12_5);color:var(--ash2);
   background:var(--void);border:0;padding:9px 14px;cursor:pointer;
   transition:color var(--t-1) var(--ease-out),background var(--t-1) var(--ease-out);
 }
@@ -567,7 +582,7 @@ h1 b{font-weight:600}
 }
 .ctl input[type=range]:focus-visible{outline:1px solid var(--gold-dim);outline-offset:6px}
 .ctl .val{
-  font-family:var(--mono);font-size:13px;color:var(--ink);
+  font-family:var(--mono);font-size:var(--fs-14);color:var(--ink);
   font-variant-numeric:tabular-nums;min-width:64px;text-align:right;
 }
 
@@ -578,9 +593,9 @@ h1 b{font-weight:600}
   padding:15px 0;border-bottom:1px solid var(--line-soft);
 }
 .crow:first-child{border-top:1px solid var(--line-soft)}
-.crow .cn{font-size:15px;letter-spacing:-.01em}
+.crow .cn{font-size:var(--fs-16);letter-spacing:-.01em}
 .crow .cn small{
-  display:block;font-family:var(--mono);font-size:10.5px;
+  display:block;font-family:var(--mono);font-size:var(--fs-11);
   color:var(--ash3);margin-top:4px;letter-spacing:.02em;
 }
 .crow .bar{
@@ -591,10 +606,10 @@ h1 b{font-weight:600}
   transition:width var(--t-2) var(--ease-out);
 }
 .crow .cv{
-  font-family:var(--mono);font-size:clamp(17px,2vw,22px);font-weight:500;
+  font-family:var(--mono);font-size:clamp(var(--fs-28),2.4vw,var(--fs-28));font-weight:500;
   font-variant-numeric:tabular-nums;text-align:right;letter-spacing:-.02em;
 }
-.crow .cp{font-family:var(--mono);font-size:12px;color:var(--ash2);text-align:right}
+.crow .cp{font-family:var(--mono);font-size:var(--fs-12_5);color:var(--ash2);text-align:right}
 .crow.lp .bar i{background:var(--gold)}
 .crow.sim .bar i{background:rgba(143,221,255,.72)}
 .crow.gr .bar i{background:rgba(237,236,232,.34)}
@@ -603,11 +618,11 @@ h1 b{font-weight:600}
 .crow.gr .cv{color:var(--ash2)}
 
 .calc-yr{
-  margin-top:16px;font-family:var(--mono);font-size:11.5px;
+  margin-top:16px;font-family:var(--mono);font-size:var(--fs-12_5);
   color:var(--ash2);line-height:1.8;
 }
 .calc-yr b{color:var(--ash1);font-weight:400}
-.calc-note{margin-top:10px;font-size:11.5px;color:var(--ash3);line-height:1.7}
+.calc-note{margin-top:10px;font-size:var(--fs-12_5);color:var(--ash3);line-height:1.7}
 @media(max-width:640px){
   .crow{grid-template-columns:1fr auto;gap:8px 14px}
   .crow .bar{grid-column:1 / -1;order:3}
@@ -638,7 +653,7 @@ h1 b{font-weight:600}
 }
 .ribbon .lbl{
   position:absolute;right:14px;top:50%;transform:translateY(-50%);
-  font-family:var(--mono);font-size:10.5px;color:var(--ash2);letter-spacing:.04em;
+  font-family:var(--mono);font-size:var(--fs-11);color:var(--ash2);letter-spacing:.04em;
 }
 @media(max-width:900px){.ribbon{display:none}}
 
@@ -655,7 +670,7 @@ h1 b{font-weight:600}
   font-family:var(--mono);font-size:clamp(22px,2.7vw,30px);font-weight:500;
   font-variant-numeric:tabular-nums;letter-spacing:-.025em;
 }
-.metric .l{font-size:12.5px;color:var(--ash2);margin-top:6px}
+.metric .l{font-size:var(--fs-12_5);color:var(--ash2);margin-top:6px}
 .arch-fig{margin-top:clamp(34px,4.6vw,52px)}
 
 /* ══════════ 05 下载 ══════════ */
@@ -674,24 +689,27 @@ h1 b{font-weight:600}
   display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
 }
 .ver h3 span{
-  font-family:var(--mono);font-size:12px;font-weight:400;
+  font-family:var(--mono);font-size:var(--fs-12_5);font-weight:400;
   color:var(--ash2);letter-spacing:.01em;
 }
-.ver .tagline{font-size:13px;color:var(--ash2);margin-top:10px;letter-spacing:.01em}
-.ver p{font-size:14.5px;color:var(--ash1);margin-top:20px;line-height:1.78;font-weight:300}
+.ver .tagline{font-size:var(--fs-14);color:var(--ash2);margin-top:10px;letter-spacing:.01em}
+/* 行长 448px ≈ 31 个中文字。原先撑满 620px 是 44 字/行，
+   超出中文舒适区（30–40 字），末行还会只剩「算。」两个字。 */
+.ver p{font-size:var(--fs-14);color:var(--ash1);margin-top:20px;line-height:1.78;
+  font-weight:300;max-width:448px}
 .ver dl{
   margin-top:22px;display:grid;grid-template-columns:auto 1fr;
-  gap:9px 18px;font-family:var(--mono);font-size:12px;
+  gap:9px 18px;font-family:var(--mono);font-size:var(--fs-12_5);
 }
 .ver dt{color:var(--ash3)}
 .ver dd{color:var(--ash1);text-align:right;font-variant-numeric:tabular-nums}
 .ver .get{
-  display:inline-block;margin-top:26px;font-size:14.5px;
+  display:inline-block;margin-top:26px;font-size:var(--fs-14);
   padding-bottom:5px;border-bottom:1px solid var(--ash3);
   transition:border-color var(--t-1) var(--ease-out),color var(--t-1) var(--ease-out);
 }
 .ver .get:hover{border-bottom-color:var(--gold);color:var(--gold)}
-.ver .note{font-size:12px;color:var(--ash2);margin-top:14px}
+.ver .note{font-size:var(--fs-12_5);color:var(--ash2);margin-top:14px}
 
 .repo{
   margin-top:clamp(40px,5vw,62px);padding-top:clamp(26px,3.4vw,36px);
@@ -699,8 +717,8 @@ h1 b{font-weight:600}
   display:flex;justify-content:space-between;align-items:baseline;
   gap:22px;flex-wrap:wrap;
 }
-.repo .u{font-family:var(--mono);font-size:13px;color:var(--ash1)}
-.repo .u small{display:block;font-size:11.5px;color:var(--ash2);margin-top:6px;font-family:var(--sans)}
+.repo .u{font-family:var(--mono);font-size:var(--fs-14);color:var(--ash1)}
+.repo .u small{display:block;font-size:var(--fs-12_5);color:var(--ash2);margin-top:6px;font-family:var(--sans)}
 
 /* ══════════ 尾 ══════════ */
 footer{
@@ -708,9 +726,12 @@ footer{
   border-top:1px solid var(--line-soft);
 }
 .foot{display:flex;justify-content:space-between;align-items:flex-start;gap:36px;flex-wrap:wrap}
-.foot .l1{font-size:14.5px;color:var(--ash1);max-width:38ch;line-height:1.8}
-.foot .l2{font-size:12.5px;color:var(--ash2);margin-top:10px;max-width:40ch;line-height:1.75}
-.footlinks{display:flex;gap:24px;flex-wrap:wrap;font-size:12.5px;color:var(--ash2)}
+.foot .l1{font-size:var(--fs-14);color:var(--ash1);max-width:38ch;line-height:1.8}
+.foot .l2{font-size:var(--fs-12_5);color:var(--ash2);margin-top:10px;max-width:40ch;line-height:1.75}
+.footlinks{display:flex;gap:24px;flex-wrap:wrap;font-size:var(--fs-12_5);color:var(--ash2)}
+/* 这个按钮原先没有 font-size，取的是浏览器默认 13.3333px——
+   一个不是任何人选的数字。归到 14 档。 */
+.footlinks .tune-btn{font-size:var(--fs-14)}
 .footlinks a:hover{color:var(--ash1)}
 
 /* ══════════ 交互与过渡 ══════════════════════════════════════
@@ -766,11 +787,11 @@ footer{
   position:absolute;top:52px;transform:translateX(-50%);
   padding:9px 12px 9px 11px;background:rgba(9,11,15,.96);
   border:1px solid rgba(237,236,232,.17);border-left:1px solid var(--gold-dim);
-  font-family:var(--mono);font-size:11.5px;line-height:1.72;
+  font-family:var(--mono);font-size:var(--fs-12_5);line-height:1.72;
   color:var(--ash1);white-space:nowrap;opacity:0;
   transition:opacity var(--t-1) var(--ease-out);pointer-events:none;
 }
-.probe-card .h{color:var(--gold);font-size:12px;letter-spacing:.02em}
+.probe-card .h{color:var(--gold);font-size:var(--fs-12_5);letter-spacing:.02em}
 .probe-card .r{display:grid;grid-template-columns:auto 1fr;gap:0 12px;margin-top:5px}
 .probe-card .r span:nth-child(2n){text-align:right;color:var(--ink)}
 .probe.on .probe-rule,.probe.on .probe-mark,.probe.on .probe-card{opacity:1}
@@ -793,7 +814,7 @@ footer{
 .pin-b i{background:var(--ice);box-shadow:0 0 0 2px rgba(8,9,11,1)}
 .pin span{
   position:absolute;top:8px;left:6px;
-  font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;white-space:nowrap;
+  font-family:var(--mono);font-size:var(--fs-11);letter-spacing:.02em;white-space:nowrap;
 }
 .pin-a span{color:var(--gold)}
 .pin-b span{color:var(--ice)}
@@ -1530,7 +1551,7 @@ nav.on{
       <a href="https://github.com/172629438/loomgrid/releases">全部版本</a>
       <button class="tune-btn" id="tuneBtn" aria-expanded="false" aria-controls="tunePanel"
               title="We Never（Remix）—— Hi Noise。写这页时循环的那首">
-        <span aria-hidden="true" style="font-size:13px;line-height:1">♪</span>写这页时循环的那首
+        <span aria-hidden="true" style="font-size:var(--fs-14);line-height:1">♪</span>写这页时循环的那首
       </button>
     </div>
   </div>
@@ -2121,7 +2142,7 @@ nav.on{
     const anchor = hr===0?'start':(hr===24?'end':'middle');
     const t = el('text',{
       x:tx.toFixed(1), y:(H*0.992).toFixed(1),
-      fill:'rgba(237,236,232,.34)','font-size':11.5,
+      fill:'rgba(237,236,232,.34)','font-size':12.5,
       'font-family':'ui-monospace,Consolas,monospace','text-anchor':anchor
     });
     t.textContent = hr+':00';
