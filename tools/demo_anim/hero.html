@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <title>LoomGrid hero</title>
+<script src="hero_data.js"></script>
 <style>
-  @font-face { font-family: 'Mono'; src: local('JetBrains Mono'), local('Consolas'), local('Cascadia Mono'); }
+  @font-face { font-family:'Mono'; src: local('JetBrains Mono'), local('Consolas'), local('Cascadia Mono'); }
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body { width:2560px; height:1440px; overflow:hidden; }
   body {
@@ -15,65 +16,57 @@
   .glow {
     position:absolute; inset:0;
     background:
-      radial-gradient(1500px 860px at 14% -10%, rgba(212,175,55,.13), transparent 62%),
-      radial-gradient(1300px 800px at 94% 108%, rgba(78,205,196,.11), transparent 60%),
-      linear-gradient(165deg,#080D15 0%,#0A0F18 46%,#070B12 100%);
+      radial-gradient(1500px 820px at 12% -12%, rgba(212,175,55,.10), transparent 62%),
+      radial-gradient(1200px 760px at 96% 104%, rgba(78,205,196,.09), transparent 60%),
+      linear-gradient(168deg,#080D15 0%,#0A0F18 46%,#070B12 100%);
   }
   .grid {
     position:absolute; inset:0;
     background-image:
-      linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px);
-    background-size:88px 88px;
-    mask-image: radial-gradient(circle at 50% 40%, #000 30%, transparent 80%);
-    -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 30%, transparent 80%);
+      linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+    background-size:80px 80px;
+    mask-image: radial-gradient(circle at 50% 38%, #000 26%, transparent 78%);
+    -webkit-mask-image: radial-gradient(circle at 50% 38%, #000 26%, transparent 78%);
   }
-  .vig { position:absolute; inset:0;
-    background: radial-gradient(circle at 50% 44%, transparent 50%, rgba(0,0,0,.6) 100%); }
+  .stage { position:absolute; inset:0; padding:76px 104px 62px; display:flex; flex-direction:column; }
 
-  .stage { position:absolute; inset:0; padding:86px 118px 74px; display:flex; flex-direction:column; }
-
-  /* 顶部 */
   header { display:flex; align-items:flex-start; justify-content:space-between; }
-  .mark { width:12px; height:38px; border-radius:3px;
-    background:linear-gradient(180deg,#F4D77A,#D4AF37 55%,rgba(212,175,55,.2));
-    box-shadow:0 0 24px rgba(212,175,55,.6); }
-  .brand { display:flex; align-items:center; gap:18px; }
-  .bname { font-size:74px; font-weight:700; letter-spacing:-.035em; line-height:1; }
-  .bname span { font-weight:200; color:rgba(242,245,250,.5); }
-  .kick { margin-top:22px; font-size:26px; letter-spacing:.15em;
-    color:rgba(242,245,250,.72); font-weight:300; }
+  .mark { width:10px; height:34px; border-radius:2px;
+    background:linear-gradient(180deg,#F4D77A,#D4AF37 55%,rgba(212,175,55,.18));
+    box-shadow:0 0 20px rgba(212,175,55,.55); }
+  .brand { display:flex; align-items:center; gap:16px; }
+  .bname { font-size:64px; font-weight:700; letter-spacing:-.03em; line-height:1; }
+  .bname span { font-weight:200; color:rgba(242,245,250,.52); }
+  .kick { margin-top:18px; font-size:24px; letter-spacing:.14em;
+    color:rgba(242,245,250,.70); font-weight:300; }
   .kick em { font-style:normal; color:rgba(240,206,114,.95); }
 
-  .kpis { display:flex; gap:0; padding-top:22px; }
-  .kpi { text-align:right; padding-left:44px; margin-left:44px;
-    border-left:1px solid rgba(255,255,255,.09); }
+  .kpis { display:flex; padding-top:18px; }
+  .kpi { text-align:right; padding-left:40px; margin-left:40px;
+    border-left:1px solid rgba(255,255,255,.10); }
   .kpi:first-child { padding-left:0; margin-left:0; border-left:none; }
-  .kpi .k { font-size:18px; letter-spacing:.2em; color:rgba(242,245,250,.62); }
-  .kpi .v { margin-top:9px; font-family:'Mono',monospace; font-size:40px;
-    font-weight:600; letter-spacing:-.03em; }
-  .kpi .v.gold { color:#F0CE72; text-shadow:0 0 34px rgba(212,175,55,.5); }
-  .kpi .v.cool { color:#7FD8FF; }
-  .kpi .u { font-size:20px; color:rgba(242,245,250,.55); margin-left:5px; font-family:inherit; }
+  .kpi .k { font-size:17px; letter-spacing:.18em; color:rgba(242,245,250,.60); }
+  .kpi .v { margin-top:8px; font-family:'Mono',monospace; font-size:38px;
+    font-weight:600; letter-spacing:-.02em; }
+  .kpi .v.gold { color:#F0CE72; }
+  .kpi .v.cool { color:#8FDDFF; }
+  .kpi .u { font-size:18px; color:rgba(242,245,250,.52); margin-left:4px; font-family:inherit; }
 
-  /* 图 */
-  .chart { position:relative; flex:1; margin-top:62px; }
+  .chart { position:relative; flex:1; margin-top:34px; }
   svg { display:block; width:100%; height:100%; }
 
-  /* 底部 */
   footer { display:flex; align-items:center; justify-content:space-between;
-    margin-top:30px; padding-top:26px;
-    border-top:1px solid rgba(255,255,255,.07); }
-  .fleft { display:flex; gap:52px; font-size:20px; color:rgba(242,245,250,.58);
-    letter-spacing:.06em; }
-  .fleft b { color:rgba(242,245,250,.92); font-weight:600; }
-  .fright { font-size:20px; letter-spacing:.14em; color:rgba(242,245,250,.45); }
+    padding-top:20px; border-top:1px solid rgba(255,255,255,.08); }
+  .fleft { display:flex; gap:46px; font-size:19px; color:rgba(242,245,250,.56);
+    letter-spacing:.05em; }
+  .fleft b { color:rgba(242,245,250,.94); font-weight:600; }
+  .fright { font-size:19px; letter-spacing:.13em; color:rgba(242,245,250,.42); }
 </style>
 </head>
 <body>
   <div class="glow"></div>
   <div class="grid"></div>
-  <div class="vig"></div>
 
   <div class="stage">
     <header>
@@ -82,15 +75,11 @@
           <div class="bname">Loom<span>Grid</span></div></div>
         <div class="kick">工商业储能测算工作台 &nbsp;·&nbsp; 负荷曲线 <em>→</em> 充放空间 <em>→</em> 调度 <em>→</em> 经济性</div>
       </div>
-      <div class="kpis">
-        <div class="kpi"><div class="k">峰谷价差</div><div class="v gold">0.88<span class="u">元/kWh</span></div></div>
-        <div class="kpi"><div class="k">日循环上限</div><div class="v cool">726<span class="u">kWh</span></div></div>
-        <div class="kpi"><div class="k">最优容量</div><div class="v cool">800<span class="u">kWh</span></div></div>
-      </div>
+      <div class="kpis" id="kpis"></div>
     </header>
 
     <div class="chart">
-      <svg id="s" viewBox="0 0 2324 900" preserveAspectRatio="none"></svg>
+      <svg id="s" viewBox="0 0 2352 1010" preserveAspectRatio="none"></svg>
     </div>
 
     <footer>
@@ -99,125 +88,182 @@
         <div><b>96</b> 个类 · <b>3.6</b> 万行</div>
         <div><b>433</b> 项断言</div>
       </div>
-      <div class="fright">SIZING · DISPATCH · ECONOMICS</div>
+      <div class="fright" id="src"></div>
     </footer>
   </div>
 
 <script>
+const D = window.HERO_DATA;
 const E='http://www.w3.org/2000/svg';
 const svg=document.getElementById('s');
-const VW=2324, VH=900;
-const L=118, R=VW-28, TOP=44, MID=744, ST=744, SB=800;
+const VW=2352, VH=1010;
+
+// 版面分区：功率图 / SOC 带 / 时间轴
+const L=112, R=VW-56;
+const P_TOP=26, P_BOT=606;       // 功率区
+const S_TOP=660, S_BOT=828;      // SOC 区
+const AXIS_Y=876;
 const PW=R-L;
-const PMIN=-360, PMAX=2000;
 
+const PMIN=-460, PMAX=1300;
 const mk=(t,a)=>{const e=document.createElementNS(E,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
-const xOf=h=>L+(h/24)*PW;
-const yP=v=>MID-((v-PMIN)/(PMAX-PMIN))*(MID-TOP);
-const yS=v=>SB-(v/100)*(SB-ST);
+const xOf=i=>L+(i/(D.hours.length-1))*PW;
+const yP=v=>P_BOT-((v-PMIN)/(PMAX-PMIN))*(P_BOT-P_TOP);
+const yS=v=>S_BOT-(v/100)*(S_BOT-S_TOP);
 
+// ---- 顶部指标 ----
+const st = D.stats;
+document.getElementById('kpis').innerHTML = `
+  <div class="kpi"><div class="k">峰谷价差</div><div class="v gold">${st.spread.toFixed(2)}<span class="u">元/kWh</span></div></div>
+  <div class="kpi"><div class="k">日套利收益</div><div class="v gold">¥${st.saving_cny.toFixed(0)}</div></div>
+  <div class="kpi"><div class="k">储能配置</div><div class="v cool">${st.cap_kwh.toFixed(0)}<span class="u">kWh</span></div></div>`;
+document.getElementById('src').textContent =
+  `LP 最优解 · ${st.charge_kwh.toFixed(0)} 充 / ${st.discharge_kwh.toFixed(0)} 放 kWh`;
+
+// ---- defs ----
 const defs=mk('defs',{});
 defs.innerHTML=`
   <linearGradient id="gLoad" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0%" stop-color="#EAF4FF"/><stop offset="55%" stop-color="#BFE4FF"/>
-    <stop offset="100%" stop-color="#7FD8FF"/></linearGradient>
+    <stop offset="0%" stop-color="#EAF4FF"/><stop offset="50%" stop-color="#C3E6FF"/>
+    <stop offset="100%" stop-color="#8FDDFF"/></linearGradient>
   <linearGradient id="gFill" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="rgba(127,216,255,.24)"/>
-    <stop offset="100%" stop-color="rgba(127,216,255,0)"/></linearGradient>
+    <stop offset="0%" stop-color="rgba(143,221,255,.22)"/>
+    <stop offset="100%" stop-color="rgba(143,221,255,0)"/></linearGradient>
   <linearGradient id="gChg" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#6EE7B7" stop-opacity=".92"/>
-    <stop offset="100%" stop-color="#2FB57C" stop-opacity=".45"/></linearGradient>
+    <stop offset="0%" stop-color="#6EE7B7" stop-opacity=".95"/>
+    <stop offset="100%" stop-color="#2FB57C" stop-opacity=".35"/></linearGradient>
   <linearGradient id="gDis" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#FF8E8E" stop-opacity=".92"/>
-    <stop offset="100%" stop-color="#E04F4F" stop-opacity=".45"/></linearGradient>
-  <linearGradient id="gGold" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0%" stop-color="#FF9B9B" stop-opacity=".95"/>
+    <stop offset="100%" stop-color="#DE4A4A" stop-opacity=".35"/></linearGradient>
+  <linearGradient id="gSocLine" x1="0" y1="0" x2="1" y2="0">
     <stop offset="0%" stop-color="#D4AF37"/><stop offset="100%" stop-color="#F4D77A"/></linearGradient>
-  <filter id="glow" x="-20%" y="-50%" width="140%" height="200%">
-    <feGaussianBlur stdDeviation="2" result="b"/>
-    <feMerge><feMergeNode in="b"/><feMergeNode in="src"/></feMerge></filter>
-  <filter id="glow2" x="-30%" y="-70%" width="160%" height="240%">
-    <feGaussianBlur stdDeviation="1.6" result="b"/>
+  <linearGradient id="gSocFill" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="rgba(212,175,55,.08)"/>
+    <stop offset="100%" stop-color="rgba(212,175,55,0)"/></linearGradient>
+  <filter id="soft" x="-20%" y="-60%" width="140%" height="220%">
+    <feGaussianBlur stdDeviation="1.8" result="b"/>
     <feMerge><feMergeNode in="b"/><feMergeNode in="src"/></feMerge></filter>`;
 svg.appendChild(defs);
 
-// 电价分区
-const ZONES=[[0,8,'谷','rgba(61,220,151,.075)'],[8,11,'峰','rgba(255,120,120,.075)'],
-  [11,13,'平','rgba(255,255,255,.025)'],[13,17,'峰','rgba(255,120,120,.075)'],
-  [17,22,'平','rgba(255,255,255,.025)'],[22,24,'谷','rgba(61,220,151,.075)']];
-ZONES.forEach(([a,b,n,f])=>{
-  svg.appendChild(mk('rect',{x:xOf(a),y:TOP,width:xOf(b)-xOf(a),height:SB-TOP,fill:f}));
-  const t=mk('text',{x:(xOf(a)+xOf(b))/2,y:TOP-16,'text-anchor':'middle',
-    fill:'rgba(242,245,250,.55)','font-size':22,'letter-spacing':'6'});
-  t.textContent=n; svg.appendChild(t);
+// ---- 电价分区 ----
+function zoneAt(h){
+  if (h < 7 || h >= 23) return [0,'谷','rgba(61,220,151,.055)'];
+  if ((h>=10&&h<12)||(h>=17&&h<22)) return [1,'峰','rgba(255,120,120,.06)'];
+  if (h>=14&&h<16) return [2,'尖','rgba(255,150,90,.075)'];
+  return [3,'平','rgba(255,255,255,.018)'];
+}
+let segStart=0, segKey=zoneAt(0)[1];
+const zones=[];
+for(let i=1;i<=D.hours.length;i++){
+  const h = i<D.hours.length ? D.hours[i] : 24;
+  const k = i<D.hours.length ? zoneAt(h)[1] : null;
+  if(k!==segKey || i===D.hours.length){
+    zones.push([segStart, h, segKey, zoneAt(segStart)[2]]);
+    segStart=h; segKey=k;
+  }
+}
+zones.forEach(([a,b,n,f])=>{
+  if(b-a<0.1) return;
+  const x1=L+(a/24)*PW;
+  const w=(b-a)/24*PW;
+  svg.appendChild(mk('rect',{x:x1,y:P_TOP,width:w,height:S_BOT-P_TOP,fill:f}));
+  if(b-a>1.2){
+    const t=mk('text',{x:x1+w/2,y:P_TOP-8,'text-anchor':'middle',
+      fill:'rgba(242,245,250,.42)','font-size':19,'letter-spacing':'5'});
+    t.textContent=n; svg.appendChild(t);
+  }
 });
 
-// 网格
-for(let v=0;v<=2000;v+=500){
-  svg.appendChild(mk('line',{x1:L,y1:yP(v),x2:R,y2:yP(v),
-    stroke:v===0?'rgba(255,255,255,.22)':'rgba(255,255,255,.075)','stroke-width':1.2}));
-  const t=mk('text',{x:L-22,y:yP(v)+7,'text-anchor':'end',
-    fill:'rgba(242,245,250,.50)','font-size':20,'font-family':'Mono, monospace'});
+// ---- 网格 ----
+for(let v=0;v<=1200;v+=300){
+  const y=yP(v);
+  svg.appendChild(mk('line',{x1:L,y1:y,x2:R,y2:y,
+    stroke:v===0?'rgba(255,255,255,.24)':'rgba(255,255,255,.055)','stroke-width':1.1}));
+  const t=mk('text',{x:L-18,y:y+7,'text-anchor':'end',
+    fill:'rgba(242,245,250,.48)','font-size':19,'font-family':'Mono, monospace'});
   t.textContent=v; svg.appendChild(t);
 }
+// SOC 区刻度
+[0,50,100].forEach(v=>{
+  const y=yS(v);
+  svg.appendChild(mk('line',{x1:L,y1:y,x2:R,y2:y,stroke:'rgba(255,255,255,.045)','stroke-width':1}));
+  const t=mk('text',{x:L-18,y:y+6,'text-anchor':'end',
+    fill:'rgba(242,245,250,.40)','font-size':17,'font-family':'Mono, monospace'});
+  t.textContent=v+'%'; svg.appendChild(t);
+});
+
+// ---- 负荷曲线 ----
+let lp='', la='M '+xOf(0)+' '+yP(0)+' ';
+D.load.forEach((v,i)=>{
+  lp += (i?'L ':'M ')+xOf(i).toFixed(1)+' '+yP(v).toFixed(1)+' ';
+  la += 'L '+xOf(i).toFixed(1)+' '+yP(v).toFixed(1)+' ';
+});
+la += 'L '+xOf(D.load.length-1)+' '+yP(0)+' Z';
+svg.appendChild(mk('path',{d:la,fill:'url(#gFill)'}));
+svg.appendChild(mk('path',{d:lp,fill:'none',stroke:'url(#gLoad)',
+  'stroke-width':2.4,'stroke-linejoin':'round','stroke-linecap':'round'}));
+
+// ---- 充放柱（真实功率） ----
+const bw = Math.max(3, PW/D.hours.length*0.42);
+D.charge.forEach((v,i)=>{
+  if(v<=0.5) return;
+  const y0=yP(0), y1=yP(-v);
+  svg.appendChild(mk('rect',{x:xOf(i)-bw/2,y:y0,width:bw,height:y1-y0,rx:2,
+    fill:'url(#gChg)'}));
+});
+D.discharge.forEach((v,i)=>{
+  if(v<=0.5) return;
+  const y0=yP(0), y1=yP(v);
+  svg.appendChild(mk('rect',{x:xOf(i)-bw/2,y:y1,width:bw,height:y0-y1,rx:2,
+    fill:'url(#gDis)'}));
+});
+
+// ---- SOC 曲线 ----
+let sp='', sf='M '+xOf(0)+' '+yS(0)+' ';
+D.soc.forEach((v,i)=>{
+  const s=v*100;
+  sp += (i?'L ':'M ')+xOf(i).toFixed(1)+' '+yS(s).toFixed(1)+' ';
+  sf += 'L '+xOf(i).toFixed(1)+' '+yS(s).toFixed(1)+' ';
+});
+sf += 'L '+xOf(D.soc.length-1)+' '+yS(0)+' Z';
+svg.appendChild(mk('path',{d:sf,fill:'url(#gSocFill)'}));
+svg.appendChild(mk('path',{d:sp,fill:'none',stroke:'url(#gSocLine)',
+  'stroke-width':2.2,'stroke-linejoin':'round','stroke-linecap':'round',
+  filter:'url(#soft)'}));
+
+// ---- 峰值标注 ----
+let peakI=0;
+D.load.forEach((v,i)=>{ if(v>D.load[peakI]) peakI=i; });
+const px=xOf(peakI), py=yP(D.load[peakI]);
+svg.appendChild(mk('circle',{cx:px,cy:py,r:13,fill:'rgba(244,215,122,.18)',filter:'url(#soft)'}));
+svg.appendChild(mk('circle',{cx:px,cy:py,r:5,fill:'#F4D77A'}));
+const pt=mk('text',{x:px+20,y:py-18,fill:'#F0CE72','font-size':24,'font-weight':600});
+pt.textContent='峰值 '+D.load[peakI].toFixed(0)+' kW'; svg.appendChild(pt);
+
+// ---- 时间轴 ----
 for(let h=0;h<=24;h+=2){
-  svg.appendChild(mk('line',{x1:xOf(h),y1:TOP,x2:xOf(h),y2:SB,
-    stroke:'rgba(255,255,255,.055)','stroke-width':1}));
-  const t=mk('text',{x:xOf(h),y:SB+30,'text-anchor':'middle',
-    fill:'rgba(242,245,250,.48)','font-size':20,'font-family':'Mono, monospace'});
+  const x=L+(h/24)*PW;
+  svg.appendChild(mk('line',{x1:x,y1:S_BOT,x2:x,y2:S_BOT+10,
+    stroke:'rgba(255,255,255,.16)','stroke-width':1}));
+  const t=mk('text',{x:x,y:AXIS_Y+6,'text-anchor':'middle',
+    fill:'rgba(242,245,250,.46)','font-size':18,'font-family':'Mono, monospace'});
   t.textContent=String(h).padStart(2,'0')+':00'; svg.appendChild(t);
 }
 
-// 负荷曲线：上午爬升、午间凹陷、傍晚尖峰
-const LOAD=[
- [0,42],[1,38],[2,35],[3,34],[4,38],[5,52],[6,86],[7,168],[8,320],[9,520],
- [10,760],[11,1042],[12,466],[13,690],[14,880],[15,1180],[16,1724],[17,486],
- [18,462],[19,388],[20,300],[21,224],[22,168],[23,128],[24,96]];
-let line='', area='M '+xOf(0)+' '+yP(0)+' ';
-LOAD.forEach(([h,v],i)=>{
-  line+=(i?'L ':'M ')+xOf(h)+' '+yP(v)+' ';
-  area+='L '+xOf(h)+' '+yP(v)+' ';
-});
-area+='L '+xOf(24)+' '+yP(0)+' Z';
-svg.appendChild(mk('path',{d:area,fill:'url(#gFill)'}));
-svg.appendChild(mk('path',{d:line,fill:'none',stroke:'url(#gLoad)',
-  'stroke-width':2.6,'stroke-linejoin':'round','stroke-linecap':'round'}));
-
-// 充放柱
-function bars(from,to,val,grad,below){
-  for(let h=from;h<to;h+=0.52){
-    const y0=yP(0), y1=yP(below?val:val);
-    const top=Math.min(y0,y1), hgt=Math.abs(y1-y0);
-    svg.appendChild(mk('rect',{x:xOf(h)-4,y:top,width:8,height:hgt,rx:4,
-      fill:grad,filter:'url(#glow2)'}));
-  }
-}
-// 充放柱：在 2000 kW 量程下，-120/200 几乎看不见，按真实调度量放大
-bars(0,7.8,-180,'url(#gChg)',false);
-bars(12.2,13.8,-180,'url(#gChg)',false);
-bars(13.8,17.0,520,'url(#gDis)',false);
-bars(17.0,22.0,380,'url(#gDis)',false);
-
-// 峰值标注
-const px=xOf(16), py=yP(1724);
-svg.appendChild(mk('circle',{cx:px,cy:py,r:15,fill:'rgba(244,215,122,.20)',filter:'url(#glow)'}));
-svg.appendChild(mk('circle',{cx:px,cy:py,r:6,fill:'#F4D77A'}));
-svg.appendChild(mk('line',{x1:px,y1:py-22,x2:px,y2:TOP,stroke:'rgba(212,175,55,.35)',
-  'stroke-width':1.4,'stroke-dasharray':'7 7'}));
-const pl=mk('text',{x:px+26,y:py-24,fill:'#F0CE72','font-size':27,'font-weight':600,
-  'letter-spacing':'1'});
-pl.textContent='峰值 1724 kW'; svg.appendChild(pl);
-
-// 轴名
-const y1=mk('text',{x:L-96,y:(TOP+MID)/2,fill:'rgba(242,245,250,.52)','font-size':22,
-  'letter-spacing':'4','text-anchor':'middle',transform:`rotate(-90 ${L-96} ${(TOP+MID)/2})`});
+// ---- 轴名 ----
+const y1=mk('text',{x:L-74,y:(P_TOP+P_BOT)/2,fill:'rgba(242,245,250,.50)','font-size':19,
+  'letter-spacing':'3','text-anchor':'middle',transform:`rotate(-90 ${L-74} ${(P_TOP+P_BOT)/2})`});
 y1.textContent='功率 kW'; svg.appendChild(y1);
+const y2=mk('text',{x:L-74,y:(S_TOP+S_BOT)/2,fill:'rgba(242,245,250,.50)','font-size':19,
+  'letter-spacing':'3','text-anchor':'middle',transform:`rotate(-90 ${L-74} ${(S_TOP+S_BOT)/2})`});
+y2.textContent='SOC'; svg.appendChild(y2);
 
-// 图例
-const lg=[['负荷','url(#gLoad)',0],['充电','url(#gChg)',0],['放电','url(#gDis)',0]];
+// ---- 图例（放到底部，避开顶部电价分区标签）----
+const lg=[['负荷','url(#gLoad)'],['充电','url(#gChg)'],['放电','url(#gDis)'],['SOC','url(#gSocLine)']];
 lg.forEach(([name,grad],i)=>{
-  const gx=R-460+i*150;
-  svg.appendChild(mk('rect',{x:gx,y:TOP-30,width:26,height:7,rx:3.5,fill:grad}));
-  const t=mk('text',{x:gx+36,y:TOP-20,fill:'rgba(242,245,250,.62)','font-size':21});
+  const gx=L+8+i*132;
+  svg.appendChild(mk('rect',{x:gx,y:AXIS_Y+40,width:22,height:6,rx:3,fill:grad}));
+  const t=mk('text',{x:gx+30,y:AXIS_Y+50,fill:'rgba(242,245,250,.58)','font-size':18});
   t.textContent=name; svg.appendChild(t);
 });
 </script>
