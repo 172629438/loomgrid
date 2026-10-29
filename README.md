@@ -26,9 +26,9 @@
 
 </div>
 
-![LoomGrid — 负荷曲线 × 电价分层 × 储能充放](assets/hero.png)
+![LoomGrid — 负荷曲线 × 电价分层 × LP 调度 × SOC](assets/hero.png)
 
-<div align="center"><sub>负荷曲线 × 峰平谷电价分层 × 储能充放区间 —— 一张图说清这个工具在算什么</sub></div>
+<div align="center"><sub>上：负荷曲线 × 峰平谷电价分区 × 充放功率　下：SOC 轨迹　—— 这一天五段充放、充 2989 kWh / 放 2736 kWh、日省 ¥1676，全部是 <code>optimal_dispatch_lp</code> 对 2000 kWh 系统求解的结果，不是手画的示意图</sub></div>
 
 ![充放策略演示](assets/demo.webp)
 
