@@ -1194,16 +1194,16 @@ input[type=range]::-moz-range-thumb{
       <a href="https://github.com/172629438/loomgrid/tree/main/algorithms">算法源码</a>
       <a href="https://github.com/172629438/loomgrid/releases">全部版本</a>
       <button class="tune-btn" id="tuneBtn" aria-expanded="false" aria-controls="tunePanel"
-              title="We Never —— 被网友叫做「Claude Opus 5.5 の小曲」的那首">
+              title="We Never —— Hi Noise, 2020。B 站上被叫做「Claude 小曲」的那首原版">
         <span aria-hidden="true" style="font-size:13px;line-height:1">♪</span>写这页时循环的那首
       </button>
     </div>
   </div>
 </footer>
 
-<div class="tune-panel" id="tunePanel" role="dialog" aria-label="Claude 小曲播放器">
+<div class="tune-panel" id="tunePanel" role="dialog" aria-label="We Never 播放器">
   <div class="bar">
-    <span><b>We Never</b> · Claude Opus 5.5 の小曲 · 来自 B 站</span>
+    <span><b>We Never</b> · Hi Noise · 2020</span>
     <button class="x" id="tuneClose" aria-label="关闭播放器">×</button>
   </div>
   <div class="frame" id="tuneFrame"></div>
@@ -1219,7 +1219,10 @@ input[type=range]::-moz-range-thumb{
   const close=document.getElementById('tuneClose');
   if(!btn||!panel||!frame) return;
 
-  const SRC='https://player.bilibili.com/player.html?bvid=BV1ySaf69EAp'
+  // Hi Noise《We Never》2020-01-27 ·《We Never EP》· Big Fish Recordings
+  // B 站 BV1uSiKeHEoR 时长 250s 与原曲 4:08 吻合，音频即原版
+  // （试过网易云外链播放器，无登录态下只展示不播，已放弃）
+  const SRC='https://player.bilibili.com/player.html?bvid=BV1uSiKeHEoR'
     +'&page=1&high_quality=1&danmaku=0&autoplay=1';
 
   function open(){
@@ -1230,7 +1233,7 @@ input[type=range]::-moz-range-thumb{
       f.setAttribute('scrolling','no');
       f.setAttribute('frameborder','0');
       f.referrerPolicy='no-referrer-when-downgrade';
-      f.title='We Never —— Claude Opus 5.5 の小曲';
+      f.title='We Never —— Hi Noise, 2020（B 站歌词版）';
       frame.appendChild(f);
     }
     panel.classList.add('on');
