@@ -14110,6 +14110,19 @@ class PVMonthMatchDialog(QDialog):
 
 
 # region 专业分析窗口(优化:已包含 import calendar,使用滑动窗口需量)
+def _safe_step_label(lbl, text, color):
+    """v3.2.2fix: 安全的步骤标签更新。
+
+    重构后父控件会重建，早先拿到的 QLabel 可能已被 Qt 销毁，
+    此时 setText 会抛 RuntimeError（libshiboken）。这里静默跳过。
+    """
+    try:
+        lbl.setText(text)
+        lbl.setStyleSheet(f'font-size:11px; font-weight:bold; color:{color}; background:transparent; padding:2px 4px;')
+    except RuntimeError:
+        return
+
+
 class ProfessionalWindow(QMainWindow):
     def __init__(self, mode, summaries, provider, config_manager, settings_model,
                  province_name, plot_options, global_multiplier, parent=None):
@@ -14375,16 +14388,18 @@ class ProfessionalWindow(QMainWindow):
         """v3.2: 重算充放电空间, 数据变更时自动清缓存+重置步骤."""
         _invalidate_compute_cache()
         # v3.2: 重置步骤3-5为pending
+        # v3.2.2fix: 父控件重建后 QLabel 的 C++ 对象可能已销毁，
+        # 直接 setText 会抛 RuntimeError（libshiboken），用 _safe_set_text 包一层
         for key in ['config', 'econ', 'report']:
             if hasattr(self, '_step_labels') and key in self._step_labels:
-                self._step_labels[key].setText({'config': '⏸ 配置', 'econ': '⏸ 经济', 'report': '⏸ 报告'}[key])
-                self._step_labels[key].setStyleSheet('font-size:11px; font-weight:bold; color:#BDBDBD; background:transparent; padding:2px 4px;')
+                _safe_step_label(self._step_labels[key],
+                                 {'config': '⏸ 配置', 'econ': '⏸ 经济', 'report': '⏸ 报告'}[key],
+                                 '#BDBDBD')
         if hasattr(self, '_report_generated'):
             self._report_generated = False
         # v3.2: 首次打开时初始化进度条
-        if hasattr(self, '_step_labels'):
-            self._step_labels['import'].setText('✅ 导入')
-            self._step_labels['import'].setStyleSheet('font-size:11px; font-weight:bold; color:#4CAF50; background:transparent; padding:2px 4px;')
+        if hasattr(self, '_step_labels') and 'import' in self._step_labels:
+            _safe_step_label(self._step_labels['import'], '✅ 导入', '#4CAF50')
         self.charge_segments_dict.clear()
         self.discharge_segments_dict.clear()
         self._month_capacity_needs.clear()
@@ -14852,7 +14867,7 @@ class ProfessionalWindow(QMainWindow):
 
         # 深色主题适配
         tk = DesignTokens.current_tokens()
-        is_dark = '#1e' in (tk.get('BG_CARD', '').name() if hasattr(tk.get('BG_CARD', object()), 'name') else '')
+        is_dark = get_global_theme() == 'dark'
         if is_dark:
             plt.style.use('dark_background')
             sns.set_theme(style='darkgrid')
@@ -15362,6 +15377,7 @@ class ProfessionalWindow(QMainWindow):
         """构建右侧面板:QTabWidget(月度汇总/每日详情/月度评估)"""
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
+        self._right_layout = right_layout  # v3.2.2fix: 供 _init_ui 添加容量规划面板
         self.tab_widget = QTabWidget()
         self.tab_widget.setFont(get_default_font(12, bold=True))
         right_layout.addWidget(self.tab_widget)
@@ -15781,8 +15797,10 @@ class ProfessionalWindow(QMainWindow):
                     mute_warning('dual_engine_deviation', self.config_manager)
 
     def _init_ui(self):
-        right_layout = right_widget = None  # v2.27fix: 消除ruff F821
         bsize = int(base_size())
+        # v3.2.2fix: _month_checks 原本只在 _on_pv_algo_changed 回调里初始化，
+        # 但 _update_month_checkboxes 在启动时就会读它，导致 AttributeError。
+        self._month_checks = {}
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
@@ -15838,7 +15856,7 @@ class ProfessionalWindow(QMainWindow):
             lbl.setMinimumSize(280, 160)
             lbl.setScaledContents(True)
             lbl.setAlignment(Qt.AlignCenter)
-            lbl.setStyleSheet(f"background:{tokens['BG_CARD'].name()};border:1px solid {tokens['BORDER'].name()};border-radius:8px;")
+            lbl.setStyleSheet(f"background:{tokens['BG_PANEL'].name()};border:1px solid {tokens['BORDER'].name()};border-radius:8px;")
             lbl.setToolTip({'heatmap':'充放电空间热力图','histplot':'每日容量需求分布','boxplot':'月度空间离散度'}[name])
             chart_row.addWidget(lbl)
             setattr(self, f'_chart_{name}', lbl)
@@ -15866,7 +15884,8 @@ class ProfessionalWindow(QMainWindow):
             ("📐  容量规划", "储能系统规模优化"),
             ("📁  导出报告", "输出分析与图表"),
         ]
-        self._step_labels = []
+        self._step_bar_items = []  # v3.2.2fix: 原为 _step_labels，与 _build_left_panel 里
+                                   # 的 dict 版同名冲突，导致后者被覆盖成 list
         for i, (label, tip) in enumerate(steps):
             step_widget = QWidget()
             step_w = QHBoxLayout(step_widget)
@@ -15888,7 +15907,7 @@ class ProfessionalWindow(QMainWindow):
             lbl.setToolTip(tip)
             step_w.addWidget(dot)
             step_w.addWidget(lbl)
-            self._step_labels.append((dot, lbl))
+            self._step_bar_items.append((dot, lbl))
             step_bar_layout.addWidget(step_widget)
             if i < len(steps) - 1:
                 connector = QLabel("▸")
@@ -16024,7 +16043,10 @@ class ProfessionalWindow(QMainWindow):
         self.unit_power_spin.valueChanged.connect(self._update_system_scale)
         self.unit_cap_spin.valueChanged.connect(self._update_system_scale)
         self.config_cap_spin.valueChanged.connect(self._update_system_scale)
-        right_layout.addWidget(planner_group)
+        # v3.2.2fix: 原代码用未创建的局部 right_layout / right_widget，
+        # 导致专业分析窗口一打开就 AttributeError。改为挂到 _build_right_panel
+        # 建好的右面板 layout 上。
+        self._right_layout.addWidget(planner_group)
         btn_layout = QHBoxLayout()
         self.pv_btn = QPushButton("☀️ 光伏返送详情")
         self.pv_btn.setMinimumHeight(bsize)
@@ -16052,8 +16074,9 @@ class ProfessionalWindow(QMainWindow):
         close_btn.setMinimumHeight(bsize)
         close_btn.clicked.connect(self.close)
         btn_layout.addWidget(close_btn)
-        right_layout.addLayout(btn_layout)
-        splitter.addWidget(right_widget)
+        self._right_layout.addLayout(btn_layout)
+        # v3.2.2fix: 原 splitter.addWidget(right_widget) 重复且传 None
+        # （_build_right_panel 已加过），已删除
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         self._update_mode_options()
@@ -16382,6 +16405,12 @@ class ProfessionalWindow(QMainWindow):
     def _update_cap_label(self):
         """v3.2fix: 优先取当前预览月的billing, 回退到第一个summary."""
         if not hasattr(self, '_cap_label'):
+            return
+        # v3.2.2fix: 父控件重建后 _cap_label 的 C++ 对象可能已销毁，
+        # 直接 setText 会抛 RuntimeError（libshiboken）。
+        try:
+            self._cap_label.text()
+        except RuntimeError:
             return
         cap_val = 0
         try:
