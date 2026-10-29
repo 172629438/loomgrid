@@ -307,30 +307,78 @@ h1 b{font-weight:600}
 /* ── 那首小曲 ──────────────────────────────────────────────────
    We Never（Remix）· Hi Noise，本地音轨，播放器自绘。
 
-   波形不是装饰：96 根竖线，和首屏织面同一套语言——那边是 96 个
-   负荷采样点，这边是 96 个频段的能量。高度取 AnalyserNode 的实时
-   频谱，颜色按播放进度分开：唱过的亮金，没唱到的暗。
-   于是「波形」同时是三样东西：声音的形状、曲子的进度、和页面的血缘。
+   自动收边：不聚焦时滑出视口，只留右侧 10px 一条竖向进度带——
+   已唱过的段落从下往上亮金。缩起来之后剩下的正好是「放到哪儿了」，
+   和页面里那条织面同一个叙事。
 
-   Web Audio 接不上时（老浏览器、AudioContext 被挂起）回落成一条
-   静态进度线，音频照常播——宁可少一个效果，不能没声音。
+   时长按面积律：展开 280ms（ζ0.8，介于 --spring-tight 与
+   --spring-soft 之间），收起 180ms（×0.64）且不吃反弹。
    ───────────────────────────────────────────────────────────── */
 .tune{
-  position:fixed;right:16px;bottom:12px;z-index:60;
-  width:308px;max-width:calc(100vw - 32px);
+  position:fixed;right:0;bottom:12px;z-index:60;
+  display:flex;align-items:stretch;
+  width:318px;max-width:calc(100vw - 8px);
   background:rgba(9,11,15,.96);
-  border:1px solid rgba(237,236,232,.13);
-  opacity:0;transform:translateY(12px);pointer-events:none;
-  transition:opacity var(--t-3) var(--ease-out),transform var(--t-3) var(--spring-soft);
+  border:1px solid rgba(237,236,232,.13);border-right:0;
+  border-radius:0;                       /* 全站圆角 0，收边也守住 */
+  opacity:0;pointer-events:none;
+  transform:translateX(calc(100% - 12px));
+  transition:transform 180ms cubic-bezier(.4,0,1,1),   /* 收起：快出，无回弹 */
+             opacity 220ms var(--ease-out);
 }
-.tune.on{opacity:.62;transform:none;pointer-events:auto}
-.tune.on:hover,.tune.on:focus-within{opacity:1}
+.tune.on{ opacity:.72;pointer-events:auto }
+.tune.on.open{
+  opacity:1;
+  transform:translateX(0);
+  transition:transform 280ms var(--spring-soft),       /* 展开：慢进，轻回弹 */
+             opacity 200ms var(--ease-out);
+}
+
+/* 收边后唯一露出来的那 12px——它不是“残余”，是抽屉的拉手：
+   中央一根短竖线告诉你这里能拉开，底部金色是唱到哪了。 */
+.edge{
+  position:relative;flex:0 0 12px;width:12px;
+  background:linear-gradient(180deg,rgba(16,18,24,.97),rgba(10,12,16,.97));
+  border-left:1px solid rgba(237,236,232,.2);
+  cursor:pointer;overflow:hidden;
+  transition:border-color var(--t-2) var(--ease-out);
+}
+.edge:hover{border-left-color:rgba(201,162,39,.75)}
+/* 拉手：中央 20px 的短竖线 */
+.edge::before{
+  content:"";position:absolute;left:50%;top:50%;
+  width:2px;height:24px;margin:-12px 0 0 -1px;
+  background:rgba(237,236,232,.45);
+  transition:background var(--t-2) var(--ease-out),transform var(--t-2) var(--ease-out);
+}
+.edge:hover::before{background:var(--gold);transform:scaleY(1.5)}
+.edge i{
+  position:absolute;left:0;right:0;bottom:0;height:0;
+  background:linear-gradient(180deg,rgba(201,162,39,.95),rgba(201,162,39,.55));
+  transition:height 180ms linear;
+}
+/* 播放中：进度顶端一粒光，跟着进度往上走；
+   暂停就停在原地不动——用动效区分状态，不额外加图标 */
+.edge::after{
+  content:"";position:absolute;left:0;right:0;height:1px;bottom:0;
+  background:rgba(201,162,39,.95);opacity:0;
+  transition:opacity var(--t-2) var(--ease-out);
+}
+.tune.playing .edge::after{
+  opacity:1;
+  animation:edge-pulse 2.4s ease-in-out infinite;
+}
+@keyframes edge-pulse{
+  0%,100%{ opacity:.35 }
+  50%    { opacity:.95 }
+}
+
+.body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
 
 .tune-wave{
   display:block;width:100%;height:54px;
   border-bottom:1px solid rgba(237,236,232,.07);
 }
-.tune.flat .tune-wave{display:none}
 
 .tune-ctl{
   display:flex;align-items:center;gap:10px;
@@ -339,13 +387,16 @@ h1 b{font-weight:600}
 }
 
 .tune .pp{
-  flex:0 0 auto;width:22px;height:22px;padding:0;
+  flex:0 0 auto;width:24px;height:24px;padding:0;
   background:none;border:1px solid rgba(237,236,232,.22);
   color:var(--ink);cursor:pointer;line-height:1;
   display:flex;align-items:center;justify-content:center;
-  transition:border-color var(--t-1) var(--ease-out),color var(--t-1) var(--ease-out);
+  transition:border-color var(--t-1) var(--ease-out),
+             color var(--t-1) var(--ease-out),
+             transform 110ms var(--ease-out);
 }
 .tune .pp:hover{border-color:var(--gold);color:var(--gold)}
+.tune .pp:active{transform:scale(.94)}   /* 鸿蒙的按压反馈，收到 110ms */
 .tune .pp svg{width:9px;height:9px;fill:currentColor;display:block}
 
 .tune .nm{
@@ -364,10 +415,8 @@ h1 b{font-weight:600}
   background:transparent;cursor:pointer;
   opacity:0;transition:opacity var(--t-1) var(--ease-out);
 }
-.tune:hover .vol,.tune .vol:focus-visible{opacity:1}
-.tune .vol::-webkit-slider-runnable-track{
-  height:1px;background:rgba(237,236,232,.28);
-}
+.tune.open:hover .vol,.tune .vol:focus-visible{opacity:1}
+.tune .vol::-webkit-slider-runnable-track{height:1px;background:rgba(237,236,232,.28)}
 .tune .vol::-webkit-slider-thumb{
   -webkit-appearance:none;appearance:none;
   width:7px;height:7px;margin-top:-3px;border-radius:0;background:var(--gold);
@@ -382,19 +431,12 @@ h1 b{font-weight:600}
 }
 .tune .x:hover{color:var(--ink)}
 
-/* 进度：贴在面板底沿的一条 1px，可点可拖 */
 .tune-seek{
   position:relative;height:2px;margin:0 12px 10px;
-  background:rgba(237,236,232,.1);cursor:pointer;
-  touch-action:none;
+  background:rgba(237,236,232,.1);cursor:pointer;touch-action:none;
 }
-.tune-seek i{
-  display:block;height:100%;width:0;background:var(--gold);
-  transition:width 140ms linear;
-}
-.tune-seek::after{
-  content:"";position:absolute;top:-9px;left:-6px;right:-6px;bottom:-9px;
-}
+.tune-seek i{display:block;height:100%;width:0;background:var(--gold);transition:width 140ms linear}
+.tune-seek::after{content:"";position:absolute;top:-9px;left:-6px;right:-6px;bottom:-9px}
 .tune.dragging .tune-seek i{transition:none}
 
 /* 询问卡 */
@@ -409,9 +451,7 @@ h1 b{font-weight:600}
   transition:opacity var(--t-3) var(--ease-out),transform var(--t-3) var(--spring-soft);
 }
 .tune-ask.on{opacity:1;transform:none;pointer-events:auto}
-.tune-ask .q{
-  font-size:13.5px;color:var(--ink);letter-spacing:-.005em;margin-bottom:4px;
-}
+.tune-ask .q{font-size:13.5px;color:var(--ink);letter-spacing:-.005em;margin-bottom:4px}
 .tune-ask .sub{
   font-family:var(--mono);font-size:11px;color:var(--ash3);
   line-height:1.65;margin-bottom:14px;
@@ -421,15 +461,25 @@ h1 b{font-weight:600}
   font-family:var(--mono);font-size:11.5px;cursor:pointer;
   padding:7px 14px;border-radius:0;
   transition:background var(--t-1) var(--ease-out),color var(--t-1) var(--ease-out),
-             border-color var(--t-1) var(--ease-out);
+             border-color var(--t-1) var(--ease-out),transform 110ms var(--ease-out);
 }
+.tune-ask button:active{transform:scale(.96)}
 .tune-ask .yes{background:var(--gold);color:#0A0C10;border:1px solid var(--gold)}
 .tune-ask .yes:hover{background:#D8B233;border-color:#D8B233}
 .tune-ask .no{background:none;color:var(--ash2);border:1px solid rgba(237,236,232,.18)}
 .tune-ask .no:hover{color:var(--ink);border-color:rgba(237,236,232,.4)}
 
+@media(max-width:520px){
+  .tune{width:calc(100vw - 24px);right:0;bottom:10px}
+  .tune-ask{right:12px;left:12px;bottom:10px;width:auto}
+}
+
+/* 减少动效：不滑出，保持展开；进度带不脉动 */
 @media(prefers-reduced-motion:reduce){
-  .tune,.tune-ask{transition:none}
+  .tune,.tune.open{ transform:translateX(0); transition:none }
+  .tune.playing .edge::after{ animation:none; opacity:.6 }
+  .tune-ask{transition:none}
+  .tune .pp:active,.tune-ask button:active{transform:none}
 }
 @media(max-width:520px){
   .tune-bar,.tune-ask{right:10px;left:10px;bottom:10px;width:auto}
@@ -1375,6 +1425,9 @@ a.get{
        aria-label="We Never（Remix）—— Hi Noise"></audio>
 
 <div class="tune" id="tuneBar" role="region" aria-label="背景音乐">
+  <div class="edge" id="tuneEdge" role="button" tabindex="0"
+       aria-label="展开播放器"><i id="tuneEdgeFill"></i></div>
+  <div class="body">
   <canvas class="tune-wave" id="tuneWave" width="616" height="108" aria-hidden="true"></canvas>
   <div class="tune-ctl">
     <button class="pp" id="tunePP" aria-label="暂停">
@@ -1389,6 +1442,7 @@ a.get{
   <div class="tune-seek" id="tuneSeek" role="slider" aria-label="播放进度"
        aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
     <i id="tuneProg"></i>
+  </div>
   </div>
 </div>
 
@@ -1497,6 +1551,7 @@ a.get{
     seek.setAttribute('aria-valuenow', String(Math.round(A.currentTime/d*100)));
     pp.innerHTML = A.paused ? ICON_PLAY : ICON_PAUSE;
     pp.setAttribute('aria-label', A.paused ? '播放' : '暂停');
+    if(edgeFill) edgeFill.style.height = (A.currentTime / d * 100).toFixed(2) + '%';
   }
 
   function fadeTo(target){
@@ -1510,8 +1565,68 @@ a.get{
     }, dt);
   }
 
-  function showBar(){ box.classList.add('on'); ask.classList.remove('on'); }
-  function hideBar(){ box.classList.remove('on'); }
+  /* ── 收边 ──
+     open  = 展开；on = 面板存在。两个维度分开：
+     收起只是滑出去，面板还在（进度带继续更新）。 */
+  const edge = document.getElementById('tuneEdge');
+  const edgeFill = document.getElementById('tuneEdgeFill');
+  const DOCK_DELAY = 1200;
+  let dockTimer = 0;
+
+  function showBar(){
+    box.classList.add('on', 'open');
+    ask.classList.remove('on');
+    clearTimeout(dockTimer);
+    // 出现后给 2.5 秒宽限再自动收边，否则它会一直占着 318×110 的位置——
+    // 没人碰它就没有 mouseleave，等事件等不来。
+    dockTimer = setTimeout(()=>{
+      if(!box.matches(':hover')) dockNow();
+    }, 2500);
+  }
+  function hideBar(){
+    box.classList.remove('on', 'open', 'playing');
+    clearTimeout(dockTimer);
+  }
+  function dockNow(){
+    if(REDUCE) return;                          // 减少动效：不收起
+    if(ask.classList.contains('on')) return;    // 询问卡在，别收
+    if(box.matches(':focus-within')) return;    // 键盘正在操作
+    box.classList.remove('open');
+  }
+  function scheduleDock(){
+    clearTimeout(dockTimer);
+    dockTimer = setTimeout(dockNow, DOCK_DELAY);
+  }
+
+  box.addEventListener('mouseenter', ()=>{
+    clearTimeout(dockTimer);
+    if(box.classList.contains('on')) box.classList.add('open');
+  });
+  box.addEventListener('mouseleave', scheduleDock);
+  box.addEventListener('focusin', ()=>{ clearTimeout(dockTimer); box.classList.add('open'); });
+  box.addEventListener('focusout', scheduleDock);
+
+  if(edge){
+    edge.addEventListener('click', ()=>{
+      box.classList.add('on', 'open');
+      clearTimeout(dockTimer);
+    });
+    edge.addEventListener('keydown', e=>{
+      if(e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        box.classList.add('on', 'open');
+        clearTimeout(dockTimer);
+      }
+    });
+  }
+
+  // 触摸设备没有 hover：点面板以外的地方收起
+  document.addEventListener('pointerdown', e=>{
+    if(e.pointerType !== 'touch') return;
+    if(!box.classList.contains('open')) return;
+    if(box.contains(e.target) || ask.contains(e.target)) return;
+    box.classList.remove('open');
+  }, true);
 
   /* ══════ 播放 ══════ */
   async function tryPlay(){
@@ -1648,10 +1763,14 @@ a.get{
   A.addEventListener('loadedmetadata', paintMeta);
   A.addEventListener('play', ()=>{
     paintMeta();
+    box.classList.add('playing');
     if(btn) btn.setAttribute('aria-expanded','true');
     startLoop();
   });
-  A.addEventListener('pause', ()=>{ paintMeta(); paint(); });
+  A.addEventListener('pause', ()=>{
+    paintMeta(); paint();
+    box.classList.remove('playing');
+  });
   A.addEventListener('ended', ()=>{ paintMeta(); paint(); });
 
   let resumeAfterHidden = false;
