@@ -12,13 +12,11 @@
 <br>
 
 [![License](https://img.shields.io/badge/license-MIT-2f6b4f?style=flat-square)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/172629438/loomgrid?style=flat-square&color=9a7b2e&label=release)](https://github.com/172629438/loomgrid/releases)
+![Tests](https://img.shields.io/badge/tests-433_assertions-2b2b2b?style=flat-square)
 [![Python](https://img.shields.io/badge/python-3.10%2B-1f3a5f?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![PySide6](https://img.shields.io/badge/PySide6-6.5%2B-1f3a5f?style=flat-square&logo=qt&logoColor=white)](https://www.qt.io/qt-for-python)
-![Code](https://img.shields.io/badge/code-110k_lines-2b2b2b?style=flat-square)
 ![Algorithms](https://img.shields.io/badge/algorithms-8_modules-2b2b2b?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-433_assertions-2b2b2b?style=flat-square)
-[![Release](https://img.shields.io/github/v/release/172629438/loomgrid?style=flat-square&color=9a7b2e&label=release)](https://github.com/172629438/loomgrid/releases)
-[![Last commit](https://img.shields.io/github/last-commit/172629438/loomgrid?style=flat-square&color=6b7280)](https://github.com/172629438/loomgrid/commits)
 
 <br>
 
@@ -39,19 +37,26 @@
 <details>
 <summary><b>目录（点开）</b></summary>
 
+**先弄明白这东西是什么**
 - [这是什么](#这是什么)
 - [该用哪个版本](#该用哪个版本)
 - [快速开始](#快速开始)
+
+**技术细节**
 - [核心算法](#核心算法)
 - [核心能力](#核心能力)
 - [藏在细节里的设计](#藏在细节里的设计)
 - [视觉与动效](#视觉与动效)
-- [版本说明](#版本说明)
-- [写给同行的话](#写给同行的话)
 - [架构与设计](#架构与设计)
 - [技术栈与环境](#技术栈与环境)
-- [已知边界](#已知边界)
+
+**凭什么信它的数**
 - [怎么保证算得对](#怎么保证算得对)
+- [已知边界](#已知边界)
+
+**其余**
+- [版本说明](#版本说明)
+- [写给同行的话](#写给同行的话)
 - [文档](#文档)
 - [接下来](#接下来)
 - [常见问题](#常见问题)
