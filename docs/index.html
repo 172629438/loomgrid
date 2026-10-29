@@ -332,6 +332,96 @@ footer{
 .footlinks{display:flex;gap:24px;flex-wrap:wrap;font-size:12.5px;color:var(--ash2)}
 .footlinks a:hover{color:var(--ash1)}
 
+/* ══════════ 交互与过渡 ══════════════════════════════════════
+   原则：只给“看得懂”的地方加动效。
+   · 揭示用幕布（clip-path），不用 fade-up——上升淡入是落地页最烂的默认脸
+   · 下划线用宽度展开，不用位移、不用缩放
+   · 高频交互（hover）不超过 340ms，进慢出快
+   · 全部响应 prefers-reduced-motion
+   ══════════════════════════════════════════════════════════ */
+
+/* 阅读进度：1px 金线，滚动时出现 */
+#prog{
+  position:fixed;top:0;left:0;height:1px;width:0;z-index:120;
+  background:linear-gradient(90deg,rgba(201,162,39,.35),var(--gold));
+  opacity:0;transition:opacity .5s ease;
+}
+#prog.on{opacity:1}
+
+/* 导航当前节 */
+.navlist a{position:relative}
+.navlist a::after{
+  content:"";position:absolute;left:0;right:100%;bottom:-7px;height:1px;
+  background:var(--gold);transition:right .34s cubic-bezier(.22,1,.36,1);
+}
+.navlist a.on{color:var(--ink)}
+.navlist a.on::after{right:0}
+
+/* 链接下划线：宽度展开 */
+.hero-act a,.ver .get{position:relative;border-bottom:0;padding-bottom:6px}
+.hero-act a::before,.ver .get::before{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--ash3);
+}
+.hero-act a::after,.ver .get::after{
+  content:"";position:absolute;left:0;bottom:0;height:1px;width:0;background:var(--gold);
+  transition:width .34s cubic-bezier(.22,1,.36,1);
+}
+.hero-act a:hover::after,.ver .get:hover::after{width:100%}
+.hero-act a:hover,.ver .get:hover{color:var(--gold)}
+
+/* 织面探针：把一个“展示图”变成“能查的图” */
+.loom{cursor:crosshair}
+.probe{position:absolute;inset:0;pointer-events:none;z-index:2}
+.probe-rule{
+  position:absolute;top:42px;bottom:0;width:1px;background:rgba(237,236,232,.38);
+  opacity:0;transition:opacity .16s ease;
+}
+.probe-mark{
+  position:absolute;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;
+  background:var(--ice);border-radius:50%;opacity:0;transition:opacity .16s ease;
+  box-shadow:0 0 0 3px rgba(8,9,11,.9),0 0 12px rgba(143,221,255,.55);
+}
+.probe-card{
+  position:absolute;top:52px;transform:translateX(-50%);
+  padding:9px 12px 9px 11px;background:rgba(9,11,15,.96);
+  border:1px solid rgba(237,236,232,.17);border-left:1px solid var(--gold-dim);
+  font-family:var(--mono);font-size:11.5px;line-height:1.72;
+  color:var(--ash1);white-space:nowrap;opacity:0;
+  transition:opacity .16s ease;pointer-events:none;
+}
+.probe-card .h{color:var(--gold);font-size:12px;letter-spacing:.02em}
+.probe-card .r{display:grid;grid-template-columns:auto 1fr;gap:0 12px;margin-top:5px}
+.probe-card .r span:nth-child(2n){text-align:right;color:var(--ink)}
+.probe.on .probe-rule,.probe.on .probe-mark,.probe.on .probe-card{opacity:1}
+
+/* 幕布揭示：用 mask-size 从上往下揭开。
+   不用 clip-path——它会把元素的可视矩形裁成 0，IntersectionObserver
+   算出来面积永远是 0，永远不触发，形成「不揭开就不观察到、 不观察到就不揭开」的死锁。
+   mask 只影响绘制，不影响几何，观察器正常工作。 */
+.js .reveal{
+  -webkit-mask-image:linear-gradient(180deg,#000,#000);
+          mask-image:linear-gradient(180deg,#000,#000);
+  -webkit-mask-size:100% 0%;
+          mask-size:100% 0%;
+  -webkit-mask-position:top;
+          mask-position:top;
+  -webkit-mask-repeat:no-repeat;
+          mask-repeat:no-repeat;
+}
+.js .reveal.in{
+  -webkit-mask-size:100% 100%;
+          mask-size:100% 100%;
+  transition:-webkit-mask-size .74s cubic-bezier(.22,1,.36,1),mask-size .74s cubic-bezier(.22,1,.36,1);
+}
+
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .js .reveal{-webkit-mask-image:none !important;mask-image:none !important;transition:none !important}
+  .js .warpline,.js .loom-load,.js .loom-soc{opacity:1 !important;transition:none !important}
+  #prog{transition:none}
+  .navlist a::after,.hero-act a::after,.ver .get::after{transition:none}
+}
+
 /* ══════════ 动效：全页唯一一次编排，只在 hero 织面 ══════════ */
 .js .warpline,
 .js .loom-load,
@@ -348,10 +438,11 @@ footer{
   .js .warpline,.js .loom-load,.js .loom-net,.js .loom-fill,.js .loom-soc{
     opacity:1 !important;transition:none !important
   }
-}
-</style>
+}</style>
 </head>
 <body>
+
+<div id="prog"></div>
 
 <nav id="nav">
   <a class="brand" href="#hero"><i></i><b>Loom</b><span>Grid</span></a>
@@ -392,6 +483,18 @@ footer{
     </div>
     <svg id="loomSvg" viewBox="0 0 1600 380" preserveAspectRatio="none" role="img"
          aria-label="一天 96 点：24 小时分时电价经线、负荷曲线、储能 SOC 轨迹"></svg>
+    <div class="probe" id="probe">
+      <div class="probe-rule" id="probeRule"></div>
+      <div class="probe-mark" id="probeMark"></div>
+      <div class="probe-card" id="probeCard">
+        <div class="h" id="probeTime">00:00</div>
+        <div class="r">
+          <span>负荷</span><span id="probeLoad">–</span>
+          <span>SOC</span><span id="probeSoc">–</span>
+          <span>电价</span><span id="probePrice">–</span>
+        </div>
+      </div>
+    </div>
   </div>
 
 </section>
@@ -434,29 +537,29 @@ footer{
     </p>
 
     <div class="stack">
-      <figure class="shot">
-        <img src="assets/ultra-main-imported.png" alt="Ultra 主工作台" loading="lazy">
+      <figure class="shot reveal">
+        <img src="assets/ultra-main-imported.png" alt="Ultra 主工作台">
         <figcaption><span><b>主工作台</b> · 拖入文件 → 自动识别列 → 批量生成</span><span>Ultra v3.2.2</span></figcaption>
       </figure>
 
       <div class="pair">
-        <figure class="shot">
-          <img src="assets/ultra-data-preview.png" alt="数据预览与列映射" loading="lazy">
+        <figure class="shot reveal">
+          <img src="assets/ultra-data-preview.png" alt="数据预览与列映射">
           <figcaption><span><b>数据预览</b> · 288 行 × 6 列，三列自动识别</span></figcaption>
         </figure>
-        <figure class="shot">
-          <img src="assets/ultra-sensitivity.png" alt="敏感性分析" loading="lazy">
+        <figure class="shot reveal">
+          <img src="assets/ultra-sensitivity.png" alt="敏感性分析">
           <figcaption><span><b>敏感性</b> · 五项参数各带 IRR / NPV</span></figcaption>
         </figure>
       </div>
 
       <div class="pair">
-        <figure class="shot">
-          <img src="assets/ultra-load-sim.png" alt="负荷曲线模拟器" loading="lazy">
+        <figure class="shot reveal">
+          <img src="assets/ultra-load-sim.png" alt="负荷曲线模拟器">
           <figcaption><span><b>负荷模拟器</b> · 25 个行业模板</span></figcaption>
         </figure>
-        <figure class="shot">
-          <img src="assets/ultra-curve-dark.png" alt="负荷曲线与 SOC 轨迹" loading="lazy">
+        <figure class="shot reveal">
+          <img src="assets/ultra-curve-dark.png" alt="负荷曲线与 SOC 轨迹">
           <figcaption><span><b>曲线渲染</b> · 负荷 / SOC 双层，深色主题</span></figcaption>
         </figure>
       </div>
@@ -474,8 +577,8 @@ footer{
       这也是这套工具敢说自己算得准的办法。
     </p>
 
-    <figure class="engines-fig fig">
-      <img src="assets/engines.png" alt="三引擎对拍：LP、逐日仿真、贪心在同一条负荷曲线上的 SOC 轨迹" loading="lazy">
+    <figure class="engines-fig fig reveal">
+      <img src="assets/engines.png" alt="三引擎对拍：LP、逐日仿真、贪心在同一条负荷曲线上的 SOC 轨迹">
     </figure>
 
     <table class="engtable">
@@ -533,8 +636,8 @@ footer{
       </div>
     </div>
 
-    <figure class="arch-fig fig">
-      <img src="assets/architecture.png" alt="四层架构：表现层、编排层、领域层、底座层，依赖只向下" loading="lazy">
+    <figure class="arch-fig fig reveal">
+      <img src="assets/architecture.png" alt="四层架构：表现层、编排层、领域层、底座层，依赖只向下">
     </figure>
     <p class="sub" style="margin-top:14px">
       四层架构 —— 依赖只向下，领域层不 import 任何 Qt 组件。这是算法能脱离界面单独跑的物理前提。
@@ -611,11 +714,50 @@ footer{
    跑 optimal_dispatch_lp 的输出，不是手画的示意曲线。
    ══════════════════════════════════════════════════════════════ */
 
-/* ── 导航状态 ── */
+/* ── 导航状态 · 阅读进度 · 当前节 ── */
 (function(){
   const nav=document.getElementById('nav');
-  const on=()=>nav.classList.toggle('on',scrollY>40);
-  addEventListener('scroll',on,{passive:true}); on();
+  const prog=document.getElementById('prog');
+  let raf=0;
+
+  function upd(){
+    raf=0;
+    const y=scrollY;
+    nav.classList.toggle('on', y>40);
+
+    const max=document.documentElement.scrollHeight-innerHeight;
+    const p=max>0?Math.min(1,y/max):0;
+    prog.style.width=(p*100).toFixed(2)+'%';
+    prog.classList.toggle('on', y>120 && p<0.999);
+  }
+  addEventListener('scroll',()=>{ if(!raf) raf=requestAnimationFrame(upd); },{passive:true});
+  addEventListener('resize',upd,{passive:true});
+  upd();
+
+  /* 当前节：取视口中线所在的那一节 */
+  const links=Array.prototype.slice.call(document.querySelectorAll('.navlist a'));
+  const secs=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  if(secs.length){
+    const spy=new IntersectionObserver((es)=>{
+      es.forEach(e=>{
+        if(!e.isIntersecting) return;
+        links.forEach(a=>a.classList.toggle('on', a.getAttribute('href')==='#'+e.target.id));
+      });
+    },{rootMargin:'-45% 0px -50% 0px'});
+    secs.forEach(s=>spy.observe(s));
+  }
+})();
+
+/* ── 幕布揭示：进视口时揭开（只播一次） ── */
+(function(){
+  const items=document.querySelectorAll('.reveal');
+  if(!items.length || !('IntersectionObserver' in window)) return;
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  },{threshold:.08,rootMargin:'0px 0px -6% 0px'});
+  items.forEach(el=>io.observe(el));
 })();
 
 /* ── 织面 ── */
@@ -702,7 +844,63 @@ footer{
   });
   svg.appendChild(gAxis);
 
-  /* ⑥ 唯一一次编排：经线依次亮起 → 负荷 → SOC */
+  /* ⑦ 探针：鼠标在织面上移动时，读出那一刻的真实数据 */
+  (function probe(){
+    const box=document.getElementById('probe');
+    const rule=document.getElementById('probeRule');
+    const mark=document.getElementById('probeMark');
+    const card=document.getElementById('probeCard');
+    const tEl=document.getElementById('probeTime');
+    const lEl=document.getElementById('probeLoad');
+    const sEl=document.getElementById('probeSoc');
+    const pEl=document.getElementById('probePrice');
+    const host=box ? box.parentElement : null;
+    if(!box||!host) return;
+
+    const pad=(v,w)=>String(v).padStart(w,'0');
+    let last=-1;
+
+    function show(clientX, clientY){
+      const lr=host.getBoundingClientRect();
+      const sr=svg.getBoundingClientRect();
+      if(!lr.width||!sr.height) return;
+
+      const t=Math.max(0,Math.min(1,(clientX-lr.left)/lr.width));
+      const i=Math.max(0,Math.min(n-1,Math.round(t*(n-1))));
+      if(i===last) return;
+      last=i;
+
+      const xPx=(i/(n-1))*lr.width;
+      const yPx=(sr.top-lr.top)+yLoad(D.load[i])*(sr.height/H);
+
+      rule.style.left=xPx.toFixed(1)+'px';
+      mark.style.left=xPx.toFixed(1)+'px';
+      mark.style.top=yPx.toFixed(1)+'px';
+
+      const hh=Math.floor(D.hours[i]);
+      const mm=Math.round((D.hours[i]-hh)*60);
+      tEl.textContent=pad(hh,2)+':'+pad(mm,2);
+      lEl.textContent=Math.round(D.load[i])+' kW';
+      sEl.textContent=Math.round(D.soc[i]*100)+'%';
+      pEl.textContent=D.price[i].toFixed(2)+' 元';
+
+      const cw=card.offsetWidth||110;
+      const cl=Math.max(cw/2+4, Math.min(lr.width-cw/2-4, xPx));
+      card.style.left=cl.toFixed(1)+'px';
+      box.classList.add('on');
+    }
+
+    function hide(){ box.classList.remove('on'); last=-1; }
+
+    host.addEventListener('mousemove',e=>show(e.clientX,e.clientY),{passive:true});
+    host.addEventListener('mouseleave',hide,{passive:true});
+    host.addEventListener('touchmove',e=>{
+      if(e.touches[0]) show(e.touches[0].clientX,e.touches[0].clientY);
+    },{passive:true});
+    host.addEventListener('touchend',hide,{passive:true});
+  })();
+
+  /* ⑧ 唯一一次编排：经线依次亮起 → 负荷 → SOC */
   if(reduce){
     document.querySelectorAll('.warpline').forEach(l=>l.style.opacity=1);
     pLoad.style.opacity=1; gSoc.style.opacity=1;
