@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>LoomGrid 三引擎对拍</title>
+<script src="engines_data.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:2400px; height:1320px; overflow:hidden; }
+  body {
+    background:#070B12;
+    font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;
+    color:#F2F5FA; position:relative;
+  }
+  .bg {
+    position:absolute; inset:0;
+    background:
+      radial-gradient(1300px 700px at 10% -8%, rgba(212,175,55,.09), transparent 62%),
+      radial-gradient(1100px 660px at 92% 106%, rgba(78,205,196,.08), transparent 60%),
+      linear-gradient(170deg,#080D15 0%,#0A0F18 48%,#070B12 100%);
+  }
+  .grid {
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px);
+    background-size:72px 72px;
+    mask-image: radial-gradient(circle at 50% 40%, #000 30%, transparent 80%);
+    -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 30%, transparent 80%);
+  }
+  .stage { position:absolute; inset:0; padding:60px 84px 48px; display:flex; flex-direction:column; }
+
+  header { display:flex; align-items:flex-end; justify-content:space-between; }
+  .mark { width:9px; height:28px; border-radius:2px;
+    background:linear-gradient(180deg,#F4D77A,#D4AF37 55%,rgba(212,175,55,.18));
+    box-shadow:0 0 18px rgba(212,175,55,.5); }
+  .hrow { display:flex; align-items:center; gap:13px; }
+  .h1 { font-size:42px; font-weight:700; letter-spacing:-.02em; }
+  .h1 span { font-weight:200; color:rgba(242,245,250,.5); }
+  .meta { text-align:right; font-size:16px; color:rgba(242,245,250,.50);
+    line-height:1.7; letter-spacing:.04em; font-family:'Mono',monospace; }
+  .meta b { color:rgba(242,245,250,.86); font-weight:600; }
+
+  .body { flex:1; display:flex; gap:40px; margin-top:26px; min-height:0; }
+
+  /* 左：SOC 轨迹 */
+  .left { flex:1.55; display:flex; flex-direction:column; min-width:0; }
+  .ptitle { font-size:15px; letter-spacing:.16em; color:rgba(242,245,250,.48);
+    text-transform:uppercase; margin-bottom:8px; }
+  .chart { flex:1; position:relative; }
+  svg { display:block; width:100%; height:100%; }
+
+  /* 右：收益对比 */
+  .right { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .rows { flex:1; display:flex; flex-direction:column; justify-content:center; gap:26px; }
+  .row { }
+  .row .top { display:flex; align-items:baseline; justify-content:space-between; }
+  .row .nm { font-size:22px; font-weight:600; }
+  .row .nm em { font-style:normal; font-size:13px; letter-spacing:.14em;
+    color:rgba(242,245,250,.34); margin-left:10px; text-transform:uppercase; }
+  .row .val { font-family:'Mono',monospace; font-size:26px; font-weight:600;
+    font-variant-numeric:tabular-nums; }
+  .row .bar { height:9px; border-radius:5px; margin-top:11px;
+    background:rgba(255,255,255,.06); overflow:hidden; }
+  .row .fill { height:100%; border-radius:5px; }
+  .row .note { font-size:13.5px; color:rgba(242,245,250,.42); margin-top:9px; line-height:1.4; }
+  .gap { font-size:13px; color:rgba(242,245,250,.34); margin-left:8px; }
+
+  footer { padding-top:18px; border-top:1px solid rgba(255,255,255,.075);
+    display:flex; align-items:flex-start; gap:16px; }
+  .fbar { width:3px; align-self:stretch; border-radius:2px;
+    background:linear-gradient(180deg,rgba(212,175,55,.85),rgba(212,175,55,.12)); }
+  .ftext { font-size:17.5px; line-height:1.6; color:rgba(242,245,250,.70); }
+  .ftext b { color:#F0CE72; font-weight:600; }
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="grid"></div>
+
+  <div class="stage">
+    <header>
+      <div class="hrow">
+        <span class="mark"></span>
+        <div class="h1">三引擎 <span>对拍</span></div>
+      </div>
+      <div class="meta" id="meta"></div>
+    </header>
+
+    <div class="body">
+      <div class="left">
+        <div class="ptitle">SOC 轨迹 · 同一条负荷 · 同一套电价</div>
+        <div class="chart"><svg id="s" viewBox="0 0 1400 800" preserveAspectRatio="none"></svg></div>
+      </div>
+      <div class="right">
+        <div class="ptitle">日套利收益</div>
+        <div class="rows" id="rows"></div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="fbar"></div>
+      <div class="ftext" id="ft"></div>
+    </footer>
+  </div>
+
+<script>
+const D = window.ENGINES;
+const E='http://www.w3.org/2000/svg';
+const svg=document.getElementById('s');
+const VW=1400, VH=800;
+const L=84, R=VW-52, TOP=24, BOT=VH-58;
+const PW=R-L;
+const mk=(t,a)=>{const e=document.createElementNS(E,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+const xOf=i=>L+(i/(D.hours.length-1))*PW;
+const yOf=v=>BOT-(v/100)*(BOT-TOP);
+
+document.getElementById('meta').innerHTML =
+  `<b>${D.stats.cap_kwh}</b> kWh · <b>${D.stats.p_max}</b> kW · ` +
+  `峰谷价差 <b>${D.stats.spread.toFixed(2)}</b> 元/kWh<br>负荷峰值 <b>${D.stats.peak_kw}</b> kW`;
+
+// 网格
+for(let v=0;v<=100;v+=25){
+  const y=yOf(v);
+  svg.appendChild(mk('line',{x1:L,y1:y,x2:R,y2:y,
+    stroke:v===0?'rgba(255,255,255,.18)':'rgba(255,255,255,.05)','stroke-width':1}));
+  const t=mk('text',{x:L-14,y:y+6,'text-anchor':'end',
+    fill:'rgba(242,245,250,.42)','font-size':16,'font-family':'Mono, monospace'});
+  t.textContent=v+'%'; svg.appendChild(t);
+}
+for(let h=0;h<=24;h+=4){
+  const x=L+(h/24)*PW;
+  svg.appendChild(mk('line',{x1:x,y1:TOP,x2:x,y2:BOT,
+    stroke:'rgba(255,255,255,.035)','stroke-width':1}));
+  const t=mk('text',{x:x,y:BOT+26,'text-anchor':'middle',
+    fill:'rgba(242,245,250,.40)','font-size':15,'font-family':'Mono, monospace'});
+  t.textContent=String(h).padStart(2,'0')+':00'; svg.appendChild(t);
+}
+
+// 三条 SOC 轨迹
+D.engines.forEach((eng, idx)=>{
+  const isLP = idx===0;
+  let p='';
+  eng.soc.forEach((v,i)=>{
+    p += (i?'L ':'M ')+xOf(i).toFixed(1)+' '+yOf(v*100).toFixed(1)+' ';
+  });
+  if(!isLP){
+    svg.appendChild(mk('path',{d:p,fill:'none',stroke:eng.color,
+      'stroke-width':2.0,'stroke-linejoin':'round','stroke-linecap':'round',
+      'stroke-opacity':.75,'stroke-dasharray':idx===1?'none':'8 6'}));
+  } else {
+    // LP 画两次：先粗描边做辉光，再画实线
+    svg.appendChild(mk('path',{d:p,fill:'none',stroke:eng.color,
+      'stroke-width':7,'stroke-linejoin':'round','stroke-linecap':'round',
+      'stroke-opacity':.18}));
+    svg.appendChild(mk('path',{d:p,fill:'none',stroke:eng.color,
+      'stroke-width':3.0,'stroke-linejoin':'round','stroke-linecap':'round'}));
+  }
+});
+
+// 图例
+D.engines.forEach((eng,i)=>{
+  const lx=L+10+i*220, ly=TOP+8;
+  svg.appendChild(mk('rect',{x:lx,y:ly,width:26,height:5,rx:2.5,fill:eng.color,
+    'fill-opacity':i===0?1:.8}));
+  const t=mk('text',{x:lx+34,y:ly+7,fill:'rgba(242,245,250,.62)','font-size':16});
+  t.textContent=eng.name; svg.appendChild(t);
+});
+
+// 右侧柱
+const maxSave = Math.max(...D.engines.map(e=>e.saving));
+const lpSave = D.engines[0].saving;
+document.getElementById('rows').innerHTML = D.engines.map(e=>{
+  const pct = e.saving / maxSave * 100;
+  const gap = e.saving === lpSave ? '' :
+    `<span class="gap">LP 的 ${(e.saving/lpSave*100).toFixed(0)}%</span>`;
+  return `<div class="row">
+    <div class="top">
+      <div class="nm">${e.name}<em>${e.en}</em></div>
+      <div class="val" style="color:${e.color}">¥${e.saving}${gap}</div>
+    </div>
+    <div class="bar"><div class="fill" style="width:${pct}%;background:${e.color};opacity:${e.saving===lpSave?1:.65}"></div></div>
+    <div class="note">${e.note}</div>
+  </div>`;
+}).join('');
+
+document.getElementById('ft').innerHTML =
+  `三个引擎<b>不是三种实现，是三个场景</b>——LP 求全局最优解（充放 2989 / 2736 kWh），` +
+  `逐日仿真按时段规则执行（少放 39%），贪心只在有光伏或风电时才动。` +
+  `把它们放在一起对拍，是这套工具敢说自己算得准的办法。`;
+</script>
+</body>
+</html>
