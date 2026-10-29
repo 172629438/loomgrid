@@ -377,9 +377,9 @@ footer{
   opacity:0;transition:opacity .16s ease;
 }
 .probe-mark{
-  position:absolute;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;
+  position:absolute;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;
   background:var(--ice);border-radius:50%;opacity:0;transition:opacity .16s ease;
-  box-shadow:0 0 0 3px rgba(8,9,11,.9),0 0 12px rgba(143,221,255,.55);
+  box-shadow:0 0 0 2px rgba(8,9,11,1),0 0 16px rgba(143,221,255,.7);
 }
 .probe-card{
   position:absolute;top:52px;transform:translateX(-50%);
@@ -393,6 +393,24 @@ footer{
 .probe-card .r{display:grid;grid-template-columns:auto 1fr;gap:0 12px;margin-top:5px}
 .probe-card .r span:nth-child(2n){text-align:right;color:var(--ink)}
 .probe.on .probe-rule,.probe.on .probe-mark,.probe.on .probe-card{opacity:1}
+
+/* 标题进入：一根 1px 金线从左展开，不做位移 */
+h2{position:relative}
+.js h2::after{
+  content:"";position:absolute;left:0;bottom:-16px;height:1px;width:0;
+  background:linear-gradient(90deg,var(--gold),rgba(201,162,39,.12));
+  transition:width .56s cubic-bezier(.22,1,.36,1) .1s;
+}
+.js .seen h2::after{width:min(132px,34%)}
+
+/* 算法表：三行错开落位，像账本一页页翻 */
+.js .engtable tbody tr{opacity:0;transform:translateY(9px)}
+.js .engtable.in tbody tr{
+  opacity:1;transform:none;
+  transition:opacity .42s ease,transform .42s cubic-bezier(.22,1,.36,1);
+}
+.js .engtable.in tbody tr:nth-child(2){transition-delay:.09s}
+.js .engtable.in tbody tr:nth-child(3){transition-delay:.18s}
 
 /* 幕布揭示：用 mask-size 从上往下揭开。
    不用 clip-path——它会把元素的可视矩形裁成 0，IntersectionObserver
@@ -418,6 +436,8 @@ footer{
   html{scroll-behavior:auto}
   .js .reveal{-webkit-mask-image:none !important;mask-image:none !important;transition:none !important}
   .js .warpline,.js .loom-load,.js .loom-soc{opacity:1 !important;transition:none !important}
+  .js h2::after{width:min(132px,34%) !important;transition:none !important}
+  .js .engtable tbody tr{opacity:1 !important;transform:none !important;transition:none !important}
   #prog{transition:none}
   .navlist a::after,.hero-act a::after,.ver .get::after{transition:none}
 }
@@ -748,16 +768,48 @@ footer{
   }
 })();
 
-/* ── 幕布揭示：进视口时揭开（只播一次） ── */
+/* ── 幕布揭示 · 节进入 ── */
 (function(){
+  if(!('IntersectionObserver' in window)) return;
+
+  // 图片幕布
   const items=document.querySelectorAll('.reveal');
-  if(!items.length || !('IntersectionObserver' in window)) return;
-  const io=new IntersectionObserver((es)=>{
+  if(items.length){
+    const io=new IntersectionObserver((es)=>{
+      es.forEach(e=>{
+        if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    },{threshold:.08,rootMargin:'0px 0px -6% 0px'});
+    items.forEach(el=>io.observe(el));
+  }
+
+  // 节进入（驱动标题线）
+  const secs=document.querySelectorAll('section[id]');
+  const so=new IntersectionObserver((es)=>{
     es.forEach(e=>{
-      if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+      if(e.isIntersecting){ e.target.classList.add('seen'); so.unobserve(e.target); }
     });
-  },{threshold:.08,rootMargin:'0px 0px -6% 0px'});
-  items.forEach(el=>io.observe(el));
+  },{threshold:0,rootMargin:'0px 0px -12% 0px'});
+  secs.forEach(el=>so.observe(el));
+
+  // 算法表
+  const tb=document.querySelector('.engtable');
+  if(tb){
+    const to=new IntersectionObserver((es)=>{
+      es.forEach(e=>{
+        if(e.isIntersecting){ e.target.classList.add('in'); to.unobserve(e.target); }
+      });
+    },{threshold:.25});
+    to.observe(tb);
+  }
+
+  // 兜底：观察器万一失效（旧浏览器 / 拓展干扰），8 秒后全部兑底显示，
+  // 宁可丢掉动效，不能丢内容。
+  setTimeout(()=>{
+    document.querySelectorAll('.reveal:not(.in)').forEach(e=>e.classList.add('in'));
+    document.querySelectorAll('.engtable:not(.in)').forEach(e=>e.classList.add('in'));
+    document.querySelectorAll('section[id]:not(.seen)').forEach(e=>e.classList.add('seen'));
+  },8000);
 })();
 
 /* ── 织面 ── */
