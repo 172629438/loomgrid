@@ -316,17 +316,7 @@ h1 b{font-weight:600}
   transition:color var(--t-1) var(--ease-out);
 }
 .tune-btn:hover{color:var(--ink)}
-.tune-btn .note{
-  display:inline-block;width:11px;height:11px;flex:0 0 auto;
-  border-left:1.5px solid currentColor;border-bottom:1.5px solid currentColor;
-  position:relative;opacity:.75;
-}
-.tune-btn .note::after{
-  content:"";position:absolute;right:-3px;top:-2px;width:3px;height:3px;
-  border-radius:50%;background:currentColor;
-}
 .tune-btn[aria-expanded="true"]{color:var(--gold)}
-.tune-btn[aria-expanded="true"] .note{opacity:1}
 
 .tune-panel{
   position:fixed;right:20px;bottom:20px;z-index:60;
@@ -1205,7 +1195,7 @@ input[type=range]::-moz-range-thumb{
       <a href="https://github.com/172629438/loomgrid/releases">全部版本</a>
       <button class="tune-btn" id="tuneBtn" aria-expanded="false" aria-controls="tunePanel"
               title="We Never —— 被网友叫做「Claude Opus 5.5 の小曲」的那首">
-        <span class="note" aria-hidden="true"></span>写这页时循环的那首
+        <span aria-hidden="true" style="font-size:13px;line-height:1">♪</span>写这页时循环的那首
       </button>
     </div>
   </div>
