@@ -1262,19 +1262,6 @@ nav.on{
   box-shadow:inset 0 1px 0 var(--glass-hi);
 }
 
-/* ── 取景框：滚动停下来之后才对齐 ────────────────────────────
-   试过 CSS scroll-snap-type: proximity，废弃了。滚轮连续输入时
-   浏览器每一步都在「滚过去 → 吸回来」之间拉锯：实测滚 25 次
-   （每次 100px）页面只前进到 151px，且在 128↔148 之间抖动，
-   最后弹回 0。snap 适合一次一屏的整页翻，不适合有长节的页面。
-
-   改成：滚动期间完全不干预，停稳 180ms 后才判断——
-   离最近节顶不到 110px 就平滑归位，超过就认为读者要停在半路，放行。
-   只对齐「差一点点」的情况，所以不会把人从节中间拽走。
-
-   #why 单独处理：内容 655px 只占半屏，底部露出下一节标题，
-   读起来像「滚到一半」而不是「一页」。撑满一屏并垂直居中，
-   屏与屏之间本身就是界，那条节首分割线也就不需要了。       */
 @media (min-width:900px){
   #why{
     min-height:100vh;
@@ -2247,43 +2234,12 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
   io.observe(hero);
 })();
 
-/* ── 取景框：停稳后才对齐 ──
-   滚动过程完全不碰，只在滚动结束 180ms 后判断一次：
-   最近节顶距离不到 110px 就平滑归位，否则认为读者想停在半路。
-   用 scrollend（Chrome）优先，Safari 等退化为 debounce。
-   calm 标志防自触发：自己滚完会再发一次 scrollend，那时距离已近似 0。 */
-(function(){
-  if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const secs = Array.prototype.slice.call(document.querySelectorAll('section[id]'));
-  if(!secs.length) return;
-  const NAV = 58, THRESH = 110;
-  let timer = 0, calm = 0;
-
-  function settle(){
-    if(innerWidth < 900 || calm) return;
-    const y = scrollY;
-    let best = null, bd = 1e9;
-    for(let i=0;i<secs.length;i++){
-      const top = secs[i].getBoundingClientRect().top + y - NAV;
-      const d = Math.abs(y - top);
-      if(d < bd){ bd = d; best = top; }
-    }
-    if(best === null || bd < 2 || bd > THRESH) return;
-    calm = 1;
-    scrollTo({top: Math.max(0, best), behavior:'smooth'});
-    setTimeout(()=>{ calm = 0; }, 680);
-  }
-
-  if('onscrollend' in window){
-    addEventListener('scrollend', settle, {passive:true});
-  }else{
-    addEventListener('scroll', ()=>{
-      if(calm) return;
-      clearTimeout(timer);
-      timer = setTimeout(settle, 180);
-    }, {passive:true});
-  }
-})();
+/* ── 滚动吸附：试过两次，都撤了 ──
+   v1 CSS scroll-snap-type: proximity —— 滚轮连续输入时浏览器反复拉锯，
+      实测滚 25 次页面只前进 151px，最后弹回 0。
+   v2 停稳后 180ms 判断一次，距节顶 <110px 就归位 —— 没劫持滚动，
+      但停稳后又自己动一下，读起来像页面在跟人抢位置。
+   拖动本身已经是读者的意图，不需要谁来替他决定该停在哪。*/
 
 /* ── 幕布揭示 · 节进入 ──
    支持 CSS 滚动驱动时由 @supports 里的 keyframes 接管，
