@@ -297,13 +297,42 @@ h1 b{font-weight:600}
 a.zoomimg{ display:block; cursor:zoom-in; position:relative; z-index:1 }
 
 /* ── 卡牌化 ────────────────────────────────────────────────────
-   悬停时边框提亮、底色稍抬。不做位移——并排的卡挪动会像在打架。 */
+   炉石那套的运动逻辑：卡片有重量，悬停会「升起」，鼠标移动时跟着转。
+   不抄它的美术（发光、粒子）——这是工程工具，不是游戏。
+
+   两个变量由 JS 写入：
+     --rx / --ry  鼠标在卡面上的位置（-1 ~ 1）
+   卡片本体用 perspective + rotate 做出厚度感。 */
 .shot{
-  transition:border-color var(--t-1) var(--ease-out),
-             background var(--t-1) var(--ease-out);
+  --rx:0; --ry:0;
+  position:relative;
+  transform-style:preserve-3d;
+  transition:border-color var(--t-2) var(--ease-out),
+             background var(--t-2) var(--ease-out),
+             box-shadow var(--t-2) var(--ease-out),
+             transform 420ms cubic-bezier(.22,.9,.24,1);
+  will-change:transform;
 }
-.shot:hover{ border-color:rgba(201,162,39,.42); background:#101216 }
-.shot:hover figcaption{ color:var(--ash1) }
+/* 悬停：升起 + 跟随鼠标的 3D 倾斜 + 一层投影 */
+.shot:hover{
+  border-color:rgba(201,162,39,.46);
+  background:#101216;
+  transform:
+    perspective(900px)
+    translateY(-10px)
+    rotateX(calc(var(--ry) * -5deg))
+    rotateY(calc(var(--rx) * 7deg))
+    scale(1.015);
+  box-shadow:
+    0 28px 64px -24px rgba(0,0,0,.85),
+    0 0 0 1px rgba(201,162,39,.18);
+  z-index:2;
+}
+.shot:hover figcaption{ color:var(--ash1); border-top-color:rgba(201,162,39,.24) }
+/* 按住：像把卡捏起来，压一点 */
+.shot:active{ transform:perspective(900px) translateY(-4px) scale(0.995) }
+/* 灯箱打开时，来源卡在原位淡出，造成「卡飞走了」的错觉 */
+.shot.lifted{ opacity:.18; transition:opacity 300ms var(--ease-out) }
 
 /* 右上角：「展开」 */
 a.zoomimg::after{
@@ -322,14 +351,34 @@ a.zoomimg:hover::after,a.zoomimg:focus-visible::after{ opacity:1; transform:none
 /* ── 灯箱 ──────────────────────────────────────────────────────
    站内放大：遮罩 + 大图 + 标注点 + 说明 + 计数 + 左右切换。
    图按 viewport 做上限，不裁切；遮罩点空白即可关。 */
+/* 灯箱：不用 display 硬切。display 无法过渡，
+   改成 visibility + opacity，让遮罩能淡、图能飞。 */
 .litebox{
-  position:fixed; inset:0; z-index:300; display:none;
-  align-items:center; justify-content:center;
+  position:fixed; inset:0; z-index:300;
+  display:flex; align-items:center; justify-content:center;
   background:rgba(6,7,10,.945);
   -webkit-backdrop-filter:blur(18px) saturate(140%);
   backdrop-filter:blur(18px) saturate(140%);
+  opacity:0; visibility:hidden;
+  transition:opacity 320ms var(--ease-out), visibility 0s linear 320ms;
 }
-.litebox.on{ display:flex }
+.litebox.on{
+  opacity:1; visibility:visible;
+  transition:opacity 260ms var(--ease-out), visibility 0s;
+}
+/* 关闭中：遮罩先淡，与图飞回同时进行（关闭逻辑见 JS） */
+.litebox.closing{
+  opacity:0;
+  transition:opacity 300ms var(--ease-out), visibility 0s linear 300ms;
+}
+/* 图与说明跟着遮罩一起淡入；FLIP 的位移由 JS 写在 transform 上，
+   所以这里的 transform 只做收尾（从 0.98 到 1 那種轻微落位）。 */
+.litebox .lb-stage{
+  transform:scale(.985); opacity:0;
+  transition:transform 420ms cubic-bezier(.22,.9,.24,1),
+             opacity 300ms var(--ease-out);
+}
+.litebox.on .lb-stage{ transform:none; opacity:1 }
 .litebox .lb-stage{ position:relative; max-width:94vw; max-height:88vh }
 .litebox .lb-img{
   display:block; max-width:94vw; max-height:88vh;
@@ -375,7 +424,12 @@ a.zoomimg:hover::after,a.zoomimg:focus-visible::after{ opacity:1; transform:none
   .litebox .lb-cap{ position:static; margin-top:10px }
 }
 @media (prefers-reduced-motion:reduce){
-  .litebox *,.shot,a.zoomimg::after{ transition:none !important }
+  .shot,.shot:hover,.shot:active{
+    transform:none !important;
+    transition:border-color 120ms,background 120ms !important;
+  }
+  .litebox *,.litebox,.shot,a.zoomimg::after{ transition:none !important }
+  .litebox .lb-stage{ transform:none !important; opacity:1 !important }
 }
 
 /* ── 截图标注点 ────────────────────────────────────────────────
@@ -2370,7 +2424,29 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     const figs = [...document.querySelectorAll('.shot')];
     if(!figs.length) return;
 
-    /* 先把每张图包进可点的卡 */
+    const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const HOVERABLE = matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+    /* ── 3D 跟随 ──
+       鼠标在卡面上的相对位置写进 --rx / --ry，CSS 用它们算旋转角。
+       只在真悬停设备上挂——触屏没有 hover。 */
+    if(HOVERABLE && !REDUCE){
+      figs.forEach((fig)=>{
+        fig.addEventListener('pointermove', (e)=>{
+          const r = fig.getBoundingClientRect();
+          const rx = ((e.clientX - r.left) / r.width) * 2 - 1;
+          const ry = ((e.clientY - r.top) / r.height) * 2 - 1;
+          fig.style.setProperty('--rx', rx.toFixed(3));
+          fig.style.setProperty('--ry', ry.toFixed(3));
+        });
+        fig.addEventListener('pointerleave', ()=>{
+          fig.style.setProperty('--rx', 0);
+          fig.style.setProperty('--ry', 0);
+        });
+      });
+    }
+
+    /* ── 先把每张图包进可点的卡 ── */
     figs.forEach((fig)=>{
       const img = fig.querySelector('img');
       if(!img || img.closest('a')) return;
@@ -2457,22 +2533,82 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       btnNext.disabled = figs.length < 2;
     }
 
+    /* ── FLIP ──
+       记住卡片的位置和尺寸，把大图先「塞」回那个框，再长到自己的位置。
+       这就是炉石里卡从手牌飞到场上的那一下。
+       关闭时反过来飞回卡片。 */
+    let closing = false;
+
+    function flipInto(fromRect){
+      if(REDUCE || !fromRect) return;
+      const last = lbImg.getBoundingClientRect();
+      if(!last.width || !last.height) return;
+      const dx = (fromRect.left + fromRect.width / 2) - (last.left + last.width / 2);
+      const dy = (fromRect.top + fromRect.height / 2) - (last.top + last.height / 2);
+      const sx = fromRect.width / last.width;
+      const sy = fromRect.height / last.height;
+      lbImg.style.transition = 'none';
+      lbImg.style.transform =
+        'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) ' +
+        'scale(' + sx.toFixed(4) + ',' + sy.toFixed(4) + ')';
+      void lbImg.offsetWidth;                       // 强制回流，让初值生效
+      lbImg.style.transition = 'transform 460ms cubic-bezier(.22,.9,.24,1)';
+      lbImg.style.transform = 'none';
+    }
+
+    function flipOut(toRect, done){
+      if(REDUCE || !toRect){ if(done) done(); return; }
+      const first = lbImg.getBoundingClientRect();
+      if(!first.width || !first.height){ if(done) done(); return; }
+      const dx = (toRect.left + toRect.width / 2) - (first.left + first.width / 2);
+      const dy = (toRect.top + toRect.height / 2) - (first.top + first.height / 2);
+      const sx = toRect.width / first.width;
+      const sy = toRect.height / first.height;
+      lbImg.style.transition = 'transform 380ms cubic-bezier(.4,.1,.35,1)';
+      lbImg.style.transform =
+        'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) ' +
+        'scale(' + sx.toFixed(4) + ',' + sy.toFixed(4) + ')';
+      setTimeout(done, 380);
+    }
+
     function open(i, fromEl){
+      if(box.classList.contains('on')) return;
       opener = fromEl || null;
+      const fig = figs[i];
+      const from = fig ? fig.getBoundingClientRect() : null;
       render(i);
       box.classList.add('on');
       document.documentElement.style.overflow = 'hidden';
-      btnX.focus({preventScroll:true});
+      if(fig) fig.classList.add('lifted');
+      /* 等一帧：让 .on 的可见性先生效，量大图位置才准 */
+      requestAnimationFrame(()=>{
+        flipInto(from);
+        btnX.focus({preventScroll:true});
+      });
       document.addEventListener('keydown', onKey);
     }
 
     function close(){
-      box.classList.remove('on');
-      document.documentElement.style.overflow = '';
+      if(closing || !box.classList.contains('on')) return;
+      closing = true;
+      const fig = figs[cur];
+      const back = fig ? fig.getBoundingClientRect() : null;
       document.removeEventListener('keydown', onKey);
       stage.querySelectorAll('.shotmark.on').forEach(d=>d.classList.remove('on'));
-      if(opener && opener.focus) opener.focus({preventScroll:true});
-      opener = null;
+
+      /* 遮罩同时开始淡——图飞回去的 380ms 里，底先暗下去 */
+      box.classList.add('closing');
+
+      flipOut(back, ()=>{
+        box.classList.remove('on', 'closing');
+        document.documentElement.style.overflow = '';
+        lbImg.style.transition = 'none';
+        lbImg.style.transform = 'none';
+        if(fig) fig.classList.remove('lifted');
+        if(opener && opener.focus) opener.focus({preventScroll:true});
+        opener = null;
+        closing = false;
+      });
     }
 
     function onKey(e){
