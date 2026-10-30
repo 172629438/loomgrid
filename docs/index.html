@@ -307,6 +307,19 @@ h1 b{font-weight:600}
    它们就成了“产品的脸”，而不是一页白纸贴上来。*/
 .shot{position:relative;border:1px solid rgba(237,236,232,.14);background:#0D0F13}
 .shot img{width:100%;display:block}
+/* 截图可放大 —— 390 屏上界面图缩到 335px 宽，文字读不出来。
+   指针给 zoom-in 作为暗示，点击开原尺寸。 */
+a.zoomimg{ display:block; cursor:zoom-in; position:relative }
+a.zoomimg:focus-visible{ outline:1px solid var(--gold); outline-offset:2px }
+a.zoomimg::after{
+  content:"点击看原图"; position:absolute; right:8px; bottom:8px;
+  padding:3px 8px; font-family:var(--mono); font-size:var(--fs-11);
+  color:var(--ink); background:rgba(8,9,11,.72);
+  border:1px solid rgba(237,236,232,.18);
+  opacity:0; transition:opacity var(--t-1) var(--ease-out);
+  pointer-events:none;
+}
+a.zoomimg:hover::after, a.zoomimg:focus-visible::after{ opacity:1 }
 .shot figcaption{
   padding:12px 14px;font-size:var(--fs-12_5);color:var(--ash2);
   display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
@@ -2132,6 +2145,23 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     secs.forEach(s=>spy.observe(s));
   }
 })();
+
+  /* ── 截图可放大 ──
+     390 屏上界面图只有 335px 宽，里面的字读不出来。包成链接，点击开原图。
+     用 JS 包而不是改 HTML：7 处 figure 不用逐个手改，也保持 DOM 干净。 */
+  (function zoom(){
+    document.querySelectorAll('.shot img, .fig img').forEach(img=>{
+      if(img.closest('a')) return;
+      const a=document.createElement('a');
+      a.href=img.currentSrc||img.src;
+      a.target='_blank';
+      a.rel='noopener';
+      a.className='zoomimg';
+      a.setAttribute('aria-label','看原图：'+(img.alt||''));
+      img.parentNode.insertBefore(a,img);
+      a.appendChild(img);
+    });
+  })();
 
 /* ── hero 柔光跟随 ──
    只在 hero 可见时挂监听（IntersectionObserver 控制），离开就摘掉，
