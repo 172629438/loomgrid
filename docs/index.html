@@ -589,7 +589,10 @@ a.zoomimg:hover::after, a.zoomimg:focus-visible::after{ opacity:1 }
   .ctl{gap:10px}
   .ctl .lab{width:72px}
   .ctl button{padding:8px 9px;font-size:var(--fs-11)}
-  .crow{grid-template-columns:9ch 1fr 8ch 5ch;gap:10px}
+  .crow{grid-template-columns:9ch 1fr 8ch 5ch;gap:10px
+   /* 第三列原来是 9ch——ch 按父级字号（16px）算约 84px，
+      而 .cv 是 28px mono，「¥1,676」要 110px，数字就会在「¥」后断开。
+      改 auto：按内容撑开，不再依赖 ch 与字号的换算。 */}
   .crow .nm{font-size:var(--fs-12_5)}
 }
 
@@ -646,7 +649,7 @@ a.zoomimg:hover::after, a.zoomimg:focus-visible::after{ opacity:1 }
 
 .calc-out{margin-top:clamp(26px,3.4vw,38px)}
 .crow{
-  display:grid;grid-template-columns:12ch 1fr 9ch 6ch;
+  display:grid;grid-template-columns:12ch 1fr auto 6ch;
   align-items:center;gap:clamp(12px,2vw,24px);
   padding:15px 0;border-bottom:1px solid var(--line-soft);
 }
@@ -666,8 +669,10 @@ a.zoomimg:hover::after, a.zoomimg:focus-visible::after{ opacity:1 }
 .crow .cv{
   font-family:var(--mono);font-size:clamp(var(--fs-28),2.4vw,var(--fs-28));font-weight:500;
   font-variant-numeric:tabular-nums;text-align:right;letter-spacing:-.02em;
-}
-.crow .cp{font-family:var(--mono);font-size:var(--fs-12_5);color:var(--ash2);text-align:right}
+
+   white-space:nowrap;   /* 金额一律不断行——¥ 和数字分开是排版的硬伤 */
+ }
+.crow .cp{font-family:var(--mono);font-size:var(--fs-12_5);color:var(--ash2);text-align:right;white-space:nowrap}
 .crow.lp .bar i{background:var(--gold)}
 .crow.sim .bar i{background:rgba(143,221,255,.72)}
 .crow.gr .bar i{background:rgba(237,236,232,.34)}
