@@ -2942,15 +2942,17 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     if(!figs.length || figs.length !== thumbs.length) return;
 
     function show(i){
-      /* 切到哪张才设 src。第一张在 HTML 里就是 src，首屏必下；
-         其余四张等用户点缩略图时才拉。 */
+      /* 顺序很重要：先让这张图可见，再设 src。
+         Chromium 在 display:none 的 <img> 上设 src 不会真的发起请求，
+         之后变成可见也不补——先设 src 的话图永远不出现（实测过）。 */
+      figs.forEach((f,k)=>f.classList.toggle('on', k===i));
+
       const cur = figs[i];
       const img = cur && cur.querySelector('img');
-      if(img && !img.getAttribute('src') && img.dataset.src){
-        img.src = img.dataset.src;
+      if(img && !img.getAttribute('src') && img.getAttribute('data-src')){
+        img.src = img.getAttribute('data-src');
         img.removeAttribute('data-src');
       }
-      figs.forEach((f,k)=>f.classList.toggle('on', k===i));
       thumbs.forEach((t,k)=>{
         const on = k===i;
         t.classList.toggle('on', on);
