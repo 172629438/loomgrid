@@ -356,7 +356,7 @@ a.zoomimg:hover::after, a.zoomimg:focus-visible::after{ opacity:1 }
    390 宽下按比例算只有 92px 高，三条曲线挤成一张扁纸，读不出形状。
    给固定高度让内容纵向拉伸；首屏也顺势上移，把曲线推进第一屏。 */
 @media(max-width:700px){
-  .loom svg{height:clamp(172px,46vw,238px)}
+  .loom svg{height:clamp(188px,50vw,262px)}
   .hero-top{align-items:flex-end;padding:clamp(44px,7.5vh,64px) 0 clamp(22px,3vh,30px)}
   .loom-meta{padding:10px 18px 11px;font-size:var(--fs-11);gap:6px 18px}
   /* 窄屏只留三条：规模、电价范围、当日充放省。
@@ -1440,7 +1440,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       <span>这一天 <b>充 2,989</b> / <b>放 2,736</b> kWh · 日省 <b>¥1,676</b></span>
       <span><b>optimal_dispatch_lp</b> · 同源数据，非示意</span>
     </div>
-    <svg id="loomSvg" viewBox="0 0 1600 380" preserveAspectRatio="none" role="img"
+    <svg id="loomSvg" viewBox="0 0 1600 440" preserveAspectRatio="none" role="img"
          aria-label="一天 96 点：24 小时分时电价经线、负荷曲线、储能 SOC 轨迹"></svg>
     <noscript>
       <picture>
@@ -2302,7 +2302,9 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
   if(!D || !svg){ return; }
 
   const NS='http://www.w3.org/2000/svg';
-  const W = 1600, H = 380;
+  /* 织面比例。原来 380，曲线挤在中段显得局促；440 让起伏舒展，
+     又不至于把首屏切成两半。 */
+  const W = 1600, H = 440;
   const n = D.hours.length;
 
   const h0 = H*0.08;          // 曲线区顶
@@ -2311,6 +2313,8 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
   const socBot = H*0.945;     // SOC 带底
 
   const maxLoad = Math.max.apply(null, D.load) * 1.06;
+  const lminLoad = Math.min.apply(null, D.load);
+  const lmaxLoad = Math.max.apply(null, D.load);
   const x = i => (i/(n-1))*W;
   const yLoad = v => h1 - (v/maxLoad)*(h1-h0);
   const ySoc = v => socBot - ((v*100-8)/(95-8))*(socBot-socTop);
@@ -2321,46 +2325,17 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
   /* ① 24 小时经线 —— 透明度就是电价，96 根对应 96 个采样点 */
   const pmin = Math.min.apply(null,D.price), pmax = Math.max.apply(null,D.price);
 
-  /* ⓪ 横向刻度网格 —— 曲线的高度需要参照。
-     最初 hero.png（matplotlib）带完整坐标轴，改 SVG 手绘后只留下竖线，
-     横向网格与刻度数值一起丢了，读者看不出那条线是多少 kW。
-
-     每 200 kW 一条，每 400 kW 标一个数。放在最底层（先插入），
-     入场时逐条从左画到右——和经线「一根根亮起」是同一个动作。 */
-  const gGrid = el('g',{class:'gridg'});
-  const GRID_STEP = 200;
-  const gridRows = Math.floor(maxLoad / GRID_STEP);
-  for(let k=0;k<=gridRows;k++){
-    const v = k*GRID_STEP;
-    const y = yLoad(v).toFixed(1);
-    const ln = el('line',{
-      x1:0, y1:y, x2:W, y2:y,
-      stroke:'rgba(237,236,232,.055)','stroke-width':1,
-      'stroke-dasharray':W,'stroke-dashoffset':W
-    });
-    ln.setAttribute('class','gridline');
-    gGrid.appendChild(ln);
-    if(k % 2 === 0){
-      const tx = el('text',{
-        x:W-10, y:(yLoad(v)-5).toFixed(1),
-        'text-anchor':'end','font-size':11,
-        'font-family':'ui-monospace,Consolas,monospace',
-        fill:'rgba(237,236,232,.26)','letter-spacing':'.04em'
-      });
-      tx.setAttribute('class','gridlab');
-      tx.textContent = v === 0 ? '0' : String(v);
-      gGrid.appendChild(tx);
-    }
-  }
-  svg.appendChild(gGrid);
-
   const gWarp = el('g',{class:'warpg'});
+  /* 经线有性格：线宽与亮度都随电价走。
+     谷时是一根看得见但不吵的细线，尖峰时是实心的一条——
+     读者不学图例也能看出「这一段贵」。 */
   for(let i=0;i<n;i++){
     const t = (D.price[i]-pmin)/(pmax-pmin+1e-9);
-    const op = 0.030 + t*0.105;
+    const op = 0.040 + t*0.130;
+    const wd = (0.7 + t*1.0).toFixed(2);
     const line = el('line',{
       x1:x(i).toFixed(1), y1:H*0.055, x2:x(i).toFixed(1), y2:H*0.965,
-      stroke:'rgba(237,236,232,'+op.toFixed(3)+')','stroke-width':1
+      stroke:'rgba(237,236,232,'+op.toFixed(3)+')','stroke-width':wd
     });
     line.setAttribute('class','warpline');
     gWarp.appendChild(line);
@@ -2382,12 +2357,27 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
 
   const pathOf = (arr, yfn) => arr.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+yfn(v).toFixed(1)).join(' ');
 
-  /* ③ 负荷曲线（纬线） */
-  const pLoad = el('path',{d:pathOf(D.load, yLoad),fill:'none',stroke:'rgba(237,236,232,.86)',
-    'stroke-width':1.5,'stroke-linejoin':'round','stroke-linecap':'round',
-    class:'loom-load'});
+  /* ③ 负荷曲线（纬线）—— 拆成 95 段，每段自己是一条纱。
+     单条 path 只能一个线宽，整条一样粗，读起来是「折线」；
+     分段之后，负荷高的地方线更粗更白，低的细而淡——
+     像一根被拉出来的、张力不均的纱。相邻段用 round 线帽接住，看不出缝。 */
   const gLoad = el('g',{class:'loadg'});
-  gLoad.appendChild(pLoad);
+  const loadSegs = [];
+  const lSpan = lmaxLoad - lminLoad + 1e-9;
+  for(let i=0;i<n-1;i++){
+    const r = ((D.load[i]-lminLoad) + (D.load[i+1]-lminLoad)) / 2 / lSpan;
+    const seg = el('line',{
+      x1:x(i).toFixed(1), y1:yLoad(D.load[i]).toFixed(1),
+      x2:x(i+1).toFixed(1), y2:yLoad(D.load[i+1]).toFixed(1),
+      stroke:'rgba(237,236,232,'+(0.74 + r*0.26).toFixed(3)+')',
+      'stroke-width':(1.0 + r*2.0).toFixed(2),
+      'stroke-linecap':'round',
+      class:'loadseg'
+    });
+    seg.style.opacity = 0;
+    gLoad.appendChild(seg);
+    loadSegs.push(seg);
+  }
   svg.appendChild(gLoad);
 
   /* ④ SOC 带 */
@@ -2565,42 +2555,19 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
    */
   if(reduce){
     document.querySelectorAll('.warpline').forEach(l=>l.style.opacity=1);
-    document.querySelectorAll('.gridline').forEach(l=>l.setAttribute('stroke-dashoffset', 0));
-    document.querySelectorAll('.gridlab').forEach(t=>t.style.opacity=1);
-    pLoad.style.opacity=1; gSoc.style.opacity=1;
+    document.querySelectorAll('.loadseg').forEach(l=>l.style.opacity=1);
+    gSoc.style.opacity=1;
     return;
   }
 
-  /* ⓪ 先织横向刻度：7 条线，每条 70ms，从左画到右。
-     放在经线之前——刻度是「纸」，曲线是「墨」。
-     如果刻度后出现，读起来像事后补上去的网格。 */
   const T0 = 160;
-  const gLines = Array.prototype.slice.call(document.querySelectorAll('.gridline'));
-  const gLabs  = Array.prototype.slice.call(document.querySelectorAll('.gridlab'));
-  gLines.forEach((l,i)=>{
-    setTimeout(()=>{
-      /* 直接写内联属性，不靠 CSS 类——
-         SVG 的 stroke-dashoffset 虽然能用 CSS 控制，
-         但内联属性最直白，也不受选择器优先级影响。 */
-      l.style.transition = 'stroke-dashoffset 820ms var(--ease-out)';
-      l.style.strokeDashoffset = '0';
-    }, 60 + i*70);
-  });
-  gLabs.forEach(t=>{
-    setTimeout(()=>{
-      t.style.transition = 'opacity 420ms var(--ease-out)';
-      t.style.opacity = '1';
-    }, 60 + gLines.length*70 + 120);
-  });
-
   const STEP = 11;                       // 96 根 × 11ms ≈ 1.06s
-  const GRID_DUR = 60 + gLines.length*70 + 400;   // 刻度织完再起经线
   const warpLines = Array.prototype.slice.call(document.querySelectorAll('.warpline'));
   warpLines.forEach((l,i)=>{
-    setTimeout(()=>{ l.style.transition='opacity var(--t-3) var(--ease-out)'; l.style.opacity=1; }, T0 + GRID_DUR + i*STEP);
+    setTimeout(()=>{ l.style.transition='opacity var(--t-3) var(--ease-out)'; l.style.opacity=1; }, T0 + i*STEP);
   });
 
-  const tCurve = T0 + GRID_DUR + warpLines.length*STEP;   // 刻度 + 经线都织完
+  const tCurve = T0 + warpLines.length*STEP;   // 经线织完
   const DRAW = 1900;                            // 描线时长
 
   /* 描线：stroke-dasharray 设成全长，dashoffset 从全长走到 0。
@@ -2629,7 +2596,15 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     );
   }
 
-  drawLine(pLoad, tCurve + 120);
+  /* 曲线逐段浮出：每段 12ms，95 段约 1.15 秒。
+     不用 stroke-dashoffset——分段后整条长度算不出来，
+     而且逐段淡入本身更像「一梭一梭织过去」。 */
+  loadSegs.forEach((l,i)=>{
+    setTimeout(()=>{
+      l.style.transition = 'opacity 260ms var(--ease-out)';
+      l.style.opacity = 1;
+    }, tCurve + 120 + i*12);
+  });
   revealFill(pSocFill, tCurve + 380);
   drawLine(pSocLine, tCurve + 380);
 
