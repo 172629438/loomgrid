@@ -841,6 +841,10 @@ footer{
 .probe.on .probe-rule,.probe.on .probe-mark,.probe.on .probe-card{opacity:1}
 /* 对比模式下，悬停卡退场——此时读者要比的是两点，不是第三点 */
 .probe.pinned .probe-rule,.probe.pinned .probe-mark,.probe.pinned .probe-card:not(.cmp){opacity:0 !important}
+ /* 对比卡只在两个点都锁定后才出现。
+    原来它跟着 .probe.on 一起显形，但位置还没算（left 默认 0、宽 70），
+    于是第一个点刚点下去时，左边会冒出半个卡。 */
+ .probe:not(.pinned) .probe-card.cmp{opacity:0 !important;pointer-events:none}
 
 /* 锁定线：点一下钉住一个时刻，再点第二个出对比 */
 .pin{
@@ -860,6 +864,9 @@ footer{
   position:absolute;top:8px;left:6px;
   font-family:var(--mono);font-size:var(--fs-11);letter-spacing:.02em;white-space:nowrap;
 }
+ /* 靠右端的 pin，时间标签往左排，否则会顶出容器 */
+ .pin.at-r span{ left:auto; right:6px; }
+
 .pin-a span{color:var(--gold)}
 .pin-b span{color:var(--ice)}
 
@@ -2357,8 +2364,13 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       const xPx=(i/(n-1))*lr.width;
       const yPx=(sr.top-lr.top)+yLoad(D.load[i])*(sr.height/H);
 
+      /* 圆点直径 9px、margin-left -4.5px。直接用 xPx 时，x=0 处
+         圆点有一半在容器外——看起来就是「半个框」。
+         把圆点夹在 [4.5, w-4.5]；竖线仍精确对齐数据点。 */
+      const DOT=4.5;
+      const mx=Math.max(DOT, Math.min(lr.width-DOT, xPx));
       rule.style.left=xPx.toFixed(1)+'px';
-      mark.style.left=xPx.toFixed(1)+'px';
+      mark.style.left=mx.toFixed(1)+'px';
       mark.style.top=yPx.toFixed(1)+'px';
 
       const hh=Math.floor(D.hours[i]);
@@ -2412,7 +2424,12 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       [pinA,pinB].forEach((el,k)=>{
         const p=pins[k];
         if(!p){ el.classList.remove('on'); el.querySelector('span')?.remove(); return; }
-        el.style.left=p.x.toFixed(1)+'px';
+        /* 竖线 1px 也夹：pin 的圆点 7×7（left:-3）、时间标签从 +6px 起排。
+           两端不夹的话，圆点缺一半、标签顶出右边。 */
+        const wr=host.getBoundingClientRect().width;
+        const px=Math.max(4, Math.min(wr-4, p.x));
+        el.style.left=px.toFixed(1)+'px';
+        el.classList.toggle('at-r', px > wr-70);
         let lab=el.querySelector('span');
         if(!lab){ lab=document.createElement('span'); el.appendChild(lab); }
         lab.textContent=hhmm(p.i);
