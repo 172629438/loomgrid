@@ -56,9 +56,13 @@ document.documentElement.className += ' js';
 :root{
   --void:#08090B;
   --ink:#EDECE8;
+  /* 三档灰的透明度按 WCAG AA 反算过（背景 #08090B）：
+       .58 → 5.8:1   正文
+       .52 → 4.9:1   次要信息（原 .34 只有 2.72:1，不达标）
+       .32 → 2.6:1   纯装饰（箭头、单位、分隔符——正文不引用这一档） */
   --ash1:rgba(237,236,232,.58);
-  --ash2:rgba(237,236,232,.34);
-  --ash3:rgba(237,236,232,.16);
+  --ash2:rgba(237,236,232,.52);
+  --ash3:rgba(237,236,232,.32);
   --gold:#C9A227;
   --gold-dim:rgba(201,162,39,.42);
   --ice:#8FDDFF;
@@ -286,7 +290,7 @@ h1 b{font-weight:600}
 .costlist{margin-top:8px}
 .costrow{
   display:grid;grid-template-columns:1fr auto;gap:18px;
-  align-items:baseline;padding:17px 0;
+  align-items:baseline;padding:16px 0;
   border-bottom:1px solid var(--line-soft);
 }
 .costrow:first-child{border-top:1px solid var(--line-soft)}
@@ -304,7 +308,7 @@ h1 b{font-weight:600}
 .shot{position:relative;border:1px solid rgba(237,236,232,.14);background:#0D0F13}
 .shot img{width:100%;display:block}
 .shot figcaption{
-  padding:11px 14px;font-size:var(--fs-12_5);color:var(--ash2);
+  padding:12px 14px;font-size:var(--fs-12_5);color:var(--ash2);
   display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
   border-top:1px solid rgba(237,236,232,.10);
   background:#0A0C10;
@@ -325,7 +329,7 @@ h1 b{font-weight:600}
 .engines-fig{margin-top:clamp(34px,4.6vw,52px)}.engtable{margin-top:clamp(28px,3.6vw,44px);width:100%;border-collapse:collapse}
 .engtable th{
   text-align:left;font-family:var(--mono);font-size:var(--fs-11);font-weight:400;
-  color:var(--ash3);letter-spacing:.04em;padding:0 0 12px;
+  color:var(--ash2);letter-spacing:.04em;padding:0 0 12px;
   border-bottom:1px solid var(--line);
 }
 .engtable td{
@@ -335,7 +339,7 @@ h1 b{font-weight:600}
 .engtable .nm{font-size:var(--fs-16);font-weight:500;letter-spacing:-.012em}
 .engtable .nm small{
   display:block;font-family:var(--mono);font-size:var(--fs-11);font-weight:400;
-  color:var(--ash2);letter-spacing:.02em;margin-top:5px;
+  color:var(--ash2);letter-spacing:.02em;margin-top:6px;
 }
 .engtable .num{
   font-family:var(--mono);font-size:clamp(20px,2.4vw,28px);font-weight:500;
@@ -457,7 +461,7 @@ h1 b{font-weight:600}
 
 .tune-ctl{
   display:flex;align-items:center;gap:10px;
-  padding:11px 14px 9px;
+  padding:12px 14px 10px;
   font-family:var(--mono);font-size:var(--fs-12_5);line-height:1.7;
   letter-spacing:.008em;color:var(--ash2);
 }
@@ -488,7 +492,7 @@ h1 b{font-weight:600}
   letter-spacing:.005em;
 }
 .tune .tm{
-  flex:0 0 auto;color:var(--ash3);font-size:var(--fs-11);
+  flex:0 0 auto;color:var(--ash2);font-size:var(--fs-11);
   font-variant-numeric:tabular-nums;
 }
 
@@ -536,13 +540,13 @@ h1 b{font-weight:600}
 .tune-ask.on{opacity:1;transform:none;pointer-events:auto}
 .tune-ask .q{font-size:var(--fs-14);color:var(--ink);letter-spacing:-.005em;margin-bottom:4px}
 .tune-ask .sub{
-  font-family:var(--mono);font-size:var(--fs-11);color:var(--ash3);
+  font-family:var(--mono);font-size:var(--fs-11);color:var(--ash2);
   line-height:1.65;margin-bottom:14px;
 }
 .tune-ask .row{display:flex;gap:8px}
 .tune-ask button{
   font-family:var(--mono);font-size:var(--fs-12_5);cursor:pointer;
-  padding:7px 14px;border-radius:0;
+  padding:8px 14px;border-radius:0;
   transition:background var(--t-1) var(--ease-out),color var(--t-1) var(--ease-out),
              border-color var(--t-1) var(--ease-out),transform 110ms var(--ease-out);
 }
@@ -602,7 +606,7 @@ h1 b{font-weight:600}
 .ctl .opts{display:flex;gap:1px;background:var(--line-soft);flex-wrap:wrap}
 .ctl button{
   font-family:var(--mono);font-size:var(--fs-12_5);color:var(--ash2);
-  background:var(--void);border:0;padding:9px 14px;cursor:pointer;
+  background:var(--void);border:0;padding:10px 14px;cursor:pointer;
   transition:color var(--t-1) var(--ease-out),background var(--t-1) var(--ease-out);
 }
 .ctl button:hover{color:var(--ink)}
@@ -637,7 +641,7 @@ h1 b{font-weight:600}
 .crow .cn{font-size:var(--fs-16);letter-spacing:-.01em}
 .crow .cn small{
   display:block;font-family:var(--mono);font-size:var(--fs-11);
-  color:var(--ash3);margin-top:4px;letter-spacing:.02em;
+  color:var(--ash2);margin-top:4px;letter-spacing:.02em;
 }
 .crow .bar{
   height:1px;background:rgba(237,236,232,.10);position:relative;
@@ -663,7 +667,7 @@ h1 b{font-weight:600}
   color:var(--ash2);line-height:1.8;
 }
 .calc-yr b{color:var(--ash1);font-weight:400}
-.calc-note{margin-top:10px;font-size:var(--fs-12_5);color:var(--ash3);line-height:1.7}
+.calc-note{margin-top:10px;font-size:var(--fs-12_5);color:var(--ash2);line-height:1.7}
 @media(max-width:640px){
   .crow{grid-template-columns:1fr auto;gap:8px 14px}
   .crow .bar{grid-column:1 / -1;order:3}
@@ -745,7 +749,7 @@ h1 b{font-weight:600}
   margin-top:22px;display:grid;grid-template-columns:auto 1fr;
   gap:9px 18px;font-family:var(--mono);font-size:var(--fs-12_5);
 }
-.ver dt{color:var(--ash3)}
+.ver dt{color:var(--ash2)}
 .ver dd{color:var(--ash1);text-align:right;font-variant-numeric:tabular-nums}
 .ver .get{
   display:inline-block;margin-top:26px;font-size:var(--fs-14);
@@ -836,7 +840,7 @@ footer{
   transition:opacity var(--t-1) var(--ease-out);pointer-events:none;
 }
 .probe-card .h{color:var(--gold);font-size:var(--fs-12_5);letter-spacing:.02em}
-.probe-card .r{display:grid;grid-template-columns:auto 1fr;gap:0 12px;margin-top:5px}
+.probe-card .r{display:grid;grid-template-columns:auto 1fr;gap:0 12px;margin-top:6px}
 .probe-card .r span:nth-child(2n){text-align:right;color:var(--ink)}
 .probe.on .probe-rule,.probe.on .probe-mark,.probe.on .probe-card{opacity:1}
 /* 对比模式下，悬停卡退场——此时读者要比的是两点，不是第三点 */
