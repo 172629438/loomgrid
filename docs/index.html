@@ -589,10 +589,7 @@ a.zoomimg:hover::after, a.zoomimg:focus-visible::after{ opacity:1 }
   .ctl{gap:10px}
   .ctl .lab{width:72px}
   .ctl button{padding:8px 9px;font-size:var(--fs-11)}
-  .crow{grid-template-columns:9ch 1fr 8ch 5ch;gap:10px
-   /* 第三列原来是 9ch——ch 按父级字号（16px）算约 84px，
-      而 .cv 是 28px mono，「¥1,676」要 110px，数字就会在「¥」后断开。
-      改 auto：按内容撑开，不再依赖 ch 与字号的换算。 */}
+  .crow{grid-template-columns:9ch 1fr 8ch 5ch;gap:10px}
   .crow .nm{font-size:var(--fs-12_5)}
 }
 
@@ -1381,6 +1378,28 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
 #hero > .wrap, #hero > .loom, #hero > .loom-meta{ position:relative; z-index:1 }
 @media (prefers-reduced-motion:reduce){ #hero::after{ display:none } }
 @media (max-width:700px){ #hero::after{ display:none } }
+
+/* ── 390 档对照器：放在样式表末尾，确保覆盖前面的 .ctl 规则 ────────
+   两次失败才想明白：特异性相同时后写的赢。
+   原来插在 @media(max-width:520px) 里（第 588 行），
+   被第 620 行的 .ctl .opts{display:flex} 和第 696 行的 .ctl .lab{width:64px}
+   全覆盖了——规则写了，但轮不到它生效。 */
+@media(max-width:520px){
+  .ctl{gap:8px 10px}
+  .ctl .lab{width:100%;flex:1 1 100%}
+  /* 6 个容量按钮原来 flex-wrap 排成 5+1，最后一个孤零零挂在第二行左边。
+     走 3 列网格：容量 2×3、功率 2×2 之外的那格留空，但左右是对齐的。 */
+  .ctl .opts{
+    display:grid;grid-template-columns:repeat(4,1fr);
+    width:100%;flex:1 1 100%;gap:1px;
+  }
+  /* 5 个以上（容量是 6 个）走 3 列，排成 2×3；
+     4 个（功率）走 4 列，一行排完。 */
+  .ctl .opts:has(> button:nth-of-type(5)){grid-template-columns:repeat(3,1fr)}
+  .ctl input[type=range]{flex:1 1 auto;min-width:0}
+  .ctl .val{flex:0 0 auto;min-width:56px}
+  .ctl button{padding:9px 4px;font-size:var(--fs-11);text-align:center}
+}
 </style>
 </head>
 <body>
