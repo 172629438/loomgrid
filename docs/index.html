@@ -482,14 +482,101 @@ a.zoomimg:focus-visible{ outline:1px solid var(--gold); outline-offset:2px }
   background:#0A0C10;
 }
 .shot figcaption b{color:var(--ash1);font-weight:400}
-.stack{margin-top:clamp(34px,4.6vw,56px)}
-.stack > * + *{margin-top:clamp(24px,3.2vw,38px)}
-/* 首图不全幅：编辑式排版，右侧留白比左右对称更有张力 */
-.stack > .shot:first-child{max-width:1000px}
-.pair{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,3vw,38px);align-items:start}
-/* align-items:start 必须写：grid 默认 stretch，会把两张不等高的图拉成同一行高，
-   矮的那张下面全是空白，按百分比定位的标注点就会落进空白里。 */
-@media(max-width:820px){.pair{grid-template-columns:1fr}}
+/* ── 主从图库 ──────────────────────────────────────────────────
+   五张图不是五段插图，是一个单元：一张主视图 + 一条缩略索引。
+   缩略条本身就是卡组的样子——点它换主图，主图点开进灯箱。 */
+.gallery{ margin-top:clamp(34px,4.6vw,56px) }
+
+.g-stage{
+  position:relative;
+  /* 高度设在图片区（下面的 a.zoomimg），不设在这里——
+     设在容器上会把 figcaption 挤出边界，说明被缩略条压住。 */
+  border:1px solid rgba(237,236,232,.14);
+  /* 展台底：极淡的经线纹。竖图两侧会留黑边，
+     有了这层纹理，留白读起来是「展台」而不是「空了」。 */
+  background:
+    repeating-linear-gradient(90deg,
+      rgba(237,236,232,.022) 0 1px, transparent 1px 26px),
+    #0A0C10;
+  transition:border-color var(--t-2) var(--ease-out);
+}
+.g-stage:hover{ border-color:rgba(201,162,39,.30) }
+/* 主视图里只显示一张；其余 display:none，切的时候给一个落位动画 */
+.g-stage .shot{
+  display:none; height:100%; border:0; background:none;
+  transform:none !important; box-shadow:none !important;
+  flex-direction:column;
+}
+.g-stage .shot.on{
+  display:flex;
+  animation:gIn 480ms cubic-bezier(.22,.9,.24,1) both;
+}
+/* 图片区吃掉剩余高度，图在里面等比 contain */
+/* 图片区定高：五张图长宽比不同（横图 1438×901、竖图 560×700），
+   不定高的话竖图高度会翻倍，主视图一跳整页都抖。
+   contain 居中，代价是竖图两侧留黑边——比版面跳动好。 */
+.g-stage a.zoomimg{
+  height:clamp(360px,44vw,660px);
+  display:grid; place-items:center;
+}
+.g-stage a.zoomimg{ z-index:1 }
+.g-stage .shot img{
+  width:auto; height:auto;
+  max-width:100%; max-height:100%;
+  object-fit:contain;
+}
+.g-stage .shot figcaption{ flex:0 0 auto }
+@keyframes gIn{
+  from{ opacity:0; transform:translateY(10px) scale(.994) }
+  to{ opacity:1; transform:none }
+}
+
+/* 缩略索引：等宽、紧排、当前项底部一条金线 */
+.g-thumbs{
+  display:grid; grid-template-columns:repeat(5,1fr);
+  gap:1px; margin-top:1px;
+  background:rgba(237,236,232,.10);
+}
+.g-thumb{
+  position:relative; display:block; padding:0; border:0;
+  background:#0A0C10; cursor:pointer; overflow:hidden;
+  transition:background var(--t-1) var(--ease-out);
+}
+.g-thumb img{
+  display:block; width:100%; height:64px;
+  object-fit:cover; object-position:top center;
+  opacity:.46; filter:grayscale(.35);
+  transition:opacity var(--t-1) var(--ease-out), filter var(--t-1) var(--ease-out);
+}
+.g-thumb span{
+  position:absolute; left:0; right:0; bottom:0;
+  padding:3px 8px 4px;
+  font-family:var(--mono); font-size:var(--fs-11); letter-spacing:.02em;
+  color:var(--ash2); text-align:left;
+  background:rgba(8,9,11,.90);
+  border-top:1px solid rgba(237,236,232,.10);
+  transition:color var(--t-1) var(--ease-out);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.g-thumb:hover img{ opacity:.82; filter:none }
+.g-thumb:hover span{ color:var(--ash1) }
+.g-thumb.on{ background:#101216 }
+.g-thumb.on img{ opacity:1; filter:none }
+.g-thumb.on span{ color:var(--ink) }
+.g-thumb.on::after{
+  content:""; position:absolute; left:0; right:0; bottom:0; height:2px;
+  background:var(--gold);
+}
+.g-thumb:focus-visible{ outline:1px solid var(--gold); outline-offset:-1px }
+
+@media (max-width:700px){
+  .g-thumb img{ height:44px }
+  .g-thumb span{ font-size:9.5px; padding:2px 5px 3px }
+}
+@media (prefers-reduced-motion:reduce){
+  .g-stage .shot.on{ animation:none }
+  .g-thumb img,.g-thumb span,.g-stage{ transition:none }
+}
 
 /* 技术图版：给图一个明确的界，避免“淡色块浮在页面上”的失误感 */
 .fig{border:1px solid var(--line-soft);background:#0A0C10}
@@ -1684,32 +1771,50 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       日期列、<span class="nw">时间列</span>、负荷列自动识别。认错了改一次，规则记住，下次不问。
     </p>
 
-    <div class="stack">
-      <figure class="shot reveal">
-        <img src="assets/ultra-main-imported.png" alt="Ultra 主工作台">
-        <figcaption><span><b>主工作台</b> · 拖入文件 → 自动识别列 → 批量生成</span><span>Ultra v3.2.2</span></figcaption>
-      </figure>
-
-      <div class="pair">
-        <figure class="shot reveal">
-          <img src="assets/ultra-data-preview.png" alt="数据预览与列映射">
-          <figcaption><span><b>数据预览</b> · 288 行 × 6 列，三列自动识别</span></figcaption>
+    <div class="gallery" id="gallery">
+      <div class="g-stage">
+        <figure class="shot on">
+          <img src="assets/ultra-main-imported.png" alt="Ultra 主工作台">
+          <figcaption><span><b>主工作台</b> · 拖入文件 → 自动识别列 → 批量生成</span><span>Ultra v3.2.2</span></figcaption>
         </figure>
-        <figure class="shot reveal">
+        <figure class="shot">
+          <img src="assets/ultra-data-preview.png" alt="数据预览与列映射">
+          <figcaption><span><b>数据预览</b> · 288 行 × 6 列，三列自动识别</span><span>Ultra v3.2.2</span></figcaption>
+        </figure>
+        <figure class="shot">
           <img src="assets/ultra-sensitivity.png" alt="敏感性分析">
-          <figcaption><span><b>敏感性</b> · 五项参数各带 IRR / NPV</span></figcaption>
+          <figcaption><span><b>敏感性</b> · 五项参数各带 IRR / NPV</span><span>Ultra v3.2.2</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="assets/ultra-load-sim.png" alt="负荷曲线模拟器">
+          <figcaption><span><b>负荷模拟器</b> · 25 个行业模板</span><span>Ultra v3.2.2</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="assets/ultra-curve-dark.png" alt="负荷曲线与 SOC 轨迹">
+          <figcaption><span><b>曲线渲染</b> · 负荷与 SOC 双轴</span><span>Ultra v3.2.2</span></figcaption>
         </figure>
       </div>
-
-      <div class="pair">
-        <figure class="shot reveal">
-          <img src="assets/ultra-load-sim.png" alt="负荷曲线模拟器">
-          <figcaption><span><b>负荷模拟器</b> · 25 个行业模板</span></figcaption>
-        </figure>
-        <figure class="shot reveal">
-          <img src="assets/ultra-curve-dark.png" alt="负荷曲线与 SOC 轨迹">
-          <figcaption><span><b>曲线渲染</b> · 负荷与 SOC 双轴</span></figcaption>
-        </figure>
+      <div class="g-thumbs" role="tablist" aria-label="界面截图">
+        <button class="g-thumb" type="button" role="tab" aria-selected="true" aria-label="主工作台">
+          <img src="assets/ultra-main-imported.png" alt="">
+          <span>主工作台</span>
+        </button>
+        <button class="g-thumb" type="button" role="tab" aria-selected="false" aria-label="数据预览">
+          <img src="assets/ultra-data-preview.png" alt="">
+          <span>数据预览</span>
+        </button>
+        <button class="g-thumb" type="button" role="tab" aria-selected="false" aria-label="敏感性">
+          <img src="assets/ultra-sensitivity.png" alt="">
+          <span>敏感性</span>
+        </button>
+        <button class="g-thumb" type="button" role="tab" aria-selected="false" aria-label="负荷模拟器">
+          <img src="assets/ultra-load-sim.png" alt="">
+          <span>负荷模拟器</span>
+        </button>
+        <button class="g-thumb" type="button" role="tab" aria-selected="false" aria-label="曲线渲染">
+          <img src="assets/ultra-curve-dark.png" alt="">
+          <span>曲线渲染</span>
+        </button>
       </div>
     </div>
   </div>
@@ -2415,6 +2520,44 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
         fig.appendChild(dot);
       });
     });
+  })();
+
+  /* ── 主从图库：点缩略图换主图 ──
+     五张图是一个单元，不是五段插图。
+     键盘左右也能切（缩略图是 tablist）。 */
+  (function gallery(){
+    const root = document.getElementById('gallery');
+    if(!root) return;
+    const figs   = [...root.querySelectorAll('.g-stage .shot')];
+    const thumbs = [...root.querySelectorAll('.g-thumb')];
+    if(!figs.length || figs.length !== thumbs.length) return;
+
+    function show(i){
+      figs.forEach((f,k)=>f.classList.toggle('on', k===i));
+      thumbs.forEach((t,k)=>{
+        const on = k===i;
+        t.classList.toggle('on', on);
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+      });
+    }
+
+    thumbs.forEach((t,i)=>{
+      t.addEventListener('click', ()=>show(i));
+      t.addEventListener('keydown', (e)=>{
+        if(e.key === 'ArrowRight' || e.key === 'ArrowLeft'){
+          e.preventDefault();
+          const n = e.key === 'ArrowRight'
+            ? (i + 1) % thumbs.length
+            : (i - 1 + thumbs.length) % thumbs.length;
+          show(n);
+          thumbs[n].focus();
+        } else if(e.key === 'Home'){ e.preventDefault(); show(0); thumbs[0].focus(); }
+        else if(e.key === 'End'){ e.preventDefault(); show(thumbs.length-1); thumbs[thumbs.length-1].focus(); }
+      });
+    });
+
+    show(0);
   })();
 
   /* ── 卡牌 + 灯箱 ──
