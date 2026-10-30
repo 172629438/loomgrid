@@ -294,7 +294,50 @@ h1 b{font-weight:600}
 .shot img{width:100%;display:block}
 /* 截图可放大 —— 390 屏上界面图缩到 335px 宽，文字读不出来。
    指针给 zoom-in 作为暗示，点击开原尺寸。 */
-a.zoomimg{ display:block; cursor:zoom-in; position:relative }
+a.zoomimg{ display:block; cursor:zoom-in; position:relative; z-index:1 }
+
+/* ── 截图标注点 ────────────────────────────────────────────────
+   一个 9px 的点，悬停或键盘聚焦时放大并浮出一句话。
+   说的不是「这是什么功能」，是「这一处为什么值得看」。
+   点在图片之上、放大链接之下——点它不会触发看原图。 */
+.shotmark{
+  position:absolute; width:9px; height:9px;
+  /* 用 transform 居中，不用负 margin：
+     负 margin 会让可点击区域与可视位置错开，自动化测试 hover 不到。 */
+  transform:translate(-50%,-50%);
+  border-radius:50%; background:var(--gold); cursor:help; z-index:3;
+  box-shadow:0 0 0 3px rgba(201,162,39,.16);
+  transition:transform var(--t-1) var(--ease-out),
+             box-shadow var(--t-1) var(--ease-out);
+}
+.shotmark:hover,.shotmark:focus-visible,.shotmark.on{
+  transform:translate(-50%,-50%) scale(1.6);
+  box-shadow:0 0 0 6px rgba(201,162,39,.20);
+  outline:none;
+}
+.shotmark::after{
+  content:attr(data-note);
+  position:absolute; left:50%; bottom:calc(100% + 12px);
+  transform:translateX(-50%);
+  width:max-content; max-width:250px;
+  padding:9px 11px; font-size:var(--fs-12_5); line-height:1.62;
+  color:var(--ink); background:rgba(8,9,11,.95);
+  border:1px solid rgba(237,236,232,.20); border-left:1px solid var(--gold-dim);
+  opacity:0; pointer-events:none; transition:opacity var(--t-1) var(--ease-out);
+  white-space:normal;
+}
+.shotmark:hover::after,.shotmark:focus-visible::after,.shotmark.on::after{ opacity:1 }
+/* 靠右的点，说明框往左展开，不然会被裁 */
+.shotmark.at-r::after{ left:auto; right:-6px; transform:none }
+/* 靠下的点，说明框翻到下面 */
+.shotmark.at-b::after{ bottom:auto; top:calc(100% + 12px) }
+@media (max-width:700px){
+  .shotmark{ width:8px; height:8px }
+  .shotmark::after{ max-width:200px; font-size:var(--fs-11) }
+}
+@media (prefers-reduced-motion:reduce){
+  .shotmark,.shotmark::after{ transition:none }
+}
 a.zoomimg:focus-visible{ outline:1px solid var(--gold); outline-offset:2px }
 a.zoomimg::after{
   content:"点击看原图"; position:absolute; right:8px; bottom:8px;
@@ -316,7 +359,9 @@ a.zoomimg:hover::after, a.zoomimg:focus-visible::after{ opacity:1 }
 .stack > * + *{margin-top:clamp(24px,3.2vw,38px)}
 /* 首图不全幅：编辑式排版，右侧留白比左右对称更有张力 */
 .stack > .shot:first-child{max-width:1000px}
-.pair{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,3vw,38px)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,3vw,38px);align-items:start}
+/* align-items:start 必须写：grid 默认 stretch，会把两张不等高的图拉成同一行高，
+   矮的那张下面全是空白，按百分比定位的标注点就会落进空白里。 */
 @media(max-width:820px){.pair{grid-template-columns:1fr}}
 
 /* 技术图版：给图一个明确的界，避免“淡色块浮在页面上”的失误感 */
@@ -2178,6 +2223,70 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     secs.forEach(s=>spy.observe(s));
   }
 })();
+
+  /* ── 截图标注 ──
+     每张图三个点，说的是「这一处为什么值得看」，不是功能说明。
+     坐标是相对图片的百分比，换图时不用重标。 */
+  (function marks(){
+    const NOTES = {
+      'ultra-main-imported.png': [
+        [21, 4.5, '没有现成数据？点这里——25 个行业的典型曲线直接可用，都标了来源。', 'at-b'],
+        [28, 66,  '拖进来就行。宽表、长表、正向有功示数表都认，不用先整理成模板。'],
+        [74, 46,  '每一步都写进日志。算错了，能查到是哪一行出的问题。', 'at-b']
+      ],
+      'ultra-data-preview.png': [
+        [35, 3,   '「正向有功功率」这一列，是它自己认出来的——不是你填的。', 'at-b'],
+        [23, 7,   '15 分钟粒度。系统按时间戳密度判断，不用你选。', 'at-b'],
+        [7, 98,   '288 行 × 6 列，列名一个没猜错。', 'at-b']
+      ],
+      'ultra-sensitivity.png': [
+        [35, 11,  '五项参数，随便拖。'],
+        [84, 11,  'IRR 与 NPV 实时重算。这不是一组定值，是一个可以反复试的模型。', 'at-r'],
+        [5, 43,   '峰时电价、系统单价、衰减率——每一项都在动那个 28.6%。']
+      ],
+      'ultra-load-sim.png': [
+        [11, 18,  '25 个行业模板，每个都标了出处。'],
+        [59, 18,  '河南电网 2017。不是拍的，也不是「行业经验值」。', 'at-b'],
+        [85, 18,  '拖滑块，右上那条曲线实时重画。', 'at-r']
+      ],
+      'ultra-curve-dark.png': [
+        [22, 25,  '08:00 一跃而上——商业体开门了。'],
+        [30, 28,  '12:00 的下凹是午休。曲线能读出这栋楼在干什么。'],
+        [31, 13,  '白色虚线是三天平均。基准不是随手画的。']
+      ]
+    };
+
+    document.querySelectorAll('.shot').forEach(fig=>{
+      const img = fig.querySelector('img');
+      if(!img) return;
+      const name = (img.getAttribute('src') || '').split('/').pop();
+      const list = NOTES[name];
+      if(!list) return;
+      list.forEach(([left, top, note, cls])=>{
+        const dot = document.createElement('span');
+        dot.className = 'shotmark' + (cls ? ' ' + cls : '');
+        dot.style.left = left + '%';
+        dot.style.top = top + '%';
+        dot.setAttribute('data-note', note);
+        dot.setAttribute('tabindex', '0');
+        dot.setAttribute('role', 'note');
+        dot.setAttribute('aria-label', note);
+        /* 用事件切 .on，不靠 :hover——
+           伪类在自动化环境判定不稳（元素坐标随滚动动画漂移），
+           且触屏根本没有 hover。 */
+        dot.addEventListener('mouseenter', ()=>dot.classList.add('on'));
+        dot.addEventListener('mouseleave', ()=>dot.classList.remove('on'));
+        dot.addEventListener('focus', ()=>dot.classList.add('on'));
+        dot.addEventListener('blur', ()=>dot.classList.remove('on'));
+        dot.addEventListener('touchstart', (e)=>{
+          e.preventDefault();
+          document.querySelectorAll('.shotmark.on').forEach(x=>{ if(x!==dot) x.classList.remove('on'); });
+          dot.classList.toggle('on');
+        }, {passive:false});
+        fig.appendChild(dot);
+      });
+    });
+  })();
 
   /* ── 截图可放大 ──
      390 屏上界面图只有 335px 宽，里面的字读不出来。包成链接，点击开原图。
