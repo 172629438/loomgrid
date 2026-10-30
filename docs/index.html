@@ -1635,6 +1635,15 @@ nav.on{
   to{ transform: scaleX(1); transform-origin:left center }
 }
 
+/* 技术栈行：像脚注，不像正文。
+   等宽、更小、字距放开——读起来是「标注」，不是「又说了一句」。 */
+.techstack{
+  font-family:var(--mono);
+  font-size:var(--fs-11);
+  letter-spacing:.05em;
+  color:var(--ash2);
+}
+
 /* ── 横向刻度网格 ────────────────────────────────────────────
    曲线的高度要有参照，否则读者只能看出「起伏」，读不出「多少 kW」。
    入场用 stroke-dashoffset 从左画到右，和经线是同一个动作。 */
@@ -1872,7 +1881,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       <div>
         <h2>一份方案两天，其中一天在搬数据</h2>
         <p class="lead">
-          拉 8,760 行负荷、拆日期时间、查政策填时段、逐段列公式、试不同<span class="nw">容量</span>、手调图表颜色。
+          拉 8,760 行负荷，拆日期时间，查政策填时段，逐段列公式，试不同<span class="nw">容量</span>，手调图表颜色。
           真正需要判断力的部分<b>只占三成</b>，剩下的七成是<span class="nw">机械劳动</span>——而<span class="nw">机械劳动</span>最容易出错。
         </p>
         <p class="lead" style="margin-top:18px">
@@ -2080,8 +2089,11 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
        </picture>
     </figure>
     <p class="sub" style="margin-top:14px">
-      四层架构 —— 依赖只向下，领域层不 import 任何 Qt 组件。这是算法能脱离界面单独跑的物理前提。
+      依赖只向下，领域层不 import 任何 Qt 组件。
     </p>
+     <p class="sub techstack" style="margin-top:10px">
+       Python · PySide6 · OR-Tools · matplotlib · PyInstaller · MIT
+     </p>
   </div>
 </section>
 
@@ -2114,7 +2126,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       <div class="ver">
         <h3>Ultra <span>v3.2.2</span></h3>
         <div class="tagline">功能最全 · 正式方案与投资决策</div>
-        <p>MILP 容量规划、LP 调度、Pareto 前沿、13 步诊断。要出一份能签的<span class="nw">方案</span>，用 Ultra。</p>
+        <p>MILP 容量规划、LP 调度、Pareto 前沿、13 步诊断。要签的那份<span class="nw">方案</span>，在 Ultra 里出。</p>
         <dl>
           <dt>代码</dt><dd>36,204 行</dd>
           <dt>包体</dt><dd>273 MB</dd>
