@@ -327,6 +327,35 @@ a.zoomimg{ display:block; cursor:zoom-in; position:relative; z-index:1 }
 }
 .shot:hover::before{ opacity:1 }
 
+/* ── 卡片金属反光 ──────────────────────────────────────────────
+   一道窄光带斜着扫过卡面，位置跟鼠标走。
+   和光斑（::before）分工：光斑是「照亮」，反光是「反光」——
+   前者径向、后者线性，两者叠加才有金属感。
+   同样用 plus-lighter，不压暗截图。 */
+.shot::after{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:2;
+  background:linear-gradient(104deg,
+    transparent 38%,
+    rgba(255,255,255,.055) 46%,
+    rgba(232,207,122,.13) 51%,
+    rgba(255,255,255,.05) 56%,
+    transparent 64%);
+  background-size:260% 100%;
+  background-position:var(--shx, -60%) 0;
+  mix-blend-mode:plus-lighter;
+  opacity:0;
+  transition:opacity 320ms var(--ease-out),
+             background-position 180ms linear;
+}
+.shot:hover::after{ opacity:1 }
+
+/* 流动光点 */
+.flowdot{ filter:drop-shadow(0 0 5px rgba(201,162,39,.85)) }
+@media (prefers-reduced-motion:reduce){
+  .flowg{ display:none }
+  .shot::after{ display:none }
+}
+
 /* 悬停：升起 + 跟随鼠标的 3D 倾斜 + 一层投影 */
 .shot:hover{
   border-color:rgba(201,162,39,.46);
@@ -370,6 +399,7 @@ a.zoomimg:hover::after,a.zoomimg:focus-visible::after{ opacity:1; transform:none
 .litebox{
   position:fixed; inset:0; z-index:300;
   display:flex; align-items:center; justify-content:center;
+  /* 背景交给 #lbShader（WebGL 噪声溶解）；没 WebGL 时这条兜底 */
   background:rgba(6,7,10,.945);
   -webkit-backdrop-filter:blur(18px) saturate(140%);
   backdrop-filter:blur(18px) saturate(140%);
@@ -400,6 +430,18 @@ a.zoomimg:hover::after,a.zoomimg:focus-visible::after{ opacity:1; transform:none
 .litebox.closing{
   opacity:0;
   transition:opacity 300ms var(--ease-out), visibility 0s linear 300ms;
+}
+
+/* ── shader 转场层 ─────────────────────────────────────────────
+   噪声溶解由 WebGL 画；这层只在灯箱开着时存在。
+   has-shader 时把 CSS 的 clip-path 和背景都让出来。 */
+#lbShader{
+  position:fixed; inset:0; z-index:299;
+  pointer-events:none; display:none;
+}
+.litebox.has-shader{ background:transparent; clip-path:none !important; }
+.litebox.has-shader.on, .litebox.has-shader.closing{
+  clip-path:none !important;
 }
 /* 图与说明跟着遮罩一起淡入；FLIP 的位移由 JS 写在 transform 上，
    所以这里的 transform 只做收尾（从 0.98 到 1 那種轻微落位）。 */
@@ -2602,6 +2644,150 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     });
   })();
 
+  /* ── shader 转场：噪声溶解 ────────────────────────────────────
+     灯箱的遮罩不再是一块「板」，是一片会碎的墨。
+     两层柏林噪声叠成阈值场，progress 推进时像素从低到高溶解，
+     边缘留一圈金色辉光——这是纯 CSS 做不出来的那一层。
+
+     边界：
+       · 只在开关时跑 rAF，跑完停
+       · 不支持 WebGL → 不加 has-shader，退回 CSS 的 clip-path
+       · reduce-motion 直接跳过 */
+  const LBShader = (function(){
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
+
+    let cvs, gl, prog, buf, uProg, uRes, raf = 0, cur = 0, target = 0, alive = false;
+
+    const VS = [
+      'attribute vec2 aPos;',
+      'varying vec2 vUv;',
+      'void main(){',
+      '  vUv = aPos * 0.5 + 0.5;',
+      '  gl_Position = vec4(aPos, 0.0, 1.0);',
+      '}'
+    ].join('\n');
+
+    const FS = [
+      'precision mediump float;',
+      'varying vec2 vUv;',
+      'uniform float uProgress;',
+      'uniform vec2 uRes;',
+      'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }',
+      'float noise(vec2 p){',
+      '  vec2 i = floor(p), f = fract(p);',
+      '  vec2 u = f*f*(3.0-2.0*f);',
+      '  return mix(mix(hash(i), hash(i+vec2(1.0,0.0)), u.x),',
+      '             mix(hash(i+vec2(0.0,1.0)), hash(i+vec2(1.0,1.0)), u.x), u.y);',
+      '}',
+      'void main(){',
+      '  vec2 uv = vUv;',
+      /* 两层噪声：粗块定结构，细粒定边缘。比例 22/78 */
+      '  float n = noise(uv * 9.0) * 0.55 + noise(uv * 27.0) * 0.45;',
+      /* progress 映射到阈值，留一点起始余量让第一帧不是全黑 */
+      '  float th = -0.06 + uProgress * 1.12;',
+      '  float a = smoothstep(th + 0.055, th - 0.02, n);',
+      /* 边缘辉光：噪声值靠近阈值的像素最亮 */
+      '  float rim = 1.0 - smoothstep(0.0, 0.075, abs(n - th));',
+      '  vec3 base = vec3(0.024, 0.027, 0.039);',
+      '  vec3 gold = vec3(0.788, 0.635, 0.153);',
+      '  vec3 col = base + gold * rim * 0.62;',
+      '  gl_FragColor = vec4(col, a * 0.965);',
+      '}'
+    ].join('\n');
+
+    function sh(type, src){
+      const o = gl.createShader(type);
+      gl.shaderSource(o, src);
+      gl.compileShader(o);
+      if(!gl.getShaderParameter(o, gl.COMPILE_STATUS)){
+        throw new Error(gl.getShaderInfoLog(o) || 'shader');
+      }
+      return o;
+    }
+
+    function init(){
+      if(cvs) return true;
+      cvs = document.createElement('canvas');
+      cvs.id = 'lbShader';
+      cvs.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(cvs);
+
+      gl = cvs.getContext('webgl', {alpha:true, premultipliedAlpha:false});
+      if(!gl){ cvs.remove(); cvs = null; return false; }
+
+      try{
+        prog = gl.createProgram();
+        gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+        gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+        gl.linkProgram(prog);
+        if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('link');
+      }catch(e){
+        cvs.remove(); cvs = null; gl = null; return false;
+      }
+
+      buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+
+      const aPos = gl.getAttribLocation(prog, 'aPos');
+      gl.enableVertexAttribArray(aPos);
+      gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+      uProg = gl.getUniformLocation(prog, 'uProgress');
+      uRes  = gl.getUniformLocation(prog, 'uRes');
+
+      gl.useProgram(prog);
+      return true;
+    }
+
+    function size(){
+      const dpr = Math.min(devicePixelRatio || 1, 1.5);   /* 全屏溶解，1.5 就够 */
+      cvs.width  = Math.floor(innerWidth  * dpr);
+      cvs.height = Math.floor(innerHeight * dpr);
+      cvs.style.width  = innerWidth + 'px';
+      cvs.style.height = innerHeight + 'px';
+      gl.viewport(0, 0, cvs.width, cvs.height);
+      gl.uniform2f(uRes, cvs.width, cvs.height);
+    }
+
+    function draw(){
+      gl.uniform1f(uProg, cur);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    function loop(){
+      raf = 0;
+      const d = target - cur;
+      cur += d * 0.18;
+      if(Math.abs(d) < 0.002){ cur = target; draw(); return; }
+      draw();
+      raf = requestAnimationFrame(loop);
+    }
+
+    return {
+      ready(){ return init(); },
+      show(){
+        if(!init()) return false;
+        cvs.style.display = 'block';
+        size();
+        cur = 0; target = 1;
+        if(!alive){ alive = true; }
+        if(!raf) raf = requestAnimationFrame(loop);
+        return true;
+      },
+      hide(done){
+        if(!cvs){ if(done) done(); return; }
+        target = 0;
+        if(!raf) raf = requestAnimationFrame(loop);
+        setTimeout(()=>{
+          cvs.style.display = 'none';
+          if(done) done();
+        }, 420);
+      },
+      resize(){ if(cvs && cvs.style.display === 'block') size(); }
+    };
+  })();
+
   /* ── 标题逐字浮现 ──
      把 h2 的文本拆成单字，逐个升起来。
      遇到内联元素（<span class="q">）继续往里拆，保留原有语义。 */
@@ -2827,12 +3013,16 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
           /* 光斑位置用百分比——它不参与 3D 变换，所以不能跟着 rx/ry 变 */
           fig.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%');
           fig.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100).toFixed(1) + '%');
+          /* 反光带跟鼠标横移：左端 -20%、右端 -100%，光带扫过卡面 */
+          const sx = (e.clientX - r.left) / r.width;
+          fig.style.setProperty('--shx', (-20 - sx * 80).toFixed(1) + '%');
         });
         fig.addEventListener('pointerleave', ()=>{
           fig.style.setProperty('--rx', 0);
           fig.style.setProperty('--ry', 0);
           fig.style.setProperty('--mx', '50%');
           fig.style.setProperty('--my', '50%');
+          fig.style.setProperty('--shx', '-60%');
         });
       });
     }
@@ -2970,6 +3160,11 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       const fig = figs[i];
       const from = fig ? fig.getBoundingClientRect() : null;
       render(i);
+      /* shader 可用就让 WebGL 接管遮罩，否则退回 CSS 的 clip-path */
+      if(LBShader && LBShader.ready()){
+        box.classList.add('has-shader');
+        LBShader.show();
+      }
       box.classList.add('on');
       document.documentElement.style.overflow = 'hidden';
       if(fig) fig.classList.add('lifted');
@@ -2992,8 +3187,11 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       /* 遮罩同时开始淡——图飞回去的 380ms 里，底先暗下去 */
       box.classList.add('closing');
 
+      if(box.classList.contains('has-shader') && LBShader){
+        LBShader.hide();
+      }
       flipOut(back, ()=>{
-        box.classList.remove('on', 'closing');
+        box.classList.remove('on', 'closing', 'has-shader');
         document.documentElement.style.overflow = '';
         lbImg.style.transition = 'none';
         lbImg.style.transform = 'none';
@@ -3024,6 +3222,12 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     btnNext.addEventListener('click', ()=>render(cur+1));
     /* 点遮罩空白处关（点在 stage 上不关） */
     box.addEventListener('click', (e)=>{ if(e.target === box) close(); });
+
+    let rzT = 0;
+    addEventListener('resize', ()=>{
+      clearTimeout(rzT);
+      rzT = setTimeout(()=>{ if(LBShader) LBShader.resize(); }, 180);
+    }, {passive:true});
   })();
 
 /* ── hero 柔光跟随 ──
@@ -3208,6 +3412,34 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     gLoad.appendChild(seg);
     loadSegs.push(seg);
   }
+  /* 数据流：一条隐藏的整段 path 给光点当轨道。
+     曲线本体是 95 段 <line>（为了线宽随负荷变化），
+     但 animateMotion 需要一个完整 path。 */
+  const pTrack = el('path',{
+    d: pathOf(D.load, yLoad),
+    fill:'none', stroke:'none', class:'loadtrack'
+  });
+  pTrack.setAttribute('id', 'loadTrack');
+  gLoad.appendChild(pTrack);
+
+  /* 三个光点，沿轨道跑，相位错开。
+     SMIL（animateMotion）是浏览器原生的，不占 JS 主线程。 */
+  const flowG = el('g',{class:'flowg'});
+  for(let k=0;k<3;k++){
+    const dot = el('circle',{r:2.6, cx:0, cy:0, fill:'#E8CF7A', class:'flowdot'});
+    const mo = document.createElementNS(NS,'animateMotion');
+    mo.setAttribute('dur', '11s');
+    mo.setAttribute('repeatCount', 'indefinite');
+    mo.setAttribute('begin', (k * 3.7) + 's');
+    mo.setAttribute('rotate', 'auto');
+    const mp = document.createElementNS(NS,'mpath');
+    mp.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#loadTrack');
+    mo.appendChild(mp);
+    dot.appendChild(mo);
+    flowG.appendChild(dot);
+  }
+  gLoad.appendChild(flowG);
+
   svg.appendChild(gLoad);
 
   /* ④ SOC 带 */
