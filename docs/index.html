@@ -251,18 +251,6 @@ h1 b{font-weight:600}
   pointer-events:none;display:none;z-index:1;
 }
 
-/* 首访解码层：先用编码字符占住织面的位置，再淡出交给真曲线。
-   取 Active Theory 的做法——加载状态是数据本身，不是转圈。      */
-.loom-decode{
-  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-size:10.5px;line-height:1.85;letter-spacing:.08em;
-  color:rgba(237,236,232,.26);white-space:pre;overflow:hidden;
-  pointer-events:none;opacity:0;z-index:2;
-  transition:opacity 320ms var(--ease-out);
-}
-.loom-decode.on{opacity:1}
-@media (max-width:700px){ .loom-decode{display:none} }
-@media (prefers-reduced-motion:reduce){ .loom-decode{display:none} }
 .js.gl #loomGL{display:block}
 .js.gl .warpg{opacity:0}
 
@@ -1316,7 +1304,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
    黑底白字进纸就是一片黑，所以反过来——但保留结构。 */
 @media print{
   html,body{ background:#fff !important; color:#111 !important }
-  nav,.tune,.tune-ask,.loom-decode,#loomGL,.probe,
+  nav,.tune,.tune-ask,#loomGL,.probe,
   #prog,footer .footlinks,.hero-act{ display:none !important }
   section{ break-inside:avoid; padding:24px 0 !important }
   h1,h2,h3{ color:#000 !important }
@@ -1401,7 +1389,6 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       <span>这一天 <b>充 2,989</b> / <b>放 2,736</b> kWh · 日省 <b>¥1,676</b></span>
       <span><b>optimal_dispatch_lp</b> · 同源数据，非示意</span>
     </div>
-    <div class="loom-decode" id="loomDecode" aria-hidden="true"></div>
     <canvas id="loomGL" aria-hidden="true"></canvas>
     <svg id="loomSvg" viewBox="0 0 1600 380" preserveAspectRatio="none" role="img"
          aria-label="一天 96 点：24 小时分时电价经线、负荷曲线、储能 SOC 轨迹"></svg>
@@ -2688,57 +2675,6 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     const warpEl = document.querySelector('.warpg');
     if(warpEl) warpEl.style.display = 'none';
     glLoom = { render, size };
-  })();
-
-  /* ⑦.6 首访解码层 —— 用编码字符占住织面，再淡出交给真曲线
-   *
-   * Active Theory 的加载器不是 spinner，是编码后的数据本身。
-   * 这里借它的形：字符先随机翻滚，中途逐位「锁定」成数字，
-   * 等织面画完一起退场。只在本次会话第一次进入时出现。
-   */
-  (function decode(){
-    const el = document.getElementById('loomDecode');
-    if(!el || reduce) return;
-    try{ if(sessionStorage.getItem('lg.decoded') === '1'){ el.remove(); return; } }catch(_){}
-    try{ sessionStorage.setItem('lg.decoded', '1'); }catch(_){}
-
-    const CH = '/\\\\01▁▂▃▄▅▆▇';
-    // 按容器实际尺寸算列数行数——固定 62×4 只占中间一小块，
-    // 看着像噪点，不像一屏正在解码的数据。
-    const COLS = Math.max(24, Math.floor(el.clientWidth / 6.3));
-    const ROWS = Math.max(4, Math.min(14, Math.floor(el.clientHeight / 17)));
-    let frame = 0;
-    el.classList.add('on');
-
-    function paint(){
-      const lockRows = frame / 9;                 // 逐行锁定
-      let out = '';
-      for(let r = 0; r < ROWS; r++){
-        let line = '';
-        for(let c = 0; c < COLS; c++){
-          const locked = (r + 1) < lockRows && (c % 3 !== 0);
-          if(locked){
-            const i = Math.round(c / (COLS - 1) * (n - 1));
-            line += String(Math.round(D.price[i] * 100)).padStart(3, '0').slice(-1);
-          }else{
-            line += CH[(Math.random() * CH.length) | 0];
-          }
-        }
-        out += line + (r < ROWS - 1 ? '\n' : '');
-      }
-      el.textContent = out;
-    }
-
-    paint();
-    const tick = setInterval(()=>{
-      frame++;
-      paint();
-      if(frame > 10){
-        clearInterval(tick);
-        el.classList.remove('on');
-        setTimeout(()=>{ if(el.parentElement) el.remove(); }, 420);
-      }
-    }, 66);
   })();
 
   /* ⑧ 编排：经线依次亮起 → 负荷线从左到右描出 → SOC 跟上
