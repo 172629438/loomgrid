@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LoomGrid · 工商业储能测算工作台</title>
-<meta name="description" content="读进客户的电表数据和当地分时电价，算清楚装多大、怎么充放、几年回本。算法可单独运行，433 项断言守着每一个数字。">
+<meta name="description" content="读进客户的电表数据和当地分时电价，算清楚装多大、怎么充放、几年<span class="nw">回本</span>。算法可单独运行，433 项断言守着每一个数字。">
 <link rel="icon" href="assets/app.png" sizes="256x256">
 <link rel="apple-touch-icon" href="assets/app.png">
 <meta name="theme-color" content="#08090B">
@@ -1298,11 +1298,23 @@ html{ scrollbar-color:rgba(237,236,232,.16) #08090B; scrollbar-width:thin }
    「MILP 容量规划」读起来会黏在一起。text-autospace 按 CJK 规范自动补
    1/4 字宽（Chrome 119+；不支持的浏览器安静地忽略，不坏事）。 */
 body{
+  /* 中文断行禁则：标点不落行首（行首禁则），开括号不落行尾（行尾禁则）。
+     strict 是 CSS 里最严的一档，浏览器会为它多留一点余量。 */
+  line-break:strict;
+  word-break:normal;
+  /* 中文任意两字之间都可以断——这是规范，但读起来会拆词。
+     真正拆词的地方用 .nw 夹住。 */
+  overflow-wrap:break-word;
   text-autospace:normal;
   font-kerning:normal;
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
 }
+
+/* 不让词组被拆到两行。
+   中文没有空格，浏览器默认任意两字之间都能断——「容量」会被拆成「容 / 量」，
+   读起来断气。用 nowrap 夹住的名词，浏览器只在它前面或后面断。 */
+.nw{ white-space:nowrap }
 
 /* 表格与数字块：等宽数字，避免「¥1,676 / ¥1,199」逐位跳动 */
 td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
@@ -1379,7 +1391,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       <h1>Loom<b>Grid</b></h1>
       <p class="hero-line">把一条负荷曲线，<br>织成一份能签的方案。</p>
       <p class="hero-desc">
-        读进客户的电表数据和当地分时电价，算清楚装多大、怎么充放、几年回本。
+        读进客户的电表数据和当地分时电价，算清楚装多大、怎么充放、几年<span class="nw">回本</span>。
         曲线下面跑的是线性规划，不是经验系数表。
       </p>
       <div class="hero-act">
@@ -1440,8 +1452,8 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       <div>
         <h2>一份方案两天，其中一天在搬数据</h2>
         <p class="lead">
-          拉 8,760 行负荷、拆日期时间、查政策填时段、逐段列公式、试不同容量、手调图表颜色。
-          真正需要判断力的部分<b>只占三成</b>，剩下的七成是机械劳动——而机械劳动最容易出错。
+          拉 8,760 行负荷、拆日期时间、查政策填时段、逐段列公式、试不同<span class="nw">容量</span>、手调图表颜色。
+          真正需要判断力的部分<b>只占三成</b>，剩下的七成是<span class="nw">机械劳动</span>——而<span class="nw">机械劳动</span>最容易出错。
         </p>
         <p class="lead" style="margin-top:18px">
           这个工具只做一件事：把那七成接过去。
@@ -1466,7 +1478,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     <h2>拖进去，它认列</h2>
     <p class="lead">
       不需要先整理成模板。宽表、长表、正向有功示数表都能进——
-      日期列、时间列、负荷列自动识别。认错了改一次，规则记住，下次不问。
+      日期列、<span class="nw">时间列</span>、负荷列自动识别。认错了改一次，规则记住，下次不问。
     </p>
 
     <div class="stack">
@@ -1542,7 +1554,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
 
     <p class="lead" style="margin-top:26px;max-width:64ch">
       贪心只省 11 元，不是它差——它的设计前提是有光伏或风电时自发自用，
-      纯套利场景下不会主动从电网买电充。<b>用错场景，比用错算法更危险。</b>
+      纯<span class="nw">套利</span>场景下不会主动从电网买电充。<b>用错场景，比用错算法更危险。</b>
     </p>
 
     <!-- ══ 配置对照器 ══ -->
@@ -1607,11 +1619,11 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
         <h2>每个数字都有出口</h2>
         <p class="lead">
           算法从界面里剥出来独立成包，<code>import</code> 进去就能跑，不依赖任何 GUI；
-          十六套验证脚本、四百多项断言守着每一次提交。
+          十六<span class="nw">套验证</span>脚本、四百多项断言守着每一次提交。
         </p>
         <p class="lead" style="margin-top:18px">
           核心链路另有手算对拍：同一组数据用笔算一遍，和程序跑出来的结果比。
-          差一分钱就算失败。
+          <span class="nw">差一分钱</span>就算失败。
         </p>
       </div>
 
@@ -1664,7 +1676,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       <div class="ver">
         <h3>Ultra <span>v3.2.2</span></h3>
         <div class="tagline">功能最全 · 正式方案与投资决策</div>
-        <p>MILP 容量规划、LP 调度、Pareto 前沿、13 步诊断。要出一份能签的方案，用 Ultra。</p>
+        <p>MILP 容量规划、LP 调度、Pareto 前沿、13 步诊断。要出一份能签的<span class="nw">方案</span>，用 Ultra。</p>
         <dl>
           <dt>代码</dt><dd>36,204 行</dd>
           <dt>包体</dt><dd>273 MB</dd>
@@ -1685,7 +1697,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
 <footer>
   <div class="wrap foot">
     <div>
-      <div class="l1">一个储能工程师为解放自己的重复劳动写出来的桌面工具。</div>
+      <div class="l1">一个储能工程师为解放自己的重复劳动写出来的<span class="nw">桌面工具</span>。</div>
       <div class="l2">不优雅，但真实——包括走得通的路，和绕过的那些弯。</div>
     </div>
     <div class="footlinks">
@@ -1730,7 +1742,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
 
 <div class="tune-ask" id="tuneAsk" role="dialog" aria-labelledby="tuneQ">
   <div class="q" id="tuneQ">放首歌吗？</div>
-  <div class="sub">We Never（Remix）· Hi Noise<br>写这页时循环的那首。浏览器不允许自动出声，需要你点一下。</div>
+  <div class="sub">We Never（Remix）· Hi Noise<br>写这页时循环的那首。浏览器不允许自动<span class="nw">出声</span>，<span class="nw">需要你点一下</span>。</div>
   <div class="row">
     <button class="yes" id="tuneYes">放一下</button>
     <button class="no" id="tuneNo">不用</button>
