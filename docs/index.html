@@ -2590,7 +2590,11 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
             || cvs.getContext('webgl',  {antialias:false, alpha:true, premultipliedAlpha:false});
     if(!gl) return;
 
-    const DENS = 5;
+    /* 一根 = 15 分钟 = 一个采样点。
+       曾经用 DENS=5 重采样成 476 根（每 3 分钟），想靠密度出质感——
+       结果是每根都被邻居的亮度冲淡，整片变成一层灰雾：
+       密度上去了，可读性掉了。 */
+    const DENS = 1;
     const LINES = (n - 1) * DENS + 1;
     function rs(a){
       const o = [];
@@ -2662,14 +2666,16 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     /* 整点线：原 SVG 里有 13 根 alpha .13 的线（每 2 小时一根），
        它们是整幅图里唯一更亮的东西——格子感、时辰感全靠这 13 根。
        换 WebGL 时漏掉了，整片就变成一片均匀的灰，读不出时间。 */
-    const HOURSTEP = LINES > 1 ? (LINES - 1) / 12 : 0;    // 12 段 = 每 2 小时
+    /* 96 根里每 2 小时正好 8 根。用 LINES/12 而不是 (LINES-1)/12——
+       后者得 7.92，非整数，整点判断会一点点漂到旁边那根。 */
+    const HOURSTEP = LINES > 1 ? LINES / 12 : 0;
     for(let i=0;i<LINES;i++){
       const x = i/(LINES-1);
       const t = (pr[i]-pminL)/(pmaxL-pminL+1e-9);
-      let b = 0.030 + t*0.105;                                     // 电价 → 亮度
+      let b = 0.042 + t*0.150;                                     // 电价 → 亮度（96 根下要够看得见）
       let wBoost = 1;                                              // 整点加宽
       const dz = HOURSTEP > 0 ? Math.abs(i - Math.round(i / HOURSTEP) * HOURSTEP) : 9;
-      if(dz < 0.55){ b = b * 1.35 + 0.045; wBoost = 1.9; }          // 命中整点：叠加而非取最大值
+      if(dz < 0.4){ b = b * 1.3 + 0.05; wBoost = 2.1; }            // 命中整点：叠加而非取最大值
       const z = ((ld[i]-lmin)/(lmax-lmin+1e-9))*2 - 1;             // 负荷 → 深度
       const depth = (z + 1) * 0.5;                                 // 0 远 → 1 近
       const y0 = Y0 + (1 - depth) * YSHRINK;
