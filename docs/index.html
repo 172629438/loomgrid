@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LoomGrid · 工商业储能测算工作台</title>
-<meta name="description" content="读进客户的电表数据和当地分时电价，算清楚装多大、怎么充放、几年<span class="nw">回本</span>。算法可单独运行，433 项断言守着每一个数字。">
+<meta name="description" content="读进客户的电表数据和当地分时电价，算清楚装多大、怎么充放、几年回本。算法可单独运行，433 项断言守着每一个数字。">
 <link rel="icon" href="assets/app.png" sizes="256x256">
 <link rel="apple-touch-icon" href="assets/app.png">
 <meta name="theme-color" content="#08090B">
@@ -787,8 +787,8 @@ footer{
   border-top:1px solid var(--line-soft);
 }
 .foot{display:flex;justify-content:space-between;align-items:flex-start;gap:36px;flex-wrap:wrap}
-.foot .l1{font-size:var(--fs-14);color:var(--ash1);max-width:38ch;line-height:1.8}
-.foot .l2{font-size:var(--fs-12_5);color:var(--ash2);margin-top:10px;max-width:40ch;line-height:1.75}
+.foot .l1{font-size:var(--fs-14);color:var(--ash1);max-width:44ch;line-height:1.8}
+.foot .l2{font-size:var(--fs-12_5);color:var(--ash2);margin-top:10px;max-width:46ch;line-height:1.75}
 .footlinks{display:flex;gap:24px;flex-wrap:wrap;font-size:var(--fs-12_5);color:var(--ash2)}
 /* 这个按钮原先没有 font-size，取的是浏览器默认 13.3333px——
    一个不是任何人选的数字。归到 14 档。 */
@@ -1960,7 +1960,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
         startLoop(); paint();
         return true;
       }
-      ask.classList.add('on');
+      armScrollAsk();
       return false;
     }
   }
@@ -1979,6 +1979,25 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     window.addEventListener('DOMContentLoaded', ()=>setTimeout(boot, 900));
   }else{
     setTimeout(boot, 900);
+  }
+
+  /* ══════ 询问卡的时机 ══════
+     原来在 tryPlay 失败时立刻弹——新访客第一屏就被挡住：
+     390 屏上它盖住整段页脚文字，1440 屏上盖住引擎图例与版本卡代码表。
+
+     改成等用户滚动过 700px 再问。不滚动的访客可能只看首屏，
+     那正好不该被打断；他随时能点导航或页脚那个 ♪ 手动开。 */
+  let scrollAskArmed = false;
+  function armScrollAsk(){
+    if(scrollAskArmed) return;
+    scrollAskArmed = true;
+    const onScroll = ()=>{
+      if(scrollY > 700){
+        removeEventListener('scroll', onScroll);
+        ask.classList.add('on');
+      }
+    };
+    addEventListener('scroll', onScroll, {passive:true});
   }
 
   /* ══════ 询问卡 ══════ */
