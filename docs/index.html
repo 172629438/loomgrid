@@ -313,6 +313,20 @@ a.zoomimg{ display:block; cursor:zoom-in; position:relative; z-index:1 }
              transform 420ms cubic-bezier(.22,.9,.24,1);
   will-change:transform;
 }
+/* ── 卡片光斑 ──────────────────────────────────────────────────
+   鼠标在卡上移动，一道金色光跟着走。用 plus-lighter 只加不减，
+   截图不会被压暗——这是关键，普通 overlay 会把浅底界面染成脏黄。
+   --mx / --my 与 3D 倾斜共用同一组变量。 */
+.shot::before{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:2;
+  background:radial-gradient(circle 240px at var(--mx,50%) var(--my,50%),
+    rgba(201,162,39,.20), rgba(201,162,39,.06) 45%, transparent 68%);
+  mix-blend-mode:plus-lighter;
+  opacity:0;
+  transition:opacity 300ms var(--ease-out);
+}
+.shot:hover::before{ opacity:1 }
+
 /* 悬停：升起 + 跟随鼠标的 3D 倾斜 + 一层投影 */
 .shot:hover{
   border-color:rgba(201,162,39,.46);
@@ -360,11 +374,27 @@ a.zoomimg:hover::after,a.zoomimg:focus-visible::after{ opacity:1; transform:none
   -webkit-backdrop-filter:blur(18px) saturate(140%);
   backdrop-filter:blur(18px) saturate(140%);
   opacity:0; visibility:hidden;
-  transition:opacity 320ms var(--ease-out), visibility 0s linear 320ms;
+  /* 斜切推进：遮罩不是一个平面淡进来，是从下往上「被推」进来。
+     绝区零的转场就是这个路子——平面在动，透明度只是配角。 */
+  clip-path:inset(100% 0 0 0);
+  transition:clip-path 520ms cubic-bezier(.16,.84,.24,1),
+             opacity 200ms var(--ease-out),
+             visibility 0s linear 520ms;
 }
 .litebox.on{
   opacity:1; visibility:visible;
-  transition:opacity 260ms var(--ease-out), visibility 0s;
+  clip-path:inset(0 0 0 0);
+  transition:clip-path 560ms cubic-bezier(.16,.84,.24,1),
+             opacity 180ms var(--ease-out),
+             visibility 0s;
+}
+/* 关闭：从下往上收回，比打开快一档（面积律：退场 0.6×进场） */
+.litebox.closing{
+  opacity:1;
+  clip-path:inset(0 0 100% 0);
+  transition:clip-path 340ms cubic-bezier(.4,.06,.3,1),
+             opacity 340ms var(--ease-out) 120ms,
+             visibility 0s linear 520ms;
 }
 /* 关闭中：遮罩先淡，与图飞回同时进行（关闭逻辑见 JS） */
 .litebox.closing{
@@ -540,8 +570,14 @@ a.zoomimg:focus-visible{ outline:1px solid var(--gold); outline-offset:2px }
 .g-thumb{
   position:relative; display:block; padding:0; border:0;
   background:#0A0C10; cursor:pointer; overflow:hidden;
-  transition:background var(--t-1) var(--ease-out);
+  transition:background var(--t-1) var(--ease-out),
+             transform 420ms cubic-bezier(.22,.9,.24,1),
+             opacity 420ms var(--ease-out);
 }
+/* 一条卡组，一张张落位。JS 给 .in 逐个放行。 */
+.js .g-thumbs .g-thumb{ opacity:0; transform:translateY(14px) }
+.js .g-thumbs.in .g-thumb{ opacity:1; transform:none }
+.js .g-thumb:hover{ transform:translateY(-3px) }
 .g-thumb img{
   display:block; width:100%; height:64px;
   object-fit:cover; object-position:top center;
@@ -2558,6 +2594,28 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     });
 
     show(0);
+
+    /* 缩略条入场：进入视口时逐个落位，间隔 55ms。
+       一次性全出现像「贴上去」，一张张落才像「发牌」。 */
+    const thumbsBox = root.querySelector('.g-thumbs');
+    if(thumbsBox){
+      const RED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if(RED){
+        thumbsBox.classList.add('in');
+      } else {
+        const io = new IntersectionObserver((es)=>{
+          es.forEach(e=>{
+            if(!e.isIntersecting) return;
+            io.disconnect();
+            thumbs.forEach((t,i)=>{
+              setTimeout(()=>t.classList.add('in'), i * 55);
+            });
+            setTimeout(()=>thumbsBox.classList.add('in'), thumbs.length * 55 + 60);
+          });
+        }, {threshold:0.25});
+        io.observe(thumbsBox);
+      }
+    }
   })();
 
   /* ── 卡牌 + 灯箱 ──
@@ -2581,10 +2639,15 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
           const ry = ((e.clientY - r.top) / r.height) * 2 - 1;
           fig.style.setProperty('--rx', rx.toFixed(3));
           fig.style.setProperty('--ry', ry.toFixed(3));
+          /* 光斑位置用百分比——它不参与 3D 变换，所以不能跟着 rx/ry 变 */
+          fig.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%');
+          fig.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100).toFixed(1) + '%');
         });
         fig.addEventListener('pointerleave', ()=>{
           fig.style.setProperty('--rx', 0);
           fig.style.setProperty('--ry', 0);
+          fig.style.setProperty('--mx', '50%');
+          fig.style.setProperty('--my', '50%');
         });
       });
     }
@@ -2711,7 +2774,9 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       lbImg.style.transform =
         'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) ' +
         'scale(' + sx.toFixed(4) + ',' + sy.toFixed(4) + ')';
-      setTimeout(done, 380);
+      /* 斜切收回是 340ms、图飞回是 380ms，
+         等图先落位再摘类——反过来会看到遮罩先消失、图还在半空。 */
+      setTimeout(done, 400);
     }
 
     function open(i, fromEl){
