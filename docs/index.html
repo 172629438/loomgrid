@@ -296,6 +296,88 @@ h1 b{font-weight:600}
    指针给 zoom-in 作为暗示，点击开原尺寸。 */
 a.zoomimg{ display:block; cursor:zoom-in; position:relative; z-index:1 }
 
+/* ── 卡牌化 ────────────────────────────────────────────────────
+   悬停时边框提亮、底色稍抬。不做位移——并排的卡挪动会像在打架。 */
+.shot{
+  transition:border-color var(--t-1) var(--ease-out),
+             background var(--t-1) var(--ease-out);
+}
+.shot:hover{ border-color:rgba(201,162,39,.42); background:#101216 }
+.shot:hover figcaption{ color:var(--ash1) }
+
+/* 右上角：「展开」 */
+a.zoomimg::after{
+  content:"展开"; position:absolute; right:10px; top:10px;
+  padding:4px 9px; font-family:var(--mono); font-size:var(--fs-11);
+  letter-spacing:.06em; color:var(--ink);
+  background:rgba(8,9,11,.78);
+  border:1px solid rgba(237,236,232,.22);
+  opacity:0; transform:translateY(-4px);
+  transition:opacity var(--t-1) var(--ease-out),
+             transform var(--t-1) var(--ease-out);
+  pointer-events:none;
+}
+a.zoomimg:hover::after,a.zoomimg:focus-visible::after{ opacity:1; transform:none }
+
+/* ── 灯箱 ──────────────────────────────────────────────────────
+   站内放大：遮罩 + 大图 + 标注点 + 说明 + 计数 + 左右切换。
+   图按 viewport 做上限，不裁切；遮罩点空白即可关。 */
+.litebox{
+  position:fixed; inset:0; z-index:300; display:none;
+  align-items:center; justify-content:center;
+  background:rgba(6,7,10,.945);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+  backdrop-filter:blur(18px) saturate(140%);
+}
+.litebox.on{ display:flex }
+.litebox .lb-stage{ position:relative; max-width:94vw; max-height:88vh }
+.litebox .lb-img{
+  display:block; max-width:94vw; max-height:88vh;
+  width:auto; height:auto; object-fit:contain;
+  border:1px solid rgba(237,236,232,.16);
+  background:#0A0C10;
+}
+/* 灯箱里的标注点：位置百分比相同，只是尺度变大 */
+.litebox .shotmark{ z-index:2 }
+.litebox .lb-cap{
+  position:absolute; left:0; right:0; bottom:-46px;
+  display:flex; justify-content:space-between; align-items:baseline; gap:20px;
+  font-size:var(--fs-12_5); color:var(--ash2);
+}
+.litebox .lb-cap b{ color:var(--ink); font-weight:400 }
+.litebox .lb-count{
+  position:absolute; right:calc(100% + 18px); top:0;
+  font-family:var(--mono); font-size:var(--fs-11);
+  color:var(--ash2); letter-spacing:.08em; white-space:nowrap;
+}
+.litebox .lb-x{
+  position:absolute; right:calc(100% + 18px); top:26px;
+  width:32px; height:32px; display:grid; place-items:center;
+  background:none; border:1px solid rgba(237,236,232,.22);
+  color:var(--ink); font-size:16px; line-height:1; cursor:pointer;
+  transition:border-color var(--t-1) var(--ease-out),color var(--t-1) var(--ease-out);
+}
+.litebox .lb-x:hover{ border-color:var(--gold); color:var(--gold) }
+.litebox .lb-prev,.litebox .lb-next{
+  position:absolute; top:50%; transform:translateY(-50%);
+  width:40px; height:56px; display:grid; place-items:center;
+  background:none; border:1px solid rgba(237,236,232,.18);
+  color:var(--ink); font-size:15px; cursor:pointer;
+  transition:border-color var(--t-1) var(--ease-out),color var(--t-1) var(--ease-out);
+}
+.litebox .lb-prev{ left:-56px } .litebox .lb-next{ right:-56px }
+.litebox .lb-prev:hover,.litebox .lb-next:hover{ border-color:var(--gold); color:var(--gold) }
+.litebox .lb-prev[disabled],.litebox .lb-next[disabled]{ opacity:.22; cursor:default }
+@media (max-width:900px){
+  .litebox .lb-count{ right:auto; left:0; top:-24px }
+  .litebox .lb-x{ right:0; top:-46px }
+  .litebox .lb-prev{ left:-8px } .litebox .lb-next{ right:-8px }
+  .litebox .lb-cap{ position:static; margin-top:10px }
+}
+@media (prefers-reduced-motion:reduce){
+  .litebox *,.shot,a.zoomimg::after{ transition:none !important }
+}
+
 /* ── 截图标注点 ────────────────────────────────────────────────
    一个 9px 的点，悬停或键盘聚焦时放大并浮出一句话。
    说的不是「这是什么功能」，是「这一处为什么值得看」。
@@ -339,15 +421,6 @@ a.zoomimg{ display:block; cursor:zoom-in; position:relative; z-index:1 }
   .shotmark,.shotmark::after{ transition:none }
 }
 a.zoomimg:focus-visible{ outline:1px solid var(--gold); outline-offset:2px }
-a.zoomimg::after{
-  content:"点击看原图"; position:absolute; right:8px; bottom:8px;
-  padding:3px 8px; font-family:var(--mono); font-size:var(--fs-11);
-  color:var(--ink); background:rgba(8,9,11,.72);
-  border:1px solid rgba(237,236,232,.18);
-  opacity:0; transition:opacity var(--t-1) var(--ease-out);
-  pointer-events:none;
-}
-a.zoomimg:hover::after, a.zoomimg:focus-visible::after{ opacity:1 }
 .shot figcaption{
   padding:12px 14px;font-size:var(--fs-12_5);color:var(--ash2);
   display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
@@ -2227,10 +2300,10 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
   /* ── 截图标注 ──
      每张图三个点，说的是「这一处为什么值得看」，不是功能说明。
      坐标是相对图片的百分比，换图时不用重标。 */
-  (function marks(){
-    const NOTES = {
+  /* 标注配置：标注点和灯箱共用这一份 */
+  const LG_NOTES = {
       'ultra-main-imported.png': [
-        [21, 4.5, '没有现成数据？点这里——25 个行业的典型曲线直接可用，都标了来源。', 'at-b'],
+        [21, 11, '没有现成数据？点这里——25 个行业的典型曲线直接可用，都标了来源。', 'at-b'],
         [28, 66,  '拖进来就行。宽表、长表、正向有功示数表都认，不用先整理成模板。'],
         [74, 46,  '每一步都写进日志。算错了，能查到是哪一行出的问题。', 'at-b']
       ],
@@ -2256,6 +2329,8 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       ]
     };
 
+  (function marks(){
+    const NOTES = LG_NOTES;
     document.querySelectorAll('.shot').forEach(fig=>{
       const img = fig.querySelector('img');
       if(!img) return;
@@ -2288,21 +2363,138 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     });
   })();
 
-  /* ── 截图可放大 ──
-     390 屏上界面图只有 335px 宽，里面的字读不出来。包成链接，点击开原图。
-     用 JS 包而不是改 HTML：7 处 figure 不用逐个手改，也保持 DOM 干净。 */
-  (function zoom(){
-    document.querySelectorAll('.shot img, .fig img').forEach(img=>{
-      if(img.closest('a')) return;
-      const a=document.createElement('a');
-      a.href=img.currentSrc||img.src;
-      a.target='_blank';
-      a.rel='noopener';
-      a.className='zoomimg';
-      a.setAttribute('aria-label','看原图：'+(img.alt||''));
-      img.parentNode.insertBefore(a,img);
+  /* ── 卡牌 + 灯箱 ──
+     五张界面图做成卡片，点击在页内放大（不跳新标签）。
+     灯箱里保留标注点：放大之后那些「这一处为什么值得看」才真的读得清。 */
+  (function litebox(){
+    const figs = [...document.querySelectorAll('.shot')];
+    if(!figs.length) return;
+
+    /* 先把每张图包进可点的卡 */
+    figs.forEach((fig)=>{
+      const img = fig.querySelector('img');
+      if(!img || img.closest('a')) return;
+      const a = document.createElement('a');
+      a.href = img.currentSrc || img.src;
+      a.className = 'zoomimg';
+      a.setAttribute('role', 'button');
+      a.setAttribute('aria-label', '放大查看：' + (img.alt || ''));
+      img.parentNode.insertBefore(a, img);
       a.appendChild(img);
     });
+
+    /* ── 灯箱 DOM ── */
+    const box = document.createElement('div');
+    box.className = 'litebox';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-label', '界面截图');
+    box.innerHTML =
+      '<div class="lb-stage">' +
+        '<button class="lb-x" type="button" aria-label="关闭">×</button>' +
+        '<div class="lb-count" aria-hidden="true"></div>' +
+        '<img class="lb-img" alt="">' +
+        '<button class="lb-prev" type="button" aria-label="上一张">←</button>' +
+        '<button class="lb-next" type="button" aria-label="下一张">→</button>' +
+        '<div class="lb-cap"></div>' +
+      '</div>';
+    document.body.appendChild(box);
+
+    const stage = box.querySelector('.lb-stage');
+    const lbImg = box.querySelector('.lb-img');
+    const lbCap = box.querySelector('.lb-cap');
+    const lbCount = box.querySelector('.lb-count');
+    const btnX = box.querySelector('.lb-x');
+    const btnPrev = box.querySelector('.lb-prev');
+    const btnNext = box.querySelector('.lb-next');
+
+    let cur = 0, opener = null;
+
+    function capOf(fig){
+      const c = fig.querySelector('figcaption');
+      return c ? c.innerHTML : '';
+    }
+
+    function marksOf(fig){
+      const img = fig.querySelector('img');
+      const name = (img.getAttribute('src') || '').split('/').pop();
+      return LG_NOTES[name] || [];
+    }
+
+    function render(i){
+      cur = (i + figs.length) % figs.length;
+      const fig = figs[cur];
+      const img = fig.querySelector('img');
+      lbImg.src = img.currentSrc || img.src;
+      lbImg.alt = img.alt || '';
+      lbCap.innerHTML = capOf(fig);
+      lbCount.textContent = (cur + 1) + ' / ' + figs.length;
+
+      /* 清掉旧标注，按新图重建 */
+      stage.querySelectorAll('.shotmark').forEach(d=>d.remove());
+      marksOf(fig).forEach(([left, top, note, cls])=>{
+        const d = document.createElement('span');
+        d.className = 'shotmark' + (cls ? ' ' + cls : '');
+        d.style.left = left + '%';
+        d.style.top = top + '%';
+        d.setAttribute('data-note', note);
+        d.setAttribute('tabindex', '0');
+        d.setAttribute('role', 'note');
+        d.setAttribute('aria-label', note);
+        d.addEventListener('mouseenter', ()=>d.classList.add('on'));
+        d.addEventListener('mouseleave', ()=>d.classList.remove('on'));
+        d.addEventListener('focus', ()=>d.classList.add('on'));
+        d.addEventListener('blur', ()=>d.classList.remove('on'));
+        d.addEventListener('touchstart', (e)=>{
+          e.preventDefault();
+          stage.querySelectorAll('.shotmark.on').forEach(x=>{ if(x!==d) x.classList.remove('on'); });
+          d.classList.toggle('on');
+        }, {passive:false});
+        stage.appendChild(d);
+      });
+
+      btnPrev.disabled = figs.length < 2;
+      btnNext.disabled = figs.length < 2;
+    }
+
+    function open(i, fromEl){
+      opener = fromEl || null;
+      render(i);
+      box.classList.add('on');
+      document.documentElement.style.overflow = 'hidden';
+      btnX.focus({preventScroll:true});
+      document.addEventListener('keydown', onKey);
+    }
+
+    function close(){
+      box.classList.remove('on');
+      document.documentElement.style.overflow = '';
+      document.removeEventListener('keydown', onKey);
+      stage.querySelectorAll('.shotmark.on').forEach(d=>d.classList.remove('on'));
+      if(opener && opener.focus) opener.focus({preventScroll:true});
+      opener = null;
+    }
+
+    function onKey(e){
+      if(e.key === 'Escape'){ e.preventDefault(); close(); }
+      else if(e.key === 'ArrowLeft'){ e.preventDefault(); render(cur-1); }
+      else if(e.key === 'ArrowRight'){ e.preventDefault(); render(cur+1); }
+    }
+
+    figs.forEach((fig, i)=>{
+      const a = fig.querySelector('a.zoomimg');
+      if(!a) return;
+      a.addEventListener('click', (e)=>{
+        e.preventDefault();
+        open(i, a);
+      });
+    });
+
+    btnX.addEventListener('click', close);
+    btnPrev.addEventListener('click', ()=>render(cur-1));
+    btnNext.addEventListener('click', ()=>render(cur+1));
+    /* 点遮罩空白处关（点在 stage 上不关） */
+    box.addEventListener('click', (e)=>{ if(e.target === box) close(); });
   })();
 
 /* ── hero 柔光跟随 ──
