@@ -1271,6 +1271,26 @@ nav.on{
   #why > .cut{ display:none }
 }
 
+/* ── 横向刻度网格 ────────────────────────────────────────────
+   曲线的高度要有参照，否则读者只能看出「起伏」，读不出「多少 kW」。
+   入场用 stroke-dashoffset 从左画到右，和经线是同一个动作。 */
+/* 不要给整组包一层 opacity——组一旦透明，里面画得再对也看不见。
+   我之前写了 `.js.gl-ready .gridg{opacity:1}`，但 gl-ready 这个类从没被加过，
+   结果整组永远透明。逐条控制显隐就够了。 */
+.js .gridline{
+  transition:stroke-dashoffset 820ms var(--ease-out);
+}
+.js .gridline.in{ stroke-dashoffset:0 !important }
+.js .gridlab{
+  opacity:0; transition:opacity 420ms var(--ease-out);
+}
+.js .gridlab.in{ opacity:1 }
+@media (prefers-reduced-motion:reduce){
+  .js .gridg{ opacity:1 !important }
+  .js .gridline{ stroke-dashoffset:0 !important; transition:none !important }
+  .js .gridlab{ opacity:1 !important }
+}
+
 /* ── 界面细节：这些是「说不出哪里不一样，但一眼看出做没做」的部分 ── */
 
 /* 选区：默认的蓝色在一块黑金页面上很突兀。用金色低透明度，
@@ -2317,6 +2337,40 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
 
   /* ① 24 小时经线 —— 透明度就是电价，96 根对应 96 个采样点 */
   const pmin = Math.min.apply(null,D.price), pmax = Math.max.apply(null,D.price);
+
+  /* ⓪ 横向刻度网格 —— 曲线的高度需要参照。
+     最初 hero.png（matplotlib）带完整坐标轴，改 SVG 手绘后只留下竖线，
+     横向网格与刻度数值一起丢了，读者看不出那条线是多少 kW。
+
+     每 200 kW 一条，每 400 kW 标一个数。放在最底层（先插入），
+     入场时逐条从左画到右——和经线「一根根亮起」是同一个动作。 */
+  const gGrid = el('g',{class:'gridg'});
+  const GRID_STEP = 200;
+  const gridRows = Math.floor(maxLoad / GRID_STEP);
+  for(let k=0;k<=gridRows;k++){
+    const v = k*GRID_STEP;
+    const y = yLoad(v).toFixed(1);
+    const ln = el('line',{
+      x1:0, y1:y, x2:W, y2:y,
+      stroke:'rgba(237,236,232,.055)','stroke-width':1,
+      'stroke-dasharray':W,'stroke-dashoffset':W
+    });
+    ln.setAttribute('class','gridline');
+    gGrid.appendChild(ln);
+    if(k % 2 === 0){
+      const tx = el('text',{
+        x:W-10, y:(yLoad(v)-5).toFixed(1),
+        'text-anchor':'end','font-size':11,
+        'font-family':'ui-monospace,Consolas,monospace',
+        fill:'rgba(237,236,232,.26)','letter-spacing':'.04em'
+      });
+      tx.setAttribute('class','gridlab');
+      tx.textContent = v === 0 ? '0' : String(v);
+      gGrid.appendChild(tx);
+    }
+  }
+  svg.appendChild(gGrid);
+
   const gWarp = el('g',{class:'warpg'});
   for(let i=0;i<n;i++){
     const t = (D.price[i]-pmin)/(pmax-pmin+1e-9);
@@ -2746,18 +2800,42 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
    */
   if(reduce){
     document.querySelectorAll('.warpline').forEach(l=>l.style.opacity=1);
+    document.querySelectorAll('.gridline').forEach(l=>l.setAttribute('stroke-dashoffset', 0));
+    document.querySelectorAll('.gridlab').forEach(t=>t.style.opacity=1);
     pLoad.style.opacity=1; gSoc.style.opacity=1;
     return;
   }
 
+  /* ⓪ 先织横向刻度：7 条线，每条 70ms，从左画到右。
+     放在经线之前——刻度是「纸」，曲线是「墨」。
+     如果刻度后出现，读起来像事后补上去的网格。 */
   const T0 = 160;
-  const STEP = 11;                       // 96 根 × 11ms ≈ 1.06s
-  const warpLines = Array.prototype.slice.call(document.querySelectorAll('.warpline'));
-  warpLines.forEach((l,i)=>{
-    setTimeout(()=>{ l.style.transition='opacity var(--t-3) var(--ease-out)'; l.style.opacity=1; }, T0 + i*STEP);
+  const gLines = Array.prototype.slice.call(document.querySelectorAll('.gridline'));
+  const gLabs  = Array.prototype.slice.call(document.querySelectorAll('.gridlab'));
+  gLines.forEach((l,i)=>{
+    setTimeout(()=>{
+      /* 直接写内联属性，不靠 CSS 类——
+         SVG 的 stroke-dashoffset 虽然能用 CSS 控制，
+         但内联属性最直白，也不受选择器优先级影响。 */
+      l.style.transition = 'stroke-dashoffset 820ms var(--ease-out)';
+      l.style.strokeDashoffset = '0';
+    }, 60 + i*70);
+  });
+  gLabs.forEach(t=>{
+    setTimeout(()=>{
+      t.style.transition = 'opacity 420ms var(--ease-out)';
+      t.style.opacity = '1';
+    }, 60 + gLines.length*70 + 120);
   });
 
-  const tCurve = T0 + warpLines.length*STEP;   // ≈ 1.22s，经线织完
+  const STEP = 11;                       // 96 根 × 11ms ≈ 1.06s
+  const GRID_DUR = 60 + gLines.length*70 + 400;   // 刻度织完再起经线
+  const warpLines = Array.prototype.slice.call(document.querySelectorAll('.warpline'));
+  warpLines.forEach((l,i)=>{
+    setTimeout(()=>{ l.style.transition='opacity var(--t-3) var(--ease-out)'; l.style.opacity=1; }, T0 + GRID_DUR + i*STEP);
+  });
+
+  const tCurve = T0 + GRID_DUR + warpLines.length*STEP;   // 刻度 + 经线都织完
   const DRAW = 1900;                            // 描线时长
 
   /* 描线：stroke-dasharray 设成全长，dashoffset 从全长走到 0。
