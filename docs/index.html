@@ -628,7 +628,7 @@ a.zoomimg:focus-visible{ outline:1px solid var(--gold); outline-offset:2px }
 }
 .g-thumb span{
   position:absolute; left:0; right:0; bottom:0;
-  padding:3px 8px 4px;
+  padding:5px 10px 6px;
   font-family:var(--mono); font-size:var(--fs-11); letter-spacing:.02em;
   color:var(--ash2); text-align:left;
   background:rgba(8,9,11,.90);
@@ -941,11 +941,19 @@ a.zoomimg:focus-visible{ outline:1px solid var(--gold); outline-offset:2px }
 .ctl .opts{display:flex;gap:1px;background:var(--line-soft);flex-wrap:wrap}
 .ctl button{
   font-family:var(--mono);font-size:var(--fs-12_5);color:var(--ash2);
-  background:var(--void);border:0;padding:10px 14px;cursor:pointer;
-  transition:color var(--t-1) var(--ease-out),background var(--t-1) var(--ease-out);
+  background:var(--void);border:0;padding:10px 18px;cursor:pointer;
+  transition:color var(--t-1) var(--ease-out),
+             background var(--t-1) var(--ease-out),
+             box-shadow var(--t-1) var(--ease-out);
 }
 .ctl button:hover{color:var(--ink)}
-.ctl button.on{color:var(--gold);background:rgba(201,162,39,.10)}
+/* 选中不用实心块——加一道内描边，像被框住而不是被涂满。
+   实心块在一条 1px 缝的按钮带里会显得重。 */
+.ctl button.on{
+  color:var(--gold);
+  background:rgba(201,162,39,.08);
+  box-shadow:inset 0 0 0 1px rgba(201,162,39,.58);
+}
 
 .ctl input[type=range]{
   -webkit-appearance:none;appearance:none;
@@ -976,7 +984,7 @@ a.zoomimg:focus-visible{ outline:1px solid var(--gold); outline-offset:2px }
 .crow .cn{font-size:var(--fs-16);letter-spacing:-.01em}
 .crow .cn small{
   display:block;font-family:var(--mono);font-size:var(--fs-11);
-  color:var(--ash2);margin-top:4px;letter-spacing:.02em;
+  color:var(--ash2);margin-top:6px;letter-spacing:.02em;
 }
 .crow .bar{
   height:1px;background:rgba(237,236,232,.10);position:relative;
@@ -1077,7 +1085,7 @@ a.zoomimg:focus-visible{ outline:1px solid var(--gold); outline-offset:2px }
 .ver .tagline{font-size:var(--fs-14);color:var(--ash2);margin-top:10px;letter-spacing:.01em}
 /* 行长 448px ≈ 31 个中文字。原先撑满 620px 是 44 字/行，
    超出中文舒适区（30–40 字），末行还会只剩「算。」两个字。 */
-.ver p{font-size:var(--fs-14);color:var(--ash1);margin-top:20px;line-height:1.78;
+.ver p{font-size:var(--fs-14);color:var(--ash1);margin-top:16px;line-height:1.78;
   font-weight:300;max-width:448px;
   /* 两段文案行数不同会让下面的代码表错开。锁 2 行高度，
      短的那张留白，长的正好用完。 */
