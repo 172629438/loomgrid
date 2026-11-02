@@ -38,6 +38,7 @@ jobs:
 
       # 只跑不依赖 Qt 的脚本。GUI 相关的四个（gui_flow / gui_signal /
       # gui_smoke2 / report）需要 PySide6 和显示器，留在本地跑。
+      # algorithms_deep 用 importlib 加载整个主程序，同样需要 PySide6，也不进 CI。
       - name: Verify invariants
         run: python tests/verify_invariants.py
 
@@ -46,9 +47,6 @@ jobs:
 
       - name: Verify parity
         run: python tests/verify_alg_parity.py
-
-      - name: Verify deep behaviour
-        run: python tests/verify_algorithms_deep.py
 
       - name: Verify pipeline
         run: python tests/verify_pipeline.py

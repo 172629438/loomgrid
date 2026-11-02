@@ -27,15 +27,17 @@ python tests/verify_pipeline.py
 | `verify_invariants.py` | 13 | 物理不变量：能量守恒、SOC 边界、NPV↔IRR 自洽、空间口径交叉 |
 | `verify_algorithms_math.py` | 12 | 数理公式：手算对拍，每个公式有推导对照 |
 | `verify_alg_parity.py` | 19 | 三个调度引擎在同一组数据下的行为差异是否在预期内 |
-| `verify_algorithms_deep.py` | 25 | 边界与退化场景：空输入、极值、零容量、全零曲线 |
 | `verify_pipeline.py` | 43 | 端到端：负荷 → 电价 → 空间 → 调度 → 财务，全链路串通 |
 | `verify_feature_sync.py` | 5 | 两个现役版本（Fusion / Ultra）的特性是否同步 |
 | `verify_feature_restore.py` | 15 | 历史上丢失过的特性是否仍在位（防回退） |
+
+合计 107 项断言，每个脚本退出码 0 才叫过。
 
 ### 需要 PySide6 或外部数据（仅本地）
 
 | 脚本 | 断言 | 验什么 | 额外依赖 |
 |---|---:|---|---|
+| `verify_algorithms_deep.py` | 25 | 套利调度、用户侧最优调度、MILP 容量规划 | PySide6（用 `importlib` 加载整个主程序） |
 | `verify_gui_flow.py` | 24 | GUI 主流程点击链路 | PySide6 + 显示器 |
 | `verify_gui_signal.py` | 26 | 信号连接是否正确、无重复触发 | PySide6 + 显示器 |
 | `verify_gui_smoke2.py` | 10 | 对话框冒烟 | PySide6 + 显示器 |
@@ -65,11 +67,13 @@ PY
 
 ## CI
 
-`.github/workflows/ci.yml` 跑上表「纯算法」那 7 个，两个 Python 版本
+`.github/workflows/ci.yml` 跑上表「纯算法」那 6 个，两个 Python 版本
 （3.10 / 3.12）各一遍，外加一个 wheel 构建与内容检查 job。
 
-GUI 相关的四个**不进 CI**：GitHub 的 ubuntu runner 没有显示器，装 PySide6
-也跑不起来。这四个脚本靠本地跑。
+剩下 10 个**不进 CI**：GUI 四个是 runner 没有显示器；`algorithms_deep`
+虽然只看算法，但它用 `importlib` 加载整个主程序（1.7 MB，顶层拉起 Qt），
+所以在 CI 里也要 PySide6。硬塞进去只会让环境差异把 CI 弄红，
+而那对谁都没好处——一个不可靠的绿勾比没有绿勾更差。
 
 ## 加新脚本的约定
 
