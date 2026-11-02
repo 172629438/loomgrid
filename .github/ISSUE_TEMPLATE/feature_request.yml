@@ -1,0 +1,45 @@
+name: Feature request
+description: 缺一个功能、或者某处用起来不顺手
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提之前先说清楚一件事：**这个工具的定位是「窄而深」**——只做中国单体
+        工商业储能这一个场景，把它做到底。所以「加上微网/离网支持」这类扩展
+        范围的需求大概率不会做，不是不认可，是定位不同。
+
+        但下面这些方向很欢迎：
+        新的省级电价、新的行业负荷模板、更准的经济模型、导出格式、交互细节。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你现在卡在哪
+      description: 描述真实的处境，不要直接给方案。「我要导出 CSV」不如说「我要把这些结果贴进给客户的 PPT，现在只能截图」。
+      placeholder: |
+        我在给客户做方案时，需要把敏感性分析那张表放进 PPT，
+        现在只能截图，客户问数字来源我没法解释。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你希望它怎么变
+      description: 可以只写期望的效果，不用说怎么实现。
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 这个需求影响谁
+      options:
+        - 只影响我一个人
+        - 估计同行也都会遇到
+        - 影响交付质量（客户能看出来）
+        - 不确定
+    validations:
+      required: true

@@ -13,7 +13,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-2f6b4f?style=flat-square)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/172629438/loomgrid?style=flat-square&color=9a7b2e&label=release)](https://github.com/172629438/loomgrid/releases)
-![Tests](https://img.shields.io/badge/tests-433_assertions-2b2b2b?style=flat-square)
+[![verify](https://github.com/172629438/loomgrid/actions/workflows/ci.yml/badge.svg)](https://github.com/172629438/loomgrid/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-1f3a5f?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![PySide6](https://img.shields.io/badge/PySide6-6.5%2B-1f3a5f?style=flat-square&logo=qt&logoColor=white)](https://www.qt.io/qt-for-python)
 ![Algorithms](https://img.shields.io/badge/algorithms-8_modules-2b2b2b?style=flat-square)

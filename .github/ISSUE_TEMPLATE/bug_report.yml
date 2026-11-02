@@ -1,0 +1,93 @@
+name: Bug report
+description: 算错了、跑不起来、界面异常
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        谢谢反馈。为了让问题能定位，下面几项尽量填完整。
+        **如果涉及测算结果不对，请务必附上输入的负荷曲线规模与电价参数**——
+        没有这两项，任何数字差异都无法复核。
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: 用的是哪个版本
+      options:
+        - Fusion v2.3.1（生产推荐）
+        - Ultra v3.2.2（功能最全）
+        - 从源码直接运行
+        - 更早的历史版本
+        - 不确定
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: 系统版本
+      description: 例如 Windows 11 23H2 / Windows 10 22H2
+      placeholder: Windows 11 23H2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 问题类型
+      options:
+        - 测算结果不对（数字与手算/其他工具不符）
+        - 数据读取失败（Excel/CSV 导入报错或错列）
+        - 界面异常（卡死、闪退、显示错乱）
+        - 报告/图表导出问题
+        - 打包版启动失败
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从打开程序开始，一步一步写。
+      placeholder: |
+        1. 导入 xxx.xlsx（8760 行 / 15 分钟粒度）
+        2. 选省份「浙江」，月份 7 月
+        3. 系统容量填 1000 kWh
+        4. 点「开始测算」
+        5. 回收期显示 3.2 年
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果 vs 实际结果
+      description: 如果你手算过或与别的工具对比过，把两边的数字都写上。
+      placeholder: |
+        期望：回收期约 6.5 年（手算：年净收益 9.2 万 / 投资 60 万）
+        实际：3.2 年
+    validations:
+      required: true
+
+  - type: textarea
+    id: input
+    attributes:
+      label: 输入数据规模
+      description: 行数、时间粒度、是否含光伏、省份、峰谷价差等。
+      placeholder: |
+        8760 行，15 分钟粒度，无光伏
+        省份：浙江，峰谷价差 0.88 元/kWh
+        系统容量 1000 kWh / 500 kW
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 报错信息或日志
+      description: 有控制台输出或错误弹窗的话贴上来。截图可以直接拖进这个框。
+      render: text
+    validations:
+      required: false

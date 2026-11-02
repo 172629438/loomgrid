@@ -1,0 +1,90 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "assets/**"
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "assets/**"
+  workflow_dispatch:
+
+env:
+  PYTHONIOENCODING: utf-8
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  algorithms:
+    name: algorithms (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy pandas scipy loguru ortools
+
+      # 只跑不依赖 Qt 的脚本。GUI 相关的四个（gui_flow / gui_signal /
+      # gui_smoke2 / report）需要 PySide6 和显示器，留在本地跑。
+      - name: Verify invariants
+        run: python tests/verify_invariants.py
+
+      - name: Verify math
+        run: python tests/verify_algorithms_math.py
+
+      - name: Verify parity
+        run: python tests/verify_alg_parity.py
+
+      - name: Verify deep behaviour
+        run: python tests/verify_algorithms_deep.py
+
+      - name: Verify pipeline
+        run: python tests/verify_pipeline.py
+
+      - name: Verify feature sync
+        run: python tests/verify_feature_sync.py
+
+      - name: Verify feature restore
+        run: python tests/verify_feature_restore.py
+
+  package:
+    name: build wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+
+      - name: Check wheel contents
+        run: python .github/workflows/check_wheel.py
+
+      - name: Import smoke test
+        run: |
+          python -m pip install --no-deps dist/*.whl
+          cd /tmp
+          python -c "import loomgrid_algos; from loomgrid_algos import periods, spaces, dispatch, milp, finance, loadgen, diagnostics; print('all 7 submodules importable from an unrelated cwd')"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel
+          path: dist/*.whl
+          retention-days: 14
