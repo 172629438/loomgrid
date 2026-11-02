@@ -5,8 +5,8 @@
 # ========================================================================
 from __future__ import annotations
 
-ULTRA_VERSION = "3.2.2"            # v3.2.2（2026-10-28 重新编号）：合并原 v3.2.2~v3.2.8 全部修复
-ULTRA_BUILD_DATE = "2026-10-27"    # 构建日期
+ULTRA_VERSION = "3.2.9"            # v3.2.9（2026-11-02）：同步 Fusion 的 C1/C2/C4/C5/C6 口径修复
+ULTRA_BUILD_DATE = "2026-11-02"    # 构建日期
 
 # v2.29: 内置用户手册(按F1或菜单→帮助→用户手册查看)
 _MANUAL_HTML = """<html><head><style>
@@ -1799,7 +1799,6 @@ class PeriodType(str, Enum):
     DISCHARGE_LABEL = '放电(高峰)'
 
 
-
 TARIFF_DB_LAST_UPDATED = "2026-06-17"  # v2.28: 初始化默认值,启动时如果加载了外部 price_strategies.json(含 _metadata.updated)则自动覆盖
 TARIFF_DB_UPDATE_INTERVAL_DAYS = 90  # 建议更新间隔(软警告)
 TARIFF_DB_STALE_DAYS = 180           # v2.24: 硬门禁阈值,超期电价DB结果不可信
@@ -1880,7 +1879,7 @@ PROVINCE_TARIFF_DB = {
             ((2, 3, 4, 5, 6, 10, 11), [  # 春秋季
                 (23, 6, 'valley'), (6, 8, 'peak'), (8, 11, 'flat'),
                 (11, 14, 'valley'), (14, 16, 'flat'), (16, 22, 'peak'),
-                (22, 23, 'flat')
+                (22, 23, 'flat'), (23, 24, 'valley')
             ]),
             ((7, 8, 9), [  # 夏季
                 (0, 2, 'flat'), (2, 9, 'valley'), (9, 11, 'flat'),
@@ -1888,7 +1887,7 @@ PROVINCE_TARIFF_DB = {
             ]),
             ((1, 12), [  # 冬季
                 (23, 6, 'valley'), (6, 12, 'flat'), (12, 14, 'valley'),
-                (14, 15, 'flat'), (15, 23, 'peak')
+                (14, 15, 'flat'), (15, 23, 'peak'), (23, 24, 'valley')
             ]),
         ],
         'mode': '两充两放', 'note': '皖2025.7新政3季模式;春秋午谷11-14/夏谷2-9+11-13/冬谷12-14;尖峰7-8月20-22'
@@ -2990,8 +2989,6 @@ _PV_KLEIN_CURVES = {
     ('长沙', 11): [0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0844,0.2004,0.3053,0.3840,0.4259,0.4259,0.3840,0.3053,0.2004,0.0844,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000],
     ('长沙', 12): [0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0525,0.1505,0.2410,0.3096,0.3464,0.3464,0.3096,0.2410,0.1505,0.0525,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000],
 }
-
-
 
 
 # ── 晴空辐照模型:Haurwitz (1945) 晴空GHI公式 ──
@@ -6308,29 +6305,47 @@ def _detect_enc(fp, size=50000):
     cache = getattr(_detect_enc, '_cache', None)
     if cache is not None and cache_key in cache:
         return cache[cache_key]
+    # ① BOM 检查
     try:
         with open(fp,'rb') as f:
             if f.read(3)==b'\xef\xbb\xbf':
-                result = 'utf-8-sig'
-                _cache_enc_result(cache_key, result)
-                return result
+                _cache_enc_result(cache_key, 'utf-8-sig')
+                return 'utf-8-sig'
     except (OSError, IOError) as e:
-        log.debug(f"BOM 编码检测失败 {fp!r}: {e}")
-        try:
-            with open(fp,'rb') as f:
-                raw = f.read(size)
-            if CHARDET:
-                res = chardet.detect(raw)
-                if res and res.get('confidence',0)>=0.7:
-                    result = res['encoding'] or 'utf-8'
-                    _cache_enc_result(cache_key, result)
-                    return result
-        except (OSError, IOError, UnicodeError):
-            pass
+        # 文件打不开，后续任何尝试都会同样失败，直接返回
+        log.debug(f"打开文件失败，编码检测放弃 {fp!r}: {e}")
+        _cache_enc_result(cache_key, 'utf-8')
+        return 'utf-8'
+
+    # ② chardet 检测（v3.2.9fix(C1-C5): 从 except 块挪到正常路径）
+    # 原实现把整段写在 except (OSError, IOError) 里，而打开成功的文件根本不会
+    # 进入那个分支——chardet 从未真正参与判断。UTF-8/GBK 靠 fallback 循环能兜住，
+    # 掩盖了问题；Big5、Shift-JIS 这类只可能靠 chardet 识别的编码则彻底失明。
+    try:
+        with open(fp,'rb') as f:
+            raw = f.read(size)
+        if CHARDET:
+            res = chardet.detect(raw)
+            if res and res.get('confidence', 0) >= 0.7:
+                enc = (res['encoding'] or '').lower()
+                if enc in ('gb2312', 'gbk', 'gb18030'):
+                    enc = 'gb18030'
+                if enc:
+                    _cache_enc_result(cache_key, enc)
+                    return enc
+    except (OSError, IOError, UnicodeError) as e:
+        log.debug(f"chardet 编码检测失败 {fp!r}: {e}")
+
+    # ③ 顺序尝试兜底
     for e in DEFAULT_ENCODING_LIST:
         try:
             with open(fp,encoding=e) as f:
                 f.read(4096)
+            # v3.2.9fix(C5): latin1 对任何字节都能解码、永不抛异常。
+            # 落到它意味着前面全部识别失败，读出来是满表错字但看起来正常，
+            # 必须留下痕迹。
+            if e == 'latin1':
+                log.warning(f"编码无法确定，回退到 latin1（可能整表乱码）: {fp}")
             _cache_enc_result(cache_key, e)
             return e
         except Exception as _e:
@@ -6448,21 +6463,32 @@ def _read_file_full(fp, sheet=None, hrow=0, enc=None, delimiter=',', force_chunk
         try:
             fsize = os.path.getsize(fp)
         except Exception as _e:
+            # v3.2.9fix: -1 表示大小未知，强制走分块路径。
+            # 原实现设 0 会被判成小文件整块读入，2GB 网络盘文件可能直接 OOM。
             log.debug(f"获取文件大小失败 {os.path.basename(fp)}: {_e}")
-            fsize = 0
+            fsize = -1
         base_kwargs = {
             'encoding': e,
             'header': hrow,
             'sep': delimiter,
         }
-        # v2.23: 编码回退链扩展至5级------utf-8->gbk->gb18030->gb2312->latin1
-        _encoding_fallbacks = ['utf-8-sig', 'gbk', 'gb18030', 'gb2312', 'latin1'] if (enc is None or enc == 'auto') else []
+        # v3.2.9fix(C6): 坏行跳过而不是让整表失败。
+        # on_bad_lines 传 callable 只有 python/pyarrow 引擎支持，C 引擎会抛
+        # ValueError（pandas 实测），而 C 引擎比 Python 引擎快数倍，故主路径用
+        # 'skip'，仅在回退到 Python 引擎时挂 callable 记录行号。
+        base_kwargs['on_bad_lines'] = 'skip'
+        _bad_lines = []
+        # v2.23: 编码回退链
+        # v3.2.9fix(C5): gb18030 提到 gbk 之前——它是 gbk/gb2312 的超集，
+        # 应当优先；顺序反了会多一次无谓读取，且 gbk 若把某字节序列"解"成
+        # 错字就不会继续往下试。与 Fusion 侧顺序对齐。
+        _encoding_fallbacks = ['utf-8-sig', 'utf-8', 'gb18030', 'gbk', 'gb2312', 'latin1'] if (enc is None or enc == 'auto') else []
         if fsize > HUGE_FILE_SIZE and not force_chunk:
             msg = f"文件 {os.path.basename(fp)} 超过 {HUGE_FILE_SIZE/(1024*1024):.0f}MB,已跳过.超大文件可能导致内存溢出."
             log.warning(msg)
             # v2.21fix: _read_file_full 是模块级函数,不能使用 self.signals
             return None
-        if fsize > LARGE_FILE_SIZE or force_chunk:
+        if fsize < 0 or fsize > LARGE_FILE_SIZE or force_chunk:
             sample_rows = 5
             try:
                 sample = pd_lib.read_csv(fp, encoding=e, nrows=sample_rows, header=hrow, sep=delimiter, engine='c')
@@ -6487,6 +6513,12 @@ def _read_file_full(fp, sheet=None, hrow=0, enc=None, delimiter=',', force_chunk
                 log.warning(f"C 引擎读取失败,回退至 Python 引擎: {fp}")
                 reader_kwargs.pop('low_memory', None)
                 reader_kwargs['engine'] = 'python'
+
+                # v3.2.9fix(C6): Python 引擎支持 callable，此时尽量把坏行记下来
+                def _on_bad_line(line):
+                    _bad_lines.append(line)
+                    return None
+                reader_kwargs['on_bad_lines'] = _on_bad_line
                 reader = pd_lib.read_csv(fp, **reader_kwargs)
             for chunk in reader:
                 if cancel_event and cancel_event.is_set():
@@ -6521,6 +6553,10 @@ def _read_file_full(fp, sheet=None, hrow=0, enc=None, delimiter=',', force_chunk
         encodings_to_try = [e] + [enc for enc in _encoding_fallbacks if enc != e]
         for try_enc in encodings_to_try:
             try:
+                # v3.2.9fix(C5): latin1 永不抛异常，落到它意味着前面全部失败，
+                # 读出来是满表错字但看起来正常，必须留下痕迹。
+                if try_enc == 'latin1':
+                    log.warning(f"编码无法确定，回退到 latin1（可能整表乱码）: {fp}")
                 read_kwargs['encoding'] = try_enc
                 df = pd_lib.read_csv(fp, **read_kwargs)
                 if df is not None:
@@ -9611,87 +9647,6 @@ def _segment_periods(periods):
 # ═══════════════════════════════════════════════════════════
 
 
-def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A',
-                         rated_power=None, ignore_negative=False):
-    """v3.2fix: Mode A/B/C 每日充放电空间快速计算."""
-    n_days, n_points = load_array.shape
-    if n_points < 2:
-        return np.zeros(n_days), np.zeros(n_days)
-    hours = np.array([_parse_min(t)/60.0 for t in time_labels])
-    dt = np.zeros(n_points)
-    dt[0] = hours[1] - hours[0] if n_points > 1 else 1.0
-    dt[-1] = hours[-1] - hours[-2] if n_points > 1 else 1.0
-    for i in range(1, n_points-1):
-        dt[i] = (hours[i+1] - hours[i-1]) / 2.0
-    dt = np.maximum(dt, 0.0)
-    work_load = load_array.copy()
-    if ignore_negative:
-        work_load = np.maximum(work_load, 0.0)
-    charge = np.zeros(n_days)
-    discharge = np.zeros(n_days)
-    if mode == 'A':
-        if not periods or not billing or not billing.get('value'):
-            return charge, discharge
-        cap = billing['value']
-        expanded = _expand_overnight(periods)
-        charge_mask = np.zeros(n_points, dtype=bool)
-        discharge_mask = np.zeros(n_points, dtype=bool)
-        for p in expanded:
-            start_idx = np.searchsorted(hours, p['start'], side='left')
-            end_idx = np.searchsorted(hours, p['end'], side='left')
-            if p['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
-                charge_mask[start_idx:end_idx] = True
-            elif p['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
-                # v3.2fix(P-32): 明确只让放电类型置放电 mask；
-                # 平段（flat）不属于充也不属于放，原 else 分支会把它当放电段，导致放电空间虚高。
-                discharge_mask[start_idx:end_idx] = True
-        # v3.2.1fix(N3): Mode A 充电口径统一。
-        # 本函数原在这里乘了 CHARGING_EFFICIENCY，与 compute_segmented_spaces（不乘）
-        # 以及 calc_economic_summary 的口径注释（「Mode A 充电 = max(cap-load)×dt →
-        # 已是电网侧吸收量，不再除 η」）矛盾，快算比精算少 7.53%。
-        # 充电空间的定义是「电网侧还能灌进去多少」，电池侧换算由下游 SOC 递推负责。
-        charge = np.sum(np.maximum(cap - work_load, 0) * charge_mask * dt, axis=1)
-        pos_load = np.maximum(work_load, 0)
-        discharge = np.sum(np.minimum(pos_load, cap) * discharge_mask * dt, axis=1) * DISCHARGING_EFFICIENCY
-    elif mode == 'B':
-        if rated_power is None or rated_power <= 0:
-            return charge, discharge
-        neg_load = np.maximum(-work_load, 0)
-        charge = np.sum(np.minimum(rated_power, neg_load) * dt, axis=1) * CHARGING_EFFICIENCY
-        pos_load = np.maximum(work_load, 0)
-        discharge = np.sum(np.minimum(rated_power, pos_load) * dt, axis=1) * DISCHARGING_EFFICIENCY
-    elif mode == 'C':
-        if rated_power is None or rated_power <= 0:
-            return charge, discharge
-        discharge_mask = np.zeros(n_points, dtype=bool)
-        if periods:
-            expanded = _expand_overnight(periods)
-            for p in expanded:
-                if p['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
-                    start_idx = np.searchsorted(hours, p['start'], side='left')
-                    end_idx = np.searchsorted(hours, p['end'], side='left')
-                    discharge_mask[start_idx:end_idx] = True
-        else:
-            discharge_mask[:] = True
-        pos_load = np.maximum(work_load, 0)
-        discharge = np.sum(np.minimum(rated_power, pos_load) * discharge_mask * dt, axis=1) * DISCHARGING_EFFICIENCY
-        charge_mask = np.zeros(n_points, dtype=bool)
-        charge_mask_2d = (work_load < 0)
-        if periods:
-            for p in expanded:
-                if p['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
-                    start_idx = np.searchsorted(hours, p['start'], side='left')
-                    end_idx = np.searchsorted(hours, p['end'], side='left')
-                    charge_mask[start_idx:end_idx] = True
-        neg_load = np.maximum(-work_load, 0)
-        charge = np.sum(np.minimum(rated_power, neg_load) * np.maximum(charge_mask, charge_mask_2d) * dt, axis=1) * CHARGING_EFFICIENCY
-        if billing and billing.get('value'):
-            cap = billing['value']
-            charge = np.minimum(charge, np.sum(np.maximum(cap - work_load, 0) * charge_mask * dt, axis=1) * CHARGING_EFFICIENCY)
-            discharge = np.minimum(discharge, np.sum(np.minimum(pos_load, cap) * discharge_mask * dt, axis=1) * DISCHARGING_EFFICIENCY)
-    return charge, discharge
-
-
 def calc_capacity_for_days(target_days, charge_kwh, discharge_kwh=None):
     """满充满放——挑target_days个最好的天,容量=升序[总数-target_days]"""
     if discharge_kwh is None:
@@ -9711,7 +9666,6 @@ def calc_days_for_capacity(capacity, charge_kwh, discharge_kwh):
     return np.sum(satisfied)
 
 
-
 def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mode='A',
                              rated_power=None, ignore_negative=False):
     """v2.27fix: 分充放时段计算每日能量空间. 从备份恢复.
@@ -9721,6 +9675,21 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
         log.error(f"compute_segmented_spaces 形状不匹配: load_array={load_array.shape}, time_labels={len(time_labels)}")
         return [], [], [], []
     hours = np.array([_parse_min(_normalize_time_column_name(t)) / 60.0 for t in time_labels])
+    # v3.2.9fix(C1): 无法识别的时间点原本会被静默丢弃。
+    # _parse_min 解析失败返回 INVALID_MINUTES(9999)，/60 = 166.65；
+    # 后面 np.diff 非单调触发 argsort 把它排到末尾，而所有时段都在 0~24 内，
+    # searchsorted 永远找不到它 → 该点连同负荷数据一起静默消失，无任何提示。
+    # 与 Fusion v2.3.6 的 C1 修复对齐（两侧独立实现，需人工保证一致）。
+    invalid_mask = hours > 24.0
+    if invalid_mask.any():
+        n_invalid = int(invalid_mask.sum())
+        log.warning(f"有 {n_invalid} 个时刻无法识别，这些点不参与测算（可能影响日均值）")
+        keep_idx = np.where(~invalid_mask)[0]
+        hours = hours[keep_idx]
+        load_array = load_array[:, keep_idx]
+        if hours.size == 0:
+            log.error("所有时刻均无法识别，无法进行测算")
+            return [], [], [], []
     if not np.all(np.diff(hours) >= 0):
         sort_idx = np.argsort(hours)
         hours = hours[sort_idx]
@@ -16351,12 +16320,54 @@ class ProfessionalWindow(QMainWindow):
         if hasattr(self, 'space_explain'):
             self.space_explain.setHtml(self._get_space_explanation())
 
+    def _visible_seg_indices(self, months=None):
+        """v3.2.9fix(C4): 返回应当显示的段索引 (charge_keep, discharge_keep)。
+
+        判据：某段在所有月份的和都为 0 则隐藏。典型场景是平段——
+        它既不充也不放，charge_segments 与 discharge_segments 里都是零数组，
+        原本却在表里占两列（充电区一列、放电区一列，因为两个 label 列表
+        内容完全相同），既冗余又把「月最小值」压成恒 0。
+
+        表格与两处导出共用这一个判据，避免三处各写一遍判断后漂移。
+        """
+        if months is None:
+            months = sorted(self._get_work_data().keys())
+        keep_c, keep_d = [], []
+        for i in range(len(self.charge_labels)):
+            for m in months:
+                segs = self.charge_segments_dict.get(m, [])
+                if i < len(segs) and float(np.nansum(np.nan_to_num(segs[i], nan=0.0))) != 0.0:
+                    keep_c.append(i)
+                    break
+        for i in range(len(self.discharge_labels)):
+            for m in months:
+                segs = self.discharge_segments_dict.get(m, [])
+                if i < len(segs) and float(np.nansum(np.nan_to_num(segs[i], nan=0.0))) != 0.0:
+                    keep_d.append(i)
+                    break
+        return keep_c, keep_d
+
     def _populate_space_table(self):
         months = sorted(self._get_work_data().keys())
         tokens = DesignTokens.current_tokens()
         charge_bg = QColor(tokens['ACCENT_LIGHT'])
         discharge_bg = QColor(tokens['ACCENT_WARM']); discharge_bg.setAlpha(40)
-        col_labels = ['月份'] + self.charge_labels + self.discharge_labels + ['容量线(kW)', '月最小值(kWh)']
+        # v3.2.9fix(C4): 全零列不显示。
+        # charge_labels 与 discharge_labels 内容相同（compute_segmented_spaces 里
+        # 三个分支都向两个列表同步 append），所以每个段原本出现两次：
+        # 一列有值、另一列是占位零。按「全零即隐藏」扫描后，
+        # 充电段只剩充电列、放电段只剩放电列、平段两列都消失——
+        # 既符合「不保留恒零列」的要求，也顺手消除了重复列。
+        _charge_keep, _discharge_keep = self._visible_seg_indices(months)
+        _hidden = (len(self.charge_labels) - len(_charge_keep)) + \
+                  (len(self.discharge_labels) - len(_discharge_keep))
+        if _hidden:
+            log.debug(f"隐藏 {_hidden} 个全零段列（含平段与占位零列）")
+
+        col_labels = (['月份']
+                      + [self.charge_labels[i] for i in _charge_keep]
+                      + [self.discharge_labels[i] for i in _discharge_keep]
+                      + ['容量线(kW)', '月最小值(kWh)'])
         self.space_table.setColumnCount(len(col_labels))
         self.space_table.setHorizontalHeaderLabels(col_labels)
         self.space_table.setRowCount(len(months))
@@ -16367,14 +16378,14 @@ class ProfessionalWindow(QMainWindow):
             seg_values = []
             col = 1
             # v2.30fix: 按标签索引填充, 段数不足时填0
-            for i in range(len(self.charge_labels)):
+            for i in _charge_keep:
                 val = np.sum(np.nan_to_num(c_segs[i], nan=0.0)) if i < len(c_segs) else 0.0
                 seg_values.append(val)
                 item = QTableWidgetItem(f"{val:.2f}")
                 item.setBackground(charge_bg)
                 self.space_table.setItem(row, col, item)
                 col += 1
-            for i in range(len(self.discharge_labels)):
+            for i in _discharge_keep:
                 val = np.sum(np.nan_to_num(d_segs[i], nan=0.0)) if i < len(d_segs) else 0.0
                 seg_values.append(val)
                 item = QTableWidgetItem(f"{val:.2f}")
@@ -17570,7 +17581,9 @@ class ProfessionalWindow(QMainWindow):
         total_discharge_kwh = sum(float(np.nansum(seg)) for d in self.discharge_segments_dict.values() for seg in d)
 
         # v3.2fix: 统一电侧口径, 消除效率重复折算
-        # 口径事实(见 compute_segmented_spaces / compute_daily_spaces):
+        # 口径事实(见 compute_segmented_spaces):
+        # v3.2.9fix(C2): 原注释还指向 compute_daily_spaces，该函数已作为
+        # 零调用死代码删除（口径与现役差 7.53%），此处只保留现役实现的引用。
         #   Mode A 充电 = max(cap-load)×dt      → 已是电网侧吸收量, 不再除η
         #   Mode B/C 充电 = min(额定,-load)×dt×η → 电池侧存入量, 需 ÷η 换回电网侧
         #   三种模式放电均为 min(负荷,上限)×dt×η  → 已是电网侧供出量, 不再乘η
@@ -17776,7 +17789,15 @@ class ProfessionalWindow(QMainWindow):
             with open(path, 'w', encoding='utf-8-sig', newline='') as f:
                 w = csv.writer(f)
                 months = sorted(self._get_work_data().keys())
-                header = ['月份'] + [f'充电_{lbl}' for lbl in self.charge_labels] + [f'放电_{lbl}' for lbl in self.discharge_labels] + ['月最小值(kWh)']
+                # v3.2.9fix(C4): 与界面同判据——全零段列不导出
+                _ck, _dk = self._visible_seg_indices(months)
+                c_lbls = [self.charge_labels[i] for i in _ck]
+                d_lbls = [self.discharge_labels[i] for i in _dk]
+                if not c_lbls and not d_lbls:
+                    c_lbls = ['(未配置充电时段)']
+                    d_lbls = ['(未配置放电时段)']
+                    _ck, _dk = [], []
+                header = ['月份'] + [f'充电_{lbl}' for lbl in c_lbls] + [f'放电_{lbl}' for lbl in d_lbls] + ['月最小值(kWh)']
                 w.writerow(header)
                 for month in months:
                     c_segs = self.charge_segments_dict.get(month, [])
@@ -17784,10 +17805,10 @@ class ProfessionalWindow(QMainWindow):
                     row = [month]
                     vals = []
                     # v2.30fix: 按标签索引填充
-                    for i in range(len(self.charge_labels)):
+                    for i in (_ck if _ck else range(len(c_lbls))):
                         v = np.sum(np.nan_to_num(c_segs[i], nan=0.0)) if i < len(c_segs) else 0.0
                         row.append(f'{v:.2f}'); vals.append(v)
-                    for i in range(len(self.discharge_labels)):
+                    for i in (_dk if _dk else range(len(d_lbls))):
                         v = np.sum(np.nan_to_num(d_segs[i], nan=0.0)) if i < len(d_segs) else 0.0
                         row.append(f'{v:.2f}'); vals.append(v)
                     row.append(f'{min(vals):.2f}' if vals else '0')
@@ -17808,8 +17829,14 @@ class ProfessionalWindow(QMainWindow):
         ws = wb.active; ws.title = '充放电空间'
         months = sorted(self._get_work_data().keys())
         # v2.27fix: 无充放电标签时添加占位列,防止导出空表无意义
-        c_labels = self.charge_labels if self.charge_labels else ['(未配置充电时段)']
-        d_labels = self.discharge_labels if self.discharge_labels else ['(未配置放电时段)']
+        # v3.2.9fix(C4): 与界面同判据——全零段列不导出
+        _ck, _dk = self._visible_seg_indices(months)
+        c_labels = [self.charge_labels[i] for i in _ck]
+        d_labels = [self.discharge_labels[i] for i in _dk]
+        if not c_labels and not d_labels:
+            c_labels = ['(未配置充电时段)']
+            d_labels = ['(未配置放电时段)']
+            _ck, _dk = [], []
         ws.append(['月份'] + [f'充电_{lbl}' for lbl in c_labels] + [f'放电_{lbl}' for lbl in d_labels] + ['月最小值(kWh)'])
         for month in months:
             row = [month]
@@ -17817,10 +17844,10 @@ class ProfessionalWindow(QMainWindow):
             c_segs = self.charge_segments_dict.get(month, [])
             d_segs = self.discharge_segments_dict.get(month, [])
             # v2.30fix: 按标签索引填充
-            for i in range(len(c_labels)):
+            for i in (_ck if _ck else range(len(c_labels))):
                 v = np.sum(np.nan_to_num(c_segs[i], nan=0.0)) if i < len(c_segs) else 0.0
                 vals.append(v); row.append(round(v, 2))
-            for i in range(len(d_labels)):
+            for i in (_dk if _dk else range(len(d_labels))):
                 v = np.sum(np.nan_to_num(d_segs[i], nan=0.0)) if i < len(d_segs) else 0.0
                 vals.append(v); row.append(round(v, 2))
             row.append(round(min(vals), 2) if vals else 0)
@@ -18286,7 +18313,6 @@ class ProfessionalWindow(QMainWindow):
         self._do_update_economic_label()
 
 
-
     def _on_import_pv(self):
         """v3.2: 导入外部光伏数据→月份匹配→集成。"""
         fp, _ = QFileDialog.getOpenFileName(self, "选择光伏数据文件", "", "表格 (*.xlsx *.xls *.csv)")
@@ -18334,7 +18360,6 @@ class ProfessionalWindow(QMainWindow):
             QMessageBox.warning(self, "导入失败", str(e))
 
 
-
     def _auto_diagnose(self):
         """v2.32: 后台静默诊断→缓存结果→UI自动刷新."""
         try:
@@ -18354,7 +18379,6 @@ class ProfessionalWindow(QMainWindow):
             self._diagnose_pending = False
         except Exception as e:
             log.warning(f"自动诊断失败: {e}")
-
 
 
     def _generate_proposal(self):
@@ -18489,7 +18513,6 @@ class ProfessionalWindow(QMainWindow):
         self._update_step_indicators()  # v3.2
 
 
-
     def _export_proposal_html(self, text):
         """v3.2fix: 原名为导出PDF, 实际只写临时 HTML 后让用户自己去浏览器打印。
         现改为真正落盘到输出目录的 .html 并告知路径(行为与名称一致)。"""
@@ -18513,8 +18536,6 @@ class ProfessionalWindow(QMainWindow):
     def _export_proposal_pdf(self, text):
         """兼容保留: 旧名转发到 _export_proposal_html."""
         return self._export_proposal_html(text)
-
-
 
 
     def _generate_html_report(self):
@@ -18561,17 +18582,14 @@ class ProfessionalWindow(QMainWindow):
             QMessageBox.critical(self, "生成失败", str(e))
 
 
-
     def _show_cycle_btn(self):
         """v3.2: 调用_show_cycle_analysis展示电池循环分析。"""
         _show_cycle_analysis(self)
 
 
-
     def _show_algo_compare(self):
         """v3.2: 调用_show_algorithm_comparison展示算法对比。"""
         _show_algorithm_comparison(self)
-
 
 
     def _on_device_compare(self):
@@ -18588,7 +18606,6 @@ class ProfessionalWindow(QMainWindow):
         for name, r in sorted(results.items(), key=lambda x: x[1].get('irr',0), reverse=True):
             lines.append(f'{name}: IRR={r.get("irr",0):.1f}% NPV=¥{r.get("npv",0):,.0f} 回收期={r.get("payback",0):.1f}年')
         QMessageBox.information(self, "设备比选", chr(10).join(lines))
-
 
 
     def _run_settlement(self):
@@ -19052,10 +19069,6 @@ def fuse_load_curves(curve_a, labels_a, curve_b, labels_b, mode='add', weight=0.
 # ========================================================================
 # 负荷曲线批量生成工具 Ultra -- 第五部分
 # ========================================================================
-
-
-
-
 
 
 class _ExportVectorWorker(QObject):
@@ -22123,7 +22136,6 @@ class PreviewDialog(AnimatedDialog):
         self._log(f"已打开专业分析: {asset} (模式{mode})", "info")
 
 
-
     def _on_desensitize(self):
         """v2.30: 脱敏生成→直接注册虚拟GroupSummary。"""
         summary = self.all_summaries[self.current_index]
@@ -22872,7 +22884,6 @@ PROVINCE_BASELINES = {
 }
 
 
-
 # ═══════════════════════════════════════════════════════════
 INDUSTRY_TEMPLATES = {
     # ── 连续流程工业(三班制) ── 引用源:贵州电网(2020)·连续性生产行业
@@ -23358,7 +23369,6 @@ def generate_load_profile(config=None):
     }
 
 
-
 def _add_pv_to_load(load_array, date_labels, pv_kw, n_points):
     """v2.29: 叠加简化光伏出力到负荷曲线上。"""
     import numpy as np
@@ -23380,7 +23390,6 @@ def _add_pv_to_load(load_array, date_labels, pv_kw, n_points):
         # v3.1fix: 已通过传入.copy()避免副作用,调用方负责拷贝
         load_array[i] = result
     return load_array
-
 
 
 def extract_load_features(load_array, date_labels):
@@ -23427,7 +23436,6 @@ def extract_load_features(load_array, date_labels):
 # ========================================================================
 # 负荷曲线批量生成工具 Ultra -- 第五部分
 # ========================================================================
-
 
 
 class LoadSimulationDialog(AnimatedDialog):
@@ -32013,7 +32021,6 @@ class StorageOptimizer:
         return dc / n_days, dd / n_days, 0.0
 
 
-
 def show_optimize_dialog(parent, result):
     """v3.2: 四目标优化对比——支持单设备/多设备模式。"""
     dlg = QDialog(parent)
@@ -32502,8 +32509,6 @@ class ParkSimDialog(QDialog):
                 self.pv_spin.value(), self.result_data['load_array'].shape[1]
             )
         self.accept()
-
-
 
 
 class WorkflowOrchestrator(QObject):
@@ -35074,7 +35079,6 @@ def calc_payback_timeline(investment: float, monthly_savings: list[float]) -> di
         "cumulative_savings": cumulative,
         "remaining_investment": [investment - s for s in cumulative],
     }
-
 
 
 # ═══════════════════════════════════════════════════════════════

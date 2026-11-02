@@ -22,6 +22,89 @@
 
 ---
 
+## v3.2.9 — 2026-11-02（Ultra）
+
+> 与 Fusion v2.3.6 的 C1/C2/C4/C5/C6 对齐。
+> v3.2.3~v3.2.8 是历史编号（修复已并入 v3.2.2），故跳到 v3.2.9。
+
+### C1 无法识别的时间点不再被静默丢弃
+
+与 Fusion 同源：`_parse_min` 失败返回 `9999`，`/60 = 166.65` → `argsort` 排到末尾
+→ 所有时段都在 0~24 内，`searchsorted` 找不到 → 该点连同负荷数据静默消失。
+
+Ultra 版在入口多了形状检查，其余结构一致。同样改为入口显式检出 `> 24.0`、
+计数、`log.warning`、从 `hours` 与 `load_array` 同步剔除；全无效时记 error 并
+返回 `[], [], [], []`（保持 Ultra 自己的返回风格，与 Fusion 的 `[empty], [empty], [], []` 不同）。
+
+### C2 删除 compute_daily_spaces（79 行死代码）
+
+零调用。删前全库确认只在定义行出现一次。三处引用一并处理：
+① 函数本体删除；② 原文备份 `_tmp/ultra_compute_daily_spaces.removed.txt`；
+③ L17542 的口径注释原本写着「见 compute_segmented_spaces / compute_daily_spaces」，
+已改为只指向现役实现，并注明另一函数已删——否则后来的人会去找一个不存在的函数。
+
+### C4 全零段列不再占位（顺带消除重复列）
+
+**先发现的问题比 C4 本身更严重**：`compute_segmented_spaces` 的三个分支
+（充电段 9754/9759、放电段 9777/9780、平段 9786/9787）都向 `charge_labels` 与
+`discharge_labels` 同步 append，两个列表因此**内容完全相同**；
+而表头是 `['月份'] + charge_labels + discharge_labels`——**每个段出现两次**。
+
+按 C4 的判据（所有月份该段之和为 0 则隐藏）扫描后：
+
+- 充电段 → 充电列有值保留，放电列全零隐藏
+- 放电段 → 放电列有值保留，充电列全零隐藏
+- 平段 → 两边全零，两列都隐藏
+
+**净效果：每个段只出现一次，平段消失。**
+
+判据提成 `_visible_seg_indices()`，表格、Excel 导出、CSV 导出三处共用一个实现——
+否则界面上看不到的列，导出文件里还在。
+
+**连带效果**：「月最小值」原本取 `min(seg_values)`，而 `seg_values` 含大量占位零列，
+所以恒等于 0；跳过全零列后它才等于真实的最小段值。
+
+### C5 编码探测的 chardet 从未真正运行
+
+**这是 Ultra 独有的严重缺陷**：`_detect_enc` 把 chardet 检测整段写在
+`except (OSError, IOError)` 里，而**打开成功的文件根本不会进入那个分支**。
+
+```
+try:
+    with open(fp,'rb') as f:
+        if f.read(3) == BOM: return 'utf-8-sig'
+except (OSError, IOError):        # ← 只有打不开才进来
+    ...
+    chardet.detect(raw)           # ← 而这里再次 open 同样会失败
+```
+
+正常路径：读 3 字节 → 非 BOM → try 块正常结束、不抛异常 → **except 不执行**
+→ chardet 从不参与 → 直接落到 fallback 顺序尝试。
+
+UTF-8 / GBK 靠 fallback 循环能兜住，掩盖了问题；**Big5、Shift-JIS 这类
+既非 UTF-8 也非 GBK 的编码只可能靠 chardet 识别**，对它们彻底失明，
+最后落到 latin1，整表乱码且无声。
+
+修法：chardet 移到正常路径（BOM 检查之后），保留原有的 mtime 缓存机制，
+识别出的 GB 系统一升 `gb18030`，落到 `latin1` 时 `log.warning`。
+
+**另修两处**：
+① 整块路径的编码回退链顺序是 `['utf-8-sig','gbk','gb18030','gb2312','latin1']`——
+`gbk` 排在 `gb18030` 前面（超集应优先），且缺 `utf-8`。已改为
+`['utf-8-sig','utf-8','gb18030','gbk','gb2312','latin1']`，与 Fusion 对齐。
+② 回退链落到 `latin1` 时同样加 `log.warning`。
+
+### C6 CSV 坏行不再拖垮整表
+
+主路径 `on_bad_lines='skip'`。同 Fusion 踩过的坑：callable 只有 python/pyarrow
+引擎支持，C 引擎会抛 `ValueError`，故主路径用字符串，回退分支才挂 callable。
+
+**另修一处**：`fsize` 取大小失败时原设 `0`（当成小文件整块读入），
+一个 2GB 网络盘文件可能直接 OOM。改为 `-1` 并让分块判断包含 `fsize < 0`——
+与 Fusion 侧早先的修法对齐。
+
+---
+
 ## v2.3.6 — 2026-11-02（Fusion）
 
 > 用户确认后的口径落地。五项都是「代码现在这么做、也可以那么做」的地方，
