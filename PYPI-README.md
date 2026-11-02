@@ -7,12 +7,12 @@
 Seven modules extracted from LoomGrid, a full desktop application. No GUI, no global state — each module imports and runs on its own.
 
 ```bash
-pip install loomgrid-algos
+# PyPI 尚未上架，现在从 GitHub 直接装
+pip install git+https://github.com/172629438/loomgrid.git
 
-# 需要 LP / MILP 时
-pip install "loomgrid-algos[lp]"
-pip install "loomgrid-algos[milp]"
-pip install "loomgrid-algos[all]"
+# 需要 LP 调度或 MILP 容量规划时，再补两个依赖
+pip install scipy      # dispatch.optimal_dispatch_lp
+pip install ortools    # milp 容量规划
 ```
 
 ---

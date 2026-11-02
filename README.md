@@ -94,7 +94,7 @@ LoomGrid ships **32 provincial tariff tables built in**, and does the rest of th
 No installer, no Python required: download a release archive, unzip, double-click. MIT licensed. Fully offline — no account, no telemetry, no cloud.
 
 ```text
-pip install loomgrid-algos     # the seven algorithm modules alone, no GUI
+pip install git+https://github.com/172629438/loomgrid.git   # the seven algorithm modules alone, no GUI
 ```
 
 > **When you should use something else:** if your project needs multi-energy microgrid optimisation, off-grid architecture search, or hybrid PV+wind+diesel dispatch, HOMER is built for exactly that and does it better. If you need detailed PV performance modelling with weather files and module databases, NREL SAM covers far more ground. LoomGrid is deliberately narrow: one country, one application, done in full depth.
@@ -247,10 +247,15 @@ python examples/quickstart.py
 **不想下载 GUI 的话，算法层可以单独装：**
 
 ```bash
-pip install loomgrid-algos          # numpy + pandas + loguru
-pip install "loomgrid-algos[lp]"    # 加 LP 调度（scipy）
-pip install "loomgrid-algos[milp]"  # 加 MILP 容量规划（ortools）
+# 直接从 GitHub 装（现在就可用）
+pip install git+https://github.com/172629438/loomgrid.git
+
+# 需要 LP / MILP 时再补两个依赖
+pip install scipy ortools
 ```
+
+> PyPI 上的 `loomgrid-algos` 还没发布，暂不要用 `pip install loomgrid-algos`。
+> 发上去后这里会更新。
 
 ```python
 from loomgrid_algos import dispatch, finance
