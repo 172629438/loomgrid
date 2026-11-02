@@ -7662,7 +7662,14 @@ class ProfessionalWindow(QMainWindow):
 
     def _populate_space_table(self):
         months = sorted(self._get_work_data().keys())
-        col_labels = ['月份'] + self.charge_labels + self.discharge_labels + ['月最小段总和(kWh)']
+        # v2.3.2fix: charge_labels / discharge_labels 各自都包含全部段名（为了让四个
+        # 列表等长，见 compute_segmented_spaces 的注释），直接拼起来会让每个段名
+        # 在表头出现两遍，用户看到两个「充电1」两个「放电1」。
+        # 左半边是各段的充电空间、右半边是放电空间，用后缀把方向区分开。
+        col_labels = (['月份']
+                      + [f"{lab}·充" for lab in self.charge_labels]
+                      + [f"{lab}·放" for lab in self.discharge_labels]
+                      + ['月最小段总和(kWh)'])
         self.space_table.setColumnCount(len(col_labels))
         self.space_table.setHorizontalHeaderLabels(col_labels)
         self.space_table.setRowCount(len(months))
