@@ -1789,7 +1789,54 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
   .ctl .val{flex:0 0 auto;min-width:56px}
   .ctl button{padding:9px 4px;font-size:var(--fs-11);text-align:center}
 }
+
+/* 屏幕阅读器与搜索引擎可读、视觉隐藏。标准无障碍写法，不是 cloaking：
+   这里藏的是对页面的准确描述，没有藏关键词列表。 */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 </style>
+
+<!-- 结构化数据：告诉搜索引擎这是个什么软件，而不是一个普通网页。
+     FAQPage 不用（2026-05-07 起 Google 已对所有站点撤销 FAQ 富媒体）；
+     HowTo 也不用（2023-09 已弃用）。 -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "LoomGrid",
+  "alternateName": "LoomGrid 工商业储能测算工作台",
+  "applicationCategory": "BusinessApplication",
+  "applicationSubCategory": "Energy Storage Sizing",
+  "operatingSystem": "Windows 10, Windows 11",
+  "softwareVersion": "3.2.2",
+  "description": "工商业储能测算工作台。读进电表负荷曲线与当地分时电价，用线性规划求最优充放电策略，算清装多大容量、能省多少、几年回本。内置 32 个省级行政区分时电价。",
+  "url": "https://172629438.github.io/loomgrid/",
+  "downloadUrl": "https://github.com/172629438/loomgrid/releases",
+  "codeRepository": "https://github.com/172629438/loomgrid",
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "inLanguage": "zh-CN",
+  "programmingLanguage": "Python",
+  "keywords": "储能测算,工商业储能,BESS,峰谷套利,需量管理,分时电价,容量配置",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "CNY"
+  },
+  "featureList": [
+    "负荷曲线导入与列自动识别",
+    "32 个省级行政区分时电价",
+    "充放电空间测算（逐日 / 分段两种口径）",
+    "贪心 / 逐日仿真 / 线性规划 三种调度引擎",
+    "MILP 容量规划",
+    "NPV / IRR / 回收期 / LCOE"
+  ],
+  "author": {
+    "@type": "Person",
+    "name": "LoomGrid",
+    "url": "https://github.com/172629438"
+  }
+}
+</script>
 </head>
 <body>
 
@@ -1818,7 +1865,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
 
   <div class="hero-top">
     <div class="hero-copy">
-      <h1>Loom<b>Grid</b></h1>
+      <h1>Loom<b>Grid</b><span class="sr-only">—— 工商业储能测算工作台</span></h1>
       <p class="hero-line">把一条负荷曲线，<br>织成一份能签的方案。</p>
       <p class="hero-desc">
         读进客户的电表数据和当地分时电价，算清楚装多大、怎么充放、几年<span class="nw">回本</span>。
@@ -1935,23 +1982,23 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       </div>
       <div class="g-thumbs" role="tablist" aria-label="界面截图">
         <button class="g-thumb" type="button" role="tab" aria-selected="true" aria-label="主工作台">
-          <img src="assets/ultra-main-imported-thumb.webp" alt="" width="160" height="100">
+          <img src="assets/ultra-main-imported-thumb.webp" alt="Ultra 主工作台：导入负荷数据后的测算界面" width="160" height="100" loading="lazy">
           <span>主工作台</span>
         </button>
         <button class="g-thumb" type="button" role="tab" aria-selected="false" aria-label="数据预览">
-          <img src="assets/ultra-data-preview-thumb.webp" alt="" width="160" height="142">
+          <img src="assets/ultra-data-preview-thumb.webp" alt="数据预览与列映射：自动识别时间列与负荷列" width="160" height="142" loading="lazy">
           <span>数据预览</span>
         </button>
         <button class="g-thumb" type="button" role="tab" aria-selected="false" aria-label="敏感性">
-          <img src="assets/ultra-sensitivity-thumb.webp" alt="" width="160" height="200">
+          <img src="assets/ultra-sensitivity-thumb.webp" alt="敏感性分析：六个容量点的回收期与 NPV 对比" width="160" height="200" loading="lazy">
           <span>敏感性</span>
         </button>
         <button class="g-thumb" type="button" role="tab" aria-selected="false" aria-label="负荷模拟器">
-          <img src="assets/ultra-load-sim-thumb.webp" alt="" width="160" height="106">
+          <img src="assets/ultra-load-sim-thumb.webp" alt="负荷曲线模拟器：按行业生成典型日曲线" width="160" height="106" loading="lazy">
           <span>负荷模拟器</span>
         </button>
         <button class="g-thumb" type="button" role="tab" aria-selected="false" aria-label="曲线渲染">
-          <img src="assets/ultra-curve-dark-thumb.webp" alt="" width="160" height="79">
+          <img src="assets/ultra-curve-dark-thumb.webp" alt="负荷曲线与 SOC 轨迹：深色主题渲染" width="160" height="79" loading="lazy">
           <span>曲线渲染</span>
         </button>
       </div>
@@ -1963,7 +2010,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
 <section id="engine">
   <div class="cut"></div>
   <div class="wrap">
-    <h2>三个引擎跑同一天，最少那个只省到 1%</h2>
+    <h2>三种调度引擎跑同一天，最少那个只省到 1%</h2>
     <p class="lead">
       不是实现优劣，是场景不同。同一组数据、同一个坐标系，才看得清该用哪个。
       
@@ -2063,7 +2110,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
   <div class="wrap">
     <div class="trust-top">
       <div>
-        <h2>每个数字都有出口</h2>
+        <h2>每个测算数字都有出口</h2>
         <p class="lead">
           算法从界面里剥出来独立成包，<code>import</code> 进去就能跑，不依赖任何 GUI；
           十六<span class="nw">套验证</span>脚本、四百多项断言守着每一次提交。
