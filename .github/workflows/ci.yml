@@ -36,9 +36,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install numpy pandas scipy loguru ortools
 
-      # 只跑不依赖 Qt 的脚本。GUI 相关的四个（gui_flow / gui_signal /
-      # gui_smoke2 / report）需要 PySide6 和显示器，留在本地跑。
-      # algorithms_deep 用 importlib 加载整个主程序，同样需要 PySide6，也不进 CI。
+      # 只跑不依赖 PySide6 的脚本。分成两类：
+      #   1) 直接用 algorithms/ 下的纯算法模块（invariants / math）
+      #   2) 对主程序做 AST 静态分析，不 import 它（parity / feature_*）
+      # 主程序顶层 import 了 Qt，任何 load_module 它都会在 runner 上挂掉。
       - name: Verify invariants
         run: python tests/verify_invariants.py
 
@@ -47,9 +48,6 @@ jobs:
 
       - name: Verify parity
         run: python tests/verify_alg_parity.py
-
-      - name: Verify pipeline
-        run: python tests/verify_pipeline.py
 
       - name: Verify feature sync
         run: python tests/verify_feature_sync.py
