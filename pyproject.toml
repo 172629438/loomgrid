@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "loomgrid-algos"
+version = "3.2.2"
+description = "C&I energy storage sizing algorithms — TOU tariff periods, charge/discharge space, LP/MILP dispatch, NPV/IRR/payback, load profile generation"
+readme = { file = "PYPI-README.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "LoomGrid", email = "noreply@example.com" }]
+keywords = [
+    "energy-storage",
+    "bess",
+    "battery",
+    "peak-shaving",
+    "demand-charge",
+    "time-of-use",
+    "tariff",
+    "linear-programming",
+    "milp",
+    "load-profile",
+    "power-systems",
+    "dispatch",
+    "npv",
+    "irr",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Engineering",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "loguru>=0.7",
+]
+
+[project.optional-dependencies]
+lp = ["scipy>=1.10"]
+milp = ["ortools>=9.7"]
+charts = ["matplotlib>=3.7"]
+excel = ["openpyxl>=3.1"]
+all = [
+    "scipy>=1.10",
+    "ortools>=9.7",
+    "matplotlib>=3.7",
+    "openpyxl>=3.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/172629438/loomgrid"
+Repository = "https://github.com/172629438/loomgrid"
+Documentation = "https://172629438.github.io/loomgrid/"
+Changelog = "https://github.com/172629438/loomgrid/blob/main/CHANGELOG.md"
+"Tariff dataset" = "https://github.com/172629438/loomgrid-tariffs"
+
+[tool.setuptools]
+packages = ["loomgrid_algos"]
+package-dir = { loomgrid_algos = "algorithms" }
+
+[tool.setuptools.package-data]
+"*" = ["*.pyi", "py.typed"]

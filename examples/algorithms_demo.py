@@ -4,15 +4,23 @@
 一次跑完七个模块，看每个模块在做什么、输出长什么样。
 
 用法：
-    python demo.py            # 跑全部
-    python demo.py periods    # 只跑某一块
+    python examples/algorithms_demo.py        # 跑全部
+    python examples/algorithms_demo.py periods # 只跑某一块
 
 不依赖任何外部数据文件，全部现场构造。
 """
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:  # 已安装 loomgrid-algos 时走包导入
+    from loomgrid_algos import (periods, spaces, dispatch, milp,
+                                finance, loadgen, diagnostics)
+    from loomgrid_algos.periods import _normalize_periods
+except ImportError:  # 仓库内直接运行，退回同级 algorithms/ 目录
+    sys.path.insert(0, os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "algorithms"))
+    import periods, spaces, dispatch, milp, finance, loadgen, diagnostics  # noqa: E402
+    from periods import _normalize_periods  # noqa: E402
 
 
 def rule(title):
@@ -24,7 +32,6 @@ def rule(title):
 # ══════════════════════════════════════════════════════════
 def demo_periods():
     """电价时段：三种写法归一化 + 转成逐点价格序列"""
-    import periods
 
     rule("1. periods —— 电价时段归一化")
 
@@ -65,8 +72,6 @@ def demo_periods():
 def demo_spaces():
     """充放电空间：容量不是拍出来的，是被曲线和电价挤出来的"""
     import numpy as np
-    import spaces
-    from periods import _normalize_periods
 
     rule("2. spaces —— 充放电空间")
 
@@ -101,7 +106,6 @@ def demo_spaces():
 def demo_dispatch():
     """三套调度：贪心 / 逐日仿真 / 线性规划"""
     import numpy as np
-    import dispatch
 
     rule("3. dispatch —— 三种调度对照")
 
@@ -148,7 +152,6 @@ def demo_dispatch():
 # ══════════════════════════════════════════════════════════
 def demo_finance():
     """财务：NPV / IRR / 回收期 / LCOE"""
-    import finance
 
     rule("4. finance —— 经济指标")
 
@@ -179,7 +182,6 @@ def demo_finance():
 # ══════════════════════════════════════════════════════════
 def demo_loadgen():
     """负荷生成：三层叠加"""
-    import loadgen
 
     rule("5. loadgen —— 三层叠加负荷生成")
 
@@ -209,7 +211,6 @@ def demo_loadgen():
 def demo_diagnostics():
     """诊断：负荷指纹与行业匹配"""
     import numpy as np
-    import diagnostics
 
     rule("6. diagnostics —— 负荷指纹分析")
 
@@ -240,7 +241,6 @@ def demo_milp():
     """MILP 容量规划（需要 ortools，可能较慢）"""
     import numpy as np
     import pandas as pd
-    import milp
 
     rule("7. milp —— 容量规划（跳过重型求解，只验证接口）")
 
