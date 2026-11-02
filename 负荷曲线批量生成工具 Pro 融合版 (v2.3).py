@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.2（2026-11-02 修复：文件名含年份时资产识别错位，导致整表无法加载）
+发布版本：LoomGrid Fusion v2.3.5（2026-11-02 修复：时间列被「测点/节点」抢占、长表分支资产兜底与扫描不同源）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -1024,7 +1024,9 @@ def _convert_accumulated_to_power(df, date_col, time_col, load_col, asset_col=No
                 df = df.drop(columns=[_c])
         return df
 
-def _parse_long_to_standard(df, date_col, time_col, load_col, multiplier=1.0, asset_col=None, cancel_event=None, convert_accumulated=False):
+def _parse_long_to_standard(df, date_col, time_col, load_col, multiplier=1.0,
+                            asset_col=None, cancel_event=None, convert_accumulated=False,
+                            fallback_asset='未命名'):
     needed_cols = [date_col, load_col]
     if time_col and time_col != date_col:
         needed_cols.append(time_col)
@@ -1065,7 +1067,11 @@ def _parse_long_to_standard(df, date_col, time_col, load_col, multiplier=1.0, as
     if asset_col and asset_col in df_clean.columns:
         df_clean['__asset__'] = df_clean[asset_col].apply(lambda x: _normalize_asset(x))
     else:
-        df_clean['__asset__'] = '未命名'
+        # v2.3.5fix(K2): 必须与 _scan_long_chunk 的兜底同源。
+        # 原实现写死 '未命名'，而扫描阶段用的是 _extract_asset_from_name。
+        # 文件名带表号（表号123.xlsx）且无资产列时两边对不上，整表被筛空，
+        # 报「资产号 '123' 在月份 'xxx' 无数据」。这是 v2.3.2 修复在长表分支的遗漏。
+        df_clean['__asset__'] = fallback_asset or '未命名'
 
     return df_clean, ratio
 
@@ -1412,7 +1418,11 @@ def _wide_row_accumulated_to_power(df, time_cols):
 def _smart_classify_columns(cols, sample_df=None, max_sample=100):
     result = {}
     date_kw = ['日期','date','时间戳','timestamp']
-    time_kw = ['时间','time','时刻','时分','点','时']
+    # v2.3.5fix(K1): 从时间词表删掉单字 '点'。time_col 用 setdefault，
+    # 「测点编号」「节点」会同时命中 asset_kw 和 time_kw('点')，
+    # 若排在真「时间」列之前就会抢占 time_col，导致整表时刻解析失败。
+    # '点' 原本想匹配的「时间点」已被 '时间' 覆盖，删掉不丢能力。
+    time_kw = ['时间','time','时刻','时分','时']
     asset_kw = ['资产','户号','编号','表号','id','用户','meter']
     # v2.3.2fix(N9): 原词表把「无功 / 电流 / 电压」与有功并列为负荷列，
     # 且累计词表里混进了 '点' / '时' 这两个时间词。后果：
@@ -2187,7 +2197,8 @@ def _scan_long_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
     convert_accumulated = mapping.get('convert_accumulated', False) or mapping.get('format_type') == 'accumulated'
     df_clean, dropped_ratio = _parse_long_to_standard(
         df[list(set([date_col, load_col] + ([time_col] if time_col else []) + ([asset_col] if asset_col else [])))].copy(),
-        date_col, time_col, load_col, 1.0, asset_col, cancel_event, convert_accumulated
+        date_col, time_col, load_col, 1.0, asset_col, cancel_event, convert_accumulated,
+        fallback_asset=_extract_asset_from_name(fp, sheet)
     )
     if df_clean.empty:
         return
@@ -2646,7 +2657,8 @@ class DataProvider:
                 sub_df = df[needed].copy()
                 convert_accumulated = mapping.get('convert_accumulated', False) or mapping.get('format_type') == 'accumulated'
                 df_clean, dropped_ratio = _parse_long_to_standard(
-                    sub_df, date_col, time_col, load_col, 1.0, asset_col, cancel_event, convert_accumulated
+                    sub_df, date_col, time_col, load_col, 1.0, asset_col, cancel_event, convert_accumulated,
+                    fallback_asset=_extract_asset_from_name(s.file_path, s.sheet_name)
                 )
                 if df_clean.empty:
                     return None, "解析后无有效数据（可能日期或负荷列格式不正确）"
