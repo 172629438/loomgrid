@@ -36,10 +36,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install numpy pandas scipy loguru ortools
 
-      # 只跑不依赖 PySide6 的脚本。分成两类：
-      #   1) 直接用 algorithms/ 下的纯算法模块（invariants / math）
-      #   2) 对主程序做 AST 静态分析，不 import 它（parity / feature_*）
-      # 主程序顶层 import 了 Qt，任何 load_module 它都会在 runner 上挂掉。
+      # 只有三个脚本不依赖 PySide6。判据是实测，不是看名字：
+      #   invariants / algorithms_math  直接 import algorithms/ 下的模块
+      #   alg_parity                   只对源码做 ast.parse，不 import 主程序
+      # 其余脚本都用 importlib.exec_module 加载主程序，而主程序顶层就 import Qt。
       - name: Verify invariants
         run: python tests/verify_invariants.py
 
@@ -48,12 +48,6 @@ jobs:
 
       - name: Verify parity
         run: python tests/verify_alg_parity.py
-
-      - name: Verify feature sync
-        run: python tests/verify_feature_sync.py
-
-      - name: Verify feature restore
-        run: python tests/verify_feature_restore.py
 
   package:
     name: build wheel

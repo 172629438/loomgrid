@@ -27,19 +27,19 @@ python tests/verify_pipeline.py
 | `verify_invariants.py` | 13 | 物理不变量：能量守恒、SOC 边界、NPV↔IRR 自洽、空间口径交叉 |
 | `verify_algorithms_math.py` | 12 | 数理公式：手算对拍，每个公式有推导对照 |
 | `verify_alg_parity.py` | 19 | 三个调度引擎在同一组数据下的行为差异是否在预期内 |
-| `verify_feature_sync.py` | 5 | 两个现役版本（Fusion / Ultra）的特性是否同步 |
-| `verify_feature_restore.py` | 15 | 历史上丢失过的特性是否仍在位（防回退） |
 
-合计 64 项断言，每个脚本退出码 0 才叫过。
+合计 44 项断言，每个脚本退出码 0 才叫过。
 
-前两个直接用 `algorithms/` 下的模块；后三个对主程序做 **AST 静态分析**，
-只读源码不 import 它——所以不需要 Qt。
+这三个的共同点是：**从不 import 主程序**。前两个直接 `import`
+`algorithms/` 下的模块，`alg_parity` 只对源码做 `ast.parse`。
 
 ### 需要 PySide6 或外部数据（仅本地）
 
 | 脚本 | 断言 | 验什么 | 额外依赖 |
 |---|---:|---|---|
 | `verify_pipeline.py` | 43 | 端到端：负荷 → 电价 → 空间 → 调度 → 财务，全链路串通 | `importlib` 加载主程序 |
+| `verify_feature_sync.py` | 5 | 两个现役版本的特性是否同步 | `importlib` 加载主程序 |
+| `verify_feature_restore.py` | 15 | 历史上丢失过的特性是否仍在位（防回退） | `importlib` 加载主程序 |
 | `verify_algorithms_deep.py` | 25 | 套利调度、用户侧最优调度、MILP 容量规划 | PySide6（用 `importlib` 加载整个主程序） |
 | `verify_gui_flow.py` | 24 | GUI 主流程点击链路 | PySide6 + 显示器 |
 | `verify_gui_signal.py` | 26 | 信号连接是否正确、无重复触发 | PySide6 + 显示器 |
@@ -70,13 +70,13 @@ PY
 
 ## CI
 
-`.github/workflows/ci.yml` 跑上表「纯算法」那 5 个，两个 Python 版本
+`.github/workflows/ci.yml` 跑上表「纯算法」那 3 个，两个 Python 版本
 （3.10 / 3.12）各一遍，外加一个 wheel 构建与内容检查 job。
 
-剩下 11 个**不进 CI**。理由不是懒：主程序 `负荷曲线批量生成Ultra.py`
-顶层就 `from PySide6.QtCore import ...`，任何用 `importlib` 加载它的脚本
-（pipeline / deep / e2e / ingest / gui_* / report）在无显示器的 ubuntu runner 上
-必然挂。硬装 PySide6 + 系统图形库能试，但一个因环境差异而飘红的 CI，
+剩下 13 个**不进 CI**。理由不是懒：主程序 `负荷曲线批量生成Ultra.py`
+顶层（第 601 行）就 `from PySide6.QtCore import ...`，任何用
+`importlib.exec_module` 加载它的脚本在无显示器的 ubuntu runner 上必然挂。
+硬装 PySide6 + 系统图形库能试，但一个因环境差异而飘红的 CI，
 比没有 CI 更糟——它会训练人忽略红叉。
 
 真正不变的那部分（能量守恒、公式对拍、不变量、特性是否在位）已经
