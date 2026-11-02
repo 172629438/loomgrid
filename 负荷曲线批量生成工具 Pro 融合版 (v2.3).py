@@ -7662,14 +7662,23 @@ class ProfessionalWindow(QMainWindow):
 
     def _populate_space_table(self):
         months = sorted(self._get_work_data().keys())
-        # v2.3.2fix: charge_labels / discharge_labels 各自都包含全部段名（为了让四个
-        # 列表等长，见 compute_segmented_spaces 的注释），直接拼起来会让每个段名
-        # 在表头出现两遍，用户看到两个「充电1」两个「放电1」。
-        # 左半边是各段的充电空间、右半边是放电空间，用后缀把方向区分开。
-        col_labels = (['月份']
-                      + [f"{lab}·充" for lab in self.charge_labels]
-                      + [f"{lab}·放" for lab in self.discharge_labels]
-                      + ['月最小段总和(kWh)'])
+        # 一个段一列：充电1、放电1、充电2、放电2 …（与设计意图一致——
+        # 每个段就是一个充放机会，充段显示可充量、放段显示可放量，不拆方向）。
+        # charge_labels 与 discharge_labels 内容相同（都装着全部段名，为了让
+        # 四个列表等长），所以只取一份，否则每个段名会重复两遍。
+        # 同名段（如多个「平段」）加序号区分，否则表头仍会重复。
+        _cnt = {}
+        for lab in self.charge_labels:
+            _cnt[lab] = _cnt.get(lab, 0) + 1
+        _seen = {}
+        _uniq_labels = []
+        for lab in self.charge_labels:
+            if _cnt.get(lab, 0) > 1:
+                _seen[lab] = _seen.get(lab, 0) + 1
+                _uniq_labels.append(f"{lab}{_seen[lab]}")
+            else:
+                _uniq_labels.append(lab)
+        col_labels = ['月份'] + _uniq_labels + ['月最小段总和(kWh)']
         self.space_table.setColumnCount(len(col_labels))
         self.space_table.setHorizontalHeaderLabels(col_labels)
         self.space_table.setRowCount(len(months))
@@ -7677,19 +7686,20 @@ class ProfessionalWindow(QMainWindow):
         for row, month in enumerate(months):
             c_segs = self.charge_segments_dict.get(month, [])
             d_segs = self.discharge_segments_dict.get(month, [])
-            
+
             self.space_table.setItem(row, 0, QTableWidgetItem(month))
-            
+
             seg_values = []
             col = 1
-            # v2.30fix: 按标签索引填充, 月份段数少于标签数时填0
+            # 同一个索引 i 在 c_segs 与 d_segs 里指的是同一个段：
+            # 充电段在 c_segs 有值、d_segs 为零数组，放电段反之，平段两边皆零。
+            # 所以两者相加就是该段的空间，不会重复计入。
             for i in range(len(self.charge_labels)):
-                val = np.sum(np.nan_to_num(c_segs[i], nan=0.0)) if i < len(c_segs) else 0.0
-                seg_values.append(val)
-                self.space_table.setItem(row, col, QTableWidgetItem(f"{val:.2f}"))
-                col += 1
-            for i in range(len(self.discharge_labels)):
-                val = np.sum(np.nan_to_num(d_segs[i], nan=0.0)) if i < len(d_segs) else 0.0
+                c_val = (float(np.sum(np.nan_to_num(c_segs[i], nan=0.0)))
+                         if i < len(c_segs) else 0.0)
+                d_val = (float(np.sum(np.nan_to_num(d_segs[i], nan=0.0)))
+                         if i < len(d_segs) else 0.0)
+                val = c_val + d_val
                 seg_values.append(val)
                 self.space_table.setItem(row, col, QTableWidgetItem(f"{val:.2f}"))
                 col += 1
