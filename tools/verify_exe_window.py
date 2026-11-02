@@ -9,8 +9,12 @@
 
 判据
 ----
-    正常 = 只有 1 个窗口，标题形如「欢迎 — LoomGrid-Fusion-vX.Y.Z」
-    异常 = 出现 2 个窗口，其中一个是错误对话框
+    通过 = 至少 1 个可见窗口 + 任一窗口标题包含预期关键词 + 无错误对话框
+    失败 = 无窗口 / 标题不含关键词 / 出现 Fatal error、Python error 这类对话框
+
+窗口数不作为判据：Ultra 有全屏启动动画 + 模态欢迎框，
+同一进程出现 3 个窗口是正常启动序列。真正要防的是「卡在错误对话框里
+进程仍然存活」那个情形，靠标题关键词而非窗口数识别。
 
 用法
 ----
@@ -99,22 +103,24 @@ def main():
         print(f"\n存活 {seconds}s，最终窗口数 {len(final)}")
 
         # 判定
-        bad_markers = ("error", "错误", "fatal", "traceback", "无法", "failed")
+        bad_markers = ("error", "错误", "fatal", "traceback", "无法", "failed", "exception")
         bad = [t for t in final if any(m in t.lower() for m in bad_markers)]
 
         ok = True
         if bad:
             print(f"✗ 检测到错误对话框: {bad}")
             ok = False
-        if len(final) > 1:
-            print(f"✗ 窗口数 {len(final)} > 1（预期 1 个）")
-            ok = False
         if len(final) == 0:
             print("✗ 没有可见窗口（进程活着但界面没起来）")
             ok = False
         if expect and final and not any(expect in t for t in final):
-            print(f"✗ 窗口标题不含预期关键词 {expect!r}")
+            print(f"✗ 没有任何窗口标题包含 {expect!r}")
             ok = False
+        # 窗口数不做硬判据：Ultra 有全屏启动动画 + 模态欢迎框，
+        # 同一进程三个窗口是正常启动序列，不是故障。
+        # 真正要防的是「错误对话框」，已由 bad_markers 覆盖。
+        if len(final) > 1 and not bad:
+            print(f"  窗口数 {len(final)} > 1，但无错误标识（启动动画/模态框属正常）")
 
         print("\n" + ("✓ 通过" if ok else "✗ 不通过"))
         return 0 if ok else 1

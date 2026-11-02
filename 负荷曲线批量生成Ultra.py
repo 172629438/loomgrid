@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 ULTRA_VERSION = "3.2.9"            # v3.2.9（2026-11-02）：同步 Fusion 的 C1/C2/C4/C5/C6 口径修复
+# v3.2.9fix(K5): 窗口标题与欢迎弹窗统一引用这两个常量，避免版本号多处硬编码。
+ULTRA_APP_NAME = "LoomGrid Ultra"
 ULTRA_BUILD_DATE = "2026-11-02"    # 构建日期
 
 # v2.29: 内置用户手册(按F1或菜单→帮助→用户手册查看)
@@ -24240,7 +24242,9 @@ class MainWindow(QMainWindow):
         # v2.28: 构造期间完全隐藏,防止启动时短暂闪现(窗口框架无法被setWindowOpacity隐藏)
         self.hide()
         self.setWindowOpacity(0.0)
-        self.setWindowTitle("🏭 负荷曲线批量生成工具 Ultra")
+        # v3.2.9fix(K5): 标题带版本号——原来只有「负荷曲线批量生成工具 Ultra」，
+        # 从窗口上无从判断跑的是哪个版本。ULTRA_VERSION 已是单一来源。
+        self.setWindowTitle(f"🏭 {ULTRA_APP_NAME} v{ULTRA_VERSION}")
         screen = QApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()
@@ -29484,9 +29488,8 @@ def _show_welcome_if_needed(window, callback=None):
         window._welcome_shown = True
         QMessageBox.information(
             window,
-            "👋 欢迎使用",
-            "负荷曲线批量生成工具 Ultra\n\n"
-            "终极完美版\n\n"
+            f"👋 欢迎使用 — {ULTRA_APP_NAME} v{ULTRA_VERSION}",
+            f"{ULTRA_APP_NAME} v{ULTRA_VERSION}\n\n"
             "本工具适用于批量生成负荷曲线图表,\n"
             "并支持专业储能分析(需量管理/峰谷套利/光伏消纳).\n\n"
             "请先添加 Excel/CSV 文件开始.\n\n"
