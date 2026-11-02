@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.1（2026-10-28 重新编号：合并原 v2.3.1~v2.3.4 全部修复）
+发布版本：LoomGrid Fusion v2.3.2（2026-11-02 修复：文件名含年份时资产识别错位，导致整表无法加载）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -2074,9 +2074,16 @@ def _extract_asset_from_name(file_path, sheet_name):
     m = re.search(r'表号[：:\s]*(\d+)', sheet_name)
     if m:
         return m.group(1)
+    # v2.3.1fix: 纯 4 位数字且落在年份区间时，当作年份而不是表号。
+    # 旧逻辑对「2026年1月.xlsx」这类文件名会把年份 2026 当成表号，
+    # 导致扫描阶段记下的资产名（'2026'）与加载阶段的兜底（'未命名'）对不上，
+    # 整表报「未找到月份…且资产…的数据」。
     m = re.search(r'(\d{4,})', basename)
     if m:
-        return m.group(1)
+        cand = m.group(1)
+        is_year_like = len(cand) == 4 and 1900 <= int(cand) <= 2100
+        if not is_year_like:
+            return cand
     return '未命名'
 
 def _parse_file_meta_worker(fp):
@@ -2589,7 +2596,12 @@ class DataProvider:
                     if asset_col and asset_col in df.columns:
                         asset_ser = df[asset_col].apply(lambda x: _normalize_asset(x))
                     else:
-                        asset_ser = pd.Series('未命名', index=df.index)
+                        # v2.3.1fix: 必须与 _scan_wide_chunk 的兜底保持同源。
+                        # 扫描阶段用的是 _extract_asset_from_name，这里旧代码写死 '未命名'，
+                        # 两边对不上就会整表筛空，报「未找到月份…且资产…的数据」。
+                        asset_ser = pd.Series(
+                            _extract_asset_from_name(s.file_path, s.sheet_name),
+                            index=df.index)
                     mask = (yms == s.month_str) & (asset_ser == s.asset_value)
                     idxs = df.index[mask]
                     if not len(idxs):
