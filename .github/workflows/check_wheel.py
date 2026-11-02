@@ -16,6 +16,8 @@ EXPECTED = {
     "loomgrid_algos/finance.py",
     "loomgrid_algos/loadgen.py",
     "loomgrid_algos/diagnostics.py",
+    # package-data: 标记该包带类型信息，让 mypy/pyright 认它
+    "loomgrid_algos/py.typed",
 }
 
 wheels = glob.glob("dist/*.whl")
@@ -37,4 +39,4 @@ extra = modules - EXPECTED
 if extra:
     sys.exit(f"FAIL: unexpected files in wheel: {sorted(extra)}")
 
-print(f"\nOK: {len(modules)} modules packaged, nothing extra")
+print(f"\nOK: {len(modules)} files packaged, nothing extra")
