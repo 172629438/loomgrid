@@ -77,9 +77,14 @@ jobs:
 
       - name: Import smoke test
         run: |
+          # 核心依赖不装的话，import 子模块会炸——这是个真实场景：
+          # 有人只装 wheel 不装依赖，包本身应该还能 import。
+          # 先测懒加载（不装依赖），再测子模块（装依赖）。
           python -m pip install --no-deps dist/*.whl
           cd /tmp
-          python -c "import loomgrid_algos; from loomgrid_algos import periods, spaces, dispatch, milp, finance, loadgen, diagnostics; print('all 7 submodules importable from an unrelated cwd')"
+          python -c "import loomgrid_algos; print('lazy import OK, version', loomgrid_algos.__version__)"
+          python -m pip install --quiet numpy pandas loguru
+          python -c "from loomgrid_algos import periods, spaces, dispatch, milp, finance, loadgen, diagnostics; print('all 7 submodules importable from an unrelated cwd')"
 
       - uses: actions/upload-artifact@v4
         with:
