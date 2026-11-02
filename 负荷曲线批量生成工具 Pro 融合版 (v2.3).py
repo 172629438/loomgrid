@@ -22,6 +22,7 @@ import sys, os, re, json, math, time, io, logging, atexit, warnings, subprocess,
 import logging.handlers
 import multiprocessing as mp
 import threading
+import functools
 import csv
 import shutil
 import tempfile
@@ -2363,6 +2364,80 @@ class ProcessingSignals(QObject):
     preview_request = Signal(object)
     export_confirm_request = Signal(object)
     eta = Signal(str)
+
+# ===================== 对话框握手保护 =====================
+def _dialog_handshake(result_method, fallback, label):
+    """v2.3.5fix(K4): 保证对话框处理器无论成败都回复一次。
+
+    ProcessingThread 用 dialog_event.wait()（无超时）等处理器回话，
+    而三个 handler 原本都没有异常保护——对话框构造失败、文件探测出错、
+    data 缺键（如 KeyError: 'filename_tpl'）都会让 set_*_result 永不执行，
+    线程永久阻塞，UI 卡在 dialog_open 只能强杀进程。
+
+    这个装饰器不改 body，只在外面套一层：记账 → 异常兜底 → 恢复 UI 状态。
+    """
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapper(self, *args, **kwargs):
+            answered = [False]
+            thread = getattr(self, '_thread', None)
+            original = getattr(thread, result_method, None) if thread is not None else None
+
+            if original is not None:
+                def _tracked(value):
+                    answered[0] = True
+                    return original(value)
+                try:
+                    setattr(thread, result_method, _tracked)
+                    patched = True
+                except Exception:
+                    patched = False
+            else:
+                patched = False
+
+            try:
+                return fn(self, *args, **kwargs)
+            except Exception as e:
+                log.exception("%s 处理异常", label)
+                try:
+                    self._log(f"{label}异常：{e}")
+                except Exception:
+                    pass
+                try:
+                    QMessageBox.warning(self, "界面异常",
+                                        f"{label}出错，本条已跳过：\n{e}")
+                except Exception:
+                    pass
+                return None
+            finally:
+                if not answered[0] and original is not None:
+                    try:
+                        original(fallback)
+                    except Exception:
+                        log.exception("%s 兜底回复失败", label)
+                if patched:
+                    try:
+                        delattr(thread, result_method)
+                    except Exception:
+                        pass
+                # 原实现在异常时这两行也会被跳过，一并收进 finally
+                for attr in ('_active_mapping_dlg',):
+                    if hasattr(self, attr):
+                        try:
+                            setattr(self, attr, None)
+                        except Exception:
+                            pass
+                try:
+                    self._dialog_active = False
+                except Exception:
+                    pass
+                try:
+                    self._set_ui_state('processing')
+                except Exception:
+                    pass
+        return wrapper
+    return deco
+
 
 # ===================== 列刷新任务 =====================
 class ColumnRefreshTask(QObject, QRunnable):
@@ -9941,6 +10016,7 @@ class MainWindow(QMainWindow):
         sig.eta.connect(self.eta_label.setText)
         self._thread.start()
 
+    @_dialog_handshake('set_mapping_result', 'cancel', '映射对话框')
     def _handle_mapping_request(self, data):
         fp, sheets = data
         self._dialog_active = True
@@ -9991,6 +10067,7 @@ class MainWindow(QMainWindow):
         self._dialog_active = False
         self._set_ui_state('processing')
 
+    @_dialog_handshake('set_preview_result', None, '预览对话框')
     def _handle_preview_request(self, data):
         summaries, multiplier, provider = data
         self._last_summaries = summaries
@@ -10089,6 +10166,7 @@ class MainWindow(QMainWindow):
         self._dialog_active = False
         self._set_ui_state('processing')
 
+    @_dialog_handshake('set_export_confirm_result', None, '导出确认对话框')
     def _handle_export_confirm_request(self, data):
         self._dialog_active = True
         self._set_ui_state('dialog_open')

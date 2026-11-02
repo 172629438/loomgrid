@@ -27,6 +27,60 @@
 > 上一个可用版本号是 v2.3.5：v2.3.3 / v2.3.4 是历史版本，其修复已并入 v2.3.1，
 > 代码里留下的 `v2.3.3fix` / `v2.3.4fix` 注释属于历史标记。
 
+### 修复：三个对话框处理器缺异常保护，异常时线程永久卡死
+
+**这是本轮最严重的一处**——它不是算错数，是**整个程序失去响应**。
+
+**三个 handler 的共同模式**：`_handle_mapping_request` / `_handle_preview_request` /
+`_handle_export_confirm_request` 都是
+
+```python
+dlg = XDialog(...)                    # ← 可能抛
+if dlg.exec() == QDialog.Accepted:
+    self._thread.set_X_result(...)
+else:
+    self._thread.set_X_result(None)
+self._dialog_active = False
+self._set_ui_state('processing')
+```
+
+**线程侧**是无超时等待：
+
+```python
+self.signals.X_request.emit(...)
+self.dialog_event.clear()
+self.dialog_event.wait()              # 没有 timeout
+```
+
+**三者原本都没有 try/except。** 只要中间任何一步抛出——对话框构造失败、
+`_detect_file_format_type` 读文件出错、`_handle_export_confirm_request` 里
+`data['filename_tpl']` 这类十余个直接取键缺一个（KeyError）——`set_X_result`
+**永远不会被调用**，`dialog_event` **永远不会被 set**，线程**永久阻塞**，
+UI 停在 `dialog_open`，用户只能强杀进程。
+
+**修法**：新增 `_dialog_handshake` 装饰器，挂在三个 handler 上。
+
+它不改 handler 的 body，只在外面套一层：
+
+1. 临时把 `self._thread.set_X_result` 换成记账包装，记录"已回复"
+2. 异常时记日志 + 弹一次提示（提示本身失败也不影响后续）
+3. `finally` 里若仍未回复则补 fallback；并把原本也会被跳过的
+   `_dialog_active = False` / `_set_ui_state('processing')` 收进 finally
+
+**为什么用装饰器**：改 body 要整段缩进重排 + 替换所有 `set_*` 调用点，
+diff 大且容易改错缩进；装饰器只新增一个函数加三行 `@`，body 一个字符不动。
+
+**验证**（四个路径，用 AST 摘出装饰器独立跑）：
+
+```
+A 正常回复        → 回复 [{'mapped': True}]，UI 恢复 processing   ✓
+B 抛 KeyError     → 兜底回复 ['cancel']，UI 恢复 processing       ✓
+C 什么也没回      → 兜底回复 ['cancel']，UI 恢复 processing       ✓
+D _thread 方法缺失 → 不崩，UI 恢复 processing                     ✓
+```
+
+---
+
 ### 修复：进程管理器不可用时，取消按钮静默失效
 
 **机理**：`ProcessingThread.run` 里 `mp.Manager()` 可能创建失败（内存紧张或权限受限），
