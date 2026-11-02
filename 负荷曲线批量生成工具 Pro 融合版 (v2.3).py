@@ -155,6 +155,12 @@ def _check_and_install_dependencies():
 # ======================= 常量 =======================
 INVALID_MINUTES = 9999
 MAX_FILENAME_LEN = 50
+
+# v2.3.6fix(K5): 版本号只能有一个来源。
+# 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
+# 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
+FUSION_VERSION = "2.3.6"
+FUSION_APP_NAME = "LoomGrid Fusion"
 DEFAULT_ENCODING_LIST = ['utf-8-sig', 'utf-8', 'gb18030', 'gbk', 'gb2312', 'latin1']
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
 _SUPPORTED_EXTS_SET = frozenset(SUPPORTED_EXTS)  # v2.3.4fix(J6): O(1) 成员查找
@@ -9576,7 +9582,7 @@ class DropOverlay(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("负荷曲线批量生成工具 Pro 融合版 v2.3.1")
+        self.setWindowTitle(f"{FUSION_APP_NAME} v{FUSION_VERSION}")
         self.setMinimumSize(900, 600)
 
         self.config_manager = Config()
@@ -10565,7 +10571,7 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
         psutil_status = "已安装" if importlib.util.find_spec("psutil") else "未安装 (内存自适应不可用)"
         taskbar_status = "支持" if self._taskbar_button else "不支持"
         QMessageBox.information(self, "关于",
-            f"负荷曲线批量生成工具 Pro 融合版 v2.3.1 (全面优化修复版)\n\n"
+            f"{FUSION_APP_NAME} v{FUSION_VERSION}\n\n"
             f"主要更新：\n"
             f"• 策略架构重构：省份 → 策略组 → 月份，支持多季节电价\n"
             f"• 放电空间逻辑修正，等效满足天数\n"
@@ -10686,8 +10692,8 @@ def main():
 
     # 启动提示
     msg_box = QMessageBox()
-    msg_box.setWindowTitle("欢迎")
-    msg_box.setText("负荷曲线批量生成工具 Pro v3.2\n\n本工具适用于批量生成负荷曲线图表，\n并支持专业储能分析。\n\n请先添加 Excel/CSV 文件开始。")
+    msg_box.setWindowTitle(f"欢迎 — {FUSION_APP_NAME} v{FUSION_VERSION}")
+    msg_box.setText(f"{FUSION_APP_NAME} v{FUSION_VERSION}\n\n本工具适用于批量生成负荷曲线图表，\n并支持专业储能分析。\n\n请先添加 Excel/CSV 文件开始。")
     msg_box.addButton(QMessageBox.Ok)
     msg_box.exec()
 

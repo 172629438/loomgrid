@@ -99,9 +99,36 @@ py -V:Astral/CPython3.12.13 -m venv <临时目录>
 <临时目录>\Scripts\python.exe tools\build_fusion_only.py
 ```
 
-**不要用 `tools/build_all_exe.py`**（PyInstaller，本机跑不动，脚本头部已标废弃）。
+**不要用 `tools/build_all_exe.py`**（PyInstaller `--onefile`，本机跑不动，脚本头部已标废弃）。
 **不要用 `tools/build_exe_cx.py`** 直接出 Fusion 包——它一次打 12 个目标、共享一套 lib，
-抽出来的 Fusion 包会到 299 MB。用 `tools/build_fusion_only.py`，只收集 Fusion 自己的依赖。
+抽出来的 Fusion 包会到 299 MB。
+
+**Fusion / Ultra 单版本打包用 `tools/pack_release.py`：**
+
+```bash
+python tools/pack_release.py fusion 2.3.6
+python tools/pack_release.py ultra 3.2.9
+```
+
+它走 PyInstaller `--onedir`（不是 `--onefile`，所以本机跑得动），
+产出 `dist/LoomGrid-Fusion-vX.Y.Z-win64.zip`（约 135 MB / 解压 308 MB），
+脚本末尾自带冒烟闸门（真启动 20s + 存活检查）。
+
+> 2026-11-02 补注：本节曾写「用 `tools/build_fusion_only.py`」，但该文件从未提交到仓库
+> （疑似只存在于某一台机器本地）。本次实测 `pack_release.py` 在本机 Python 3.12.9 下
+> 打包正常、窗口标题正确，故以它为准。
+
+### 打包后用窗口标题验证，不要只看进程存活
+
+```bash
+python tools/verify_exe_window.py "build_release/<tag>/dist/<tag>/<tag>.exe" --expect "LoomGrid Fusion"
+```
+
+判据：**只有 1 个可见窗口，标题形如 `欢迎 — LoomGrid Fusion vX.Y.Z`**。
+出现 2 个窗口、或标题含 error/错误/fatal 即不通过。
+
+> 2026-11-02：这条判据第一次真正跑起来就抓到了两个问题——主窗口标题停在 v2.3.1、
+> 欢迎弹窗写着 Ultra 的 v3.2。以前「进程存活 + 读日志」两项都是绿的。
 
 ### 打包后必须验证
 
@@ -135,8 +162,14 @@ gh release create fusion-vX.Y.Z "<zip路径>" \
 1. **「月最小段总和」列的算法**：现在取的是本行所有值的最小值，
    而按列名理解应是「各段 min(充电空间, 放电空间) 之和」。
    两者差很多，属业务口径，**改之前必须问人**。
-2. **平段占列但恒为 0**：平段不参与充放，这些列只是为了保持时段完整。
-   删不删是界面取舍。
+2. ~~**平段占列但恒为 0**：平段不参与充放，这些列只是为了保持时段完整。~~
+   **2026-11-02 已按用户要求修改（C4）**，Fusion v2.3.6 / Ultra v3.2.9 起生效：
+   全零段列不再显示。判据是「该段在所有月份的和都为 0 则隐藏」，
+   任一月非零仍显示。Ultra 侧顺带消除了重复列——它的 charge_labels 与
+   discharge_labels 内容完全相同（三个分支都向两列表同步 append），
+   而表头是两者相加，每个段原本出现两次。
+   连带效果：「月最小段总和」原本被占位零列压住恒等于 0，现在等于真实最小段值；
+   但第 1 条那个取 min 的方式本身仍未动。
 
 ---
 
