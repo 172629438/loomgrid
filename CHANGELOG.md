@@ -27,6 +27,27 @@
 > 上一个可用版本号是 v2.3.5：v2.3.3 / v2.3.4 是历史版本，其修复已并入 v2.3.1，
 > 代码里留下的 `v2.3.3fix` / `v2.3.4fix` 注释属于历史标记。
 
+### 修复：进程管理器不可用时，取消按钮静默失效
+
+**机理**：`ProcessingThread.run` 里 `mp.Manager()` 可能创建失败（内存紧张或权限受限），
+此时 `_mp_cancel_event = None`；`_execute_plot_tasks` 的取消检查写成
+
+```python
+_ce = cancel_event if cancel_event is not None else threading.Event()
+if _ce.is_set(): ...
+```
+
+**这个 `threading.Event()` 是在循环内每轮新建的**，新建的永远 unset，
+`is_set()` 恒为 False。注释写着「进程管理器创建失败时仍可取消」，实际是死代码。
+
+**后果**：管理器不可用时，用户点取消，正在跑的绘图任务不会提前退出，
+只能等全部完成——观感是「取消没反应」。
+
+**修法**：`_generate_charts` 里用 `self.stop_event` 兜底（`cancel()` 会同时 set 它），
+`_execute_plot_tasks` 的回退 Event 提到循环外。
+
+---
+
 ### 修复：时间列被「测点编号」「节点」抢占
 
 **现象**：列名为 `测点编号` / `节点` 的表格，整表时刻解析失败。

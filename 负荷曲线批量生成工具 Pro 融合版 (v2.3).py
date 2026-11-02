@@ -8214,9 +8214,12 @@ def _execute_plot_tasks(worker_args, config_manager, signals, cancel_event, prog
             full_args = args + (progress_queue, cancel_event)
             futures.append(executor.submit(_plot_single_worker, *full_args))
 
+        # v2.3.5fix(K3): 回退 Event 提到循环外。
+        # 原实现每轮新建 threading.Event()，新建的永远 unset，
+        # is_set() 恒 False——那段「仍可取消」的注释是死代码。
+        # 现在 cancel_event 由调用方保证非 None（manager 失败时用 stop_event）。
+        _ce = cancel_event if cancel_event is not None else threading.Event()
         for fut in as_completed(futures):
-            # v3.2fix: cancel_event 为 None 时用 threading.Event 回退(进程管理器创建失败时仍可取消)
-            _ce = cancel_event if cancel_event is not None else threading.Event()
             if _ce.is_set():
                 # 取消所有未完成的任务
                 for f in futures:
@@ -9182,6 +9185,12 @@ class ProcessingThread(threading.Thread):
             except Exception:
                 manager = None
             cancel_event = manager.Event() if manager else None
+        # v2.3.5fix(K3): 管理器不可用时 cancel_event 会退化成 None，
+        # 而 _execute_plot_tasks 里「临时新建 Event」的回退是死代码——
+        # 那个 Event 没有任何人能 set，is_set() 恒 False，取消按钮静默失效。
+        # 用 stop_event 兜底：cancel() 会同时 set 它。
+        if cancel_event is None:
+            cancel_event = self.stop_event
 
         progress_queue = None
         if manager:
