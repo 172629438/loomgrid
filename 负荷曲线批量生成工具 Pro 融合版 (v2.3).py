@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.5（2026-11-02 修复：时间列被「测点/节点」抢占、长表分支资产兜底与扫描不同源）
+发布版本：LoomGrid Fusion v2.3.6（2026-11-02 口径落地：无法识别时刻不再静默丢弃、编码兜底留痕、CSV 坏行跳过、全零段列不占位、清理 85 行死代码）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -1119,6 +1119,11 @@ def _detect_enc(fp,size=50000):
         try:
             with open(fp,'r',encoding=e) as f:
                 f.read(4096)
+            # v2.3.5fix(C5): latin1 对任何字节都能解码，永不抛异常。
+            # 落到它意味着「前面的编码全部识别失败」，读出来会是满表错字
+            # 但看起来正常——这比直接打不开更危险，必须留下痕迹。
+            if e == 'latin1':
+                log.warning(f"编码无法确定，回退到 latin1（可能整表乱码）: {fp}")
             return e
         except Exception:
             continue
@@ -1219,6 +1224,16 @@ def _read_file_full(fp, sheet=None, hrow=0, enc=None, delimiter=',', force_chunk
             'header': hrow,
             'sep': delimiter,
         }
+        # v2.3.5fix(C5): latin1 是「编码识别失败」的兜底，坏字节用替换符而不是抛异常
+        if e == 'latin1':
+            base_kwargs['encoding_errors'] = 'replace'
+        # v2.3.5fix(C6): 坏行跳过而不是让整表失败。
+        # 注意：on_bad_lines 传 callable 只有 python / pyarrow 引擎支持，
+        # C 引擎会抛 ValueError（pandas 实测）。C 引擎比 Python 引擎快数倍，
+        # 为记行号降级整条链路代价不成比例，故主路径用 'skip'，
+        # 仅在回退到 Python 引擎时（见下方 except 分支）挂 callable 记录行号。
+        base_kwargs['on_bad_lines'] = 'skip'
+        _bad_lines = []
         if fsize < 0 or fsize > LARGE_FILE_SIZE or force_chunk:
             chunks = []
             reader_kwargs = base_kwargs.copy()
@@ -1229,6 +1244,12 @@ def _read_file_full(fp, sheet=None, hrow=0, enc=None, delimiter=',', force_chunk
                 log.warning(f"C 引擎读取失败，回退至 Python 引擎: {fp}")
                 reader_kwargs.pop('low_memory', None)
                 reader_kwargs['engine'] = 'python'
+
+                # v2.3.5fix(C6): Python 引擎支持 callable，此时尽量把坏行记下来
+                def _on_bad_line(line):
+                    _bad_lines.append(line)
+                    return None
+                reader_kwargs['on_bad_lines'] = _on_bad_line
                 reader = pd.read_csv(fp, **reader_kwargs)
             for chunk in reader:
                 chunk.columns = [str(c) for c in chunk.columns]
@@ -1249,6 +1270,10 @@ def _read_file_full(fp, sheet=None, hrow=0, enc=None, delimiter=',', force_chunk
                         pass
                 chunks.append(chunk)
             df = pd.concat(chunks, ignore_index=True)
+            if _bad_lines:
+                log.warning(f"CSV 有 {len(_bad_lines)} 行列数不匹配，已跳过: {fp}")
+            else:
+                log.debug(f"CSV 读取完成（C 引擎，坏行若存在已被 skip，无法定位行号）: {fp}")
             return df
         else:
             read_kwargs = base_kwargs.copy()
@@ -1259,7 +1284,15 @@ def _read_file_full(fp, sheet=None, hrow=0, enc=None, delimiter=',', force_chunk
                 log.warning(f"C 引擎读取失败，回退至 Python 引擎: {fp}")
                 read_kwargs.pop('low_memory', None)
                 read_kwargs['engine'] = 'python'
+
+                # v2.3.5fix(C6): 同上，Python 引擎下记录坏行
+                def _on_bad_line(line):
+                    _bad_lines.append(line)
+                    return None
+                read_kwargs['on_bad_lines'] = _on_bad_line
                 df = pd.read_csv(fp, **read_kwargs)
+            if _bad_lines:
+                log.warning(f"CSV 有 {len(_bad_lines)} 行列数不匹配，已跳过: {fp}")
     else:
         # v2.3fix: 引擎自动检测
         df = _safe_read_excel(fp, sheet=sheet, header=hrow)
@@ -3031,91 +3064,6 @@ def _plot_curves(dates, load, time_labels, title, outpath, opts=None, bill=None,
             gc.collect()
 
 # ====================== 充放电空间计算（修正版） ======================
-def compute_daily_spaces(load_array, time_labels, periods, billing=None, mode='A',
-                         rated_power=None, ignore_negative=False):
-    n_days, n_points = load_array.shape
-    if n_points < 2:
-        return np.zeros(n_days), np.zeros(n_days)
-
-    hours = np.array([_parse_min(t)/60.0 for t in time_labels])
-    dt = np.zeros(n_points)
-    dt[0] = hours[1] - hours[0] if n_points > 1 else 1.0
-    dt[-1] = hours[-1] - hours[-2] if n_points > 1 else 1.0
-    for i in range(1, n_points-1):
-        dt[i] = (hours[i+1] - hours[i-1]) / 2.0
-    dt = np.maximum(dt, 0.0)
-
-    work_load = load_array.copy()
-    if ignore_negative:
-        work_load = np.maximum(work_load, 0.0)
-
-    charge = np.zeros(n_days)
-    discharge = np.zeros(n_days)
-
-    if mode == 'A':
-        if not periods or not billing or not billing.get('value'):
-            return charge, discharge
-        cap = billing['value']
-        expanded = _expand_overnight(periods)
-        charge_mask = np.zeros(n_points, dtype=bool)
-        discharge_mask = np.zeros(n_points, dtype=bool)
-        for p in expanded:
-            start_idx = np.searchsorted(hours, p['start'], side='left')
-            end_idx = np.searchsorted(hours, p['end'], side='left')
-            if p['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
-                charge_mask[start_idx:end_idx] = True
-            elif p['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
-                # v2.3.1fix: 原为 else，把平段（flat）也置成放电段，导致放电空间虚高。
-                # 与 Ultra 的 P-32 修复对齐。
-                discharge_mask[start_idx:end_idx] = True
-        # v2.3.1fix(N3): 充电空间是「电网侧还能灌进去多少」，不再乘充电效率。
-        # 原实现乘 η 后与 compute_segmented_spaces（不乘）差 7.53%，且与
-        # calc_economic_summary 的口径注释（Mode A 充电已是电网侧，不除 η）矛盾。
-        charge = np.sum(np.maximum(cap - work_load, 0) * charge_mask * dt, axis=1)
-        pos_load = np.maximum(work_load, 0)
-        discharge = np.sum(np.minimum(pos_load, cap) * discharge_mask * dt, axis=1) * DISCHARGING_EFFICIENCY
-
-    elif mode == 'B':
-        if rated_power is None or rated_power <= 0:
-            return charge, discharge
-        neg_load = np.maximum(-work_load, 0)
-        charge = np.sum(np.minimum(rated_power, neg_load) * dt, axis=1) * CHARGING_EFFICIENCY
-        pos_load = np.maximum(work_load, 0)
-        discharge = np.sum(np.minimum(rated_power, pos_load) * dt, axis=1) * DISCHARGING_EFFICIENCY
-
-    elif mode == 'C':
-        if rated_power is None or rated_power <= 0:
-            return charge, discharge
-        discharge_mask = np.zeros(n_points, dtype=bool)
-        if periods:
-            expanded = _expand_overnight(periods)
-            for p in expanded:
-                if p['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL):
-                    start_idx = np.searchsorted(hours, p['start'], side='left')
-                    end_idx = np.searchsorted(hours, p['end'], side='left')
-                    discharge_mask[start_idx:end_idx] = True
-        else:
-            discharge_mask[:] = True
-        pos_load = np.maximum(work_load, 0)
-        discharge = np.sum(np.minimum(rated_power, pos_load) * discharge_mask * dt, axis=1) * DISCHARGING_EFFICIENCY
-        charge_mask = np.zeros(n_points, dtype=bool)
-        # v3.0fix: 先设负负荷掩码(2D),再叠加时段约束
-        charge_mask_2d = (work_load < 0)
-        if periods:
-            for p in expanded:
-                if p['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
-                    start_idx = np.searchsorted(hours, p['start'], side='left')
-                    end_idx = np.searchsorted(hours, p['end'], side='left')
-                    charge_mask[start_idx:end_idx] = True
-        neg_load = np.maximum(-work_load, 0)
-        # 取时段掩码(1D)和负负荷掩码(2D)的并集
-        charge = np.sum(np.minimum(rated_power, neg_load) * np.maximum(charge_mask, charge_mask_2d) * dt, axis=1) * CHARGING_EFFICIENCY
-        if billing and billing.get('value'):
-            cap = billing['value']
-            charge = np.minimum(charge, np.sum(np.maximum(cap - work_load, 0) * charge_mask * dt, axis=1) * CHARGING_EFFICIENCY)
-            discharge = np.minimum(discharge, np.sum(np.minimum(pos_load, cap) * discharge_mask * dt, axis=1) * DISCHARGING_EFFICIENCY)
-
-    return charge, discharge
 
 
 def _segment_periods(periods):
@@ -3201,6 +3149,24 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
     ⚠️ 本函数 Pro(95行) 与 Ultra(200行) 独立实现, 修改任一侧需同步更新."""
     n_days, n_points = load_array.shape
     hours = np.array([_parse_min(_normalize_time_column_name(t)) / 60.0 for t in time_labels])
+    # v2.3.5fix(C1): 无法识别的时间点原本会被静默丢弃。
+    # _parse_min 解析失败返回 INVALID_MINUTES(9999)，/60 = 166.65；
+    # 后面 np.diff 非单调触发 argsort 把它排到末尾，而所有时段都在 0~24 内，
+    # searchsorted 永远找不到它 → 该点连同负荷数据一起静默消失，无任何提示。
+    # 96 点里丢 1 点，曲线看不出缺口，但日均值已经偏了。
+    # 改为：显式检出、计数、警告、从 hours 与 load_array 同步剔除。
+    # ⚠️ Ultra 侧同名函数是独立实现（200 行），本次未同步，需人工对齐。
+    invalid_mask = hours > 24.0
+    if invalid_mask.any():
+        n_invalid = int(invalid_mask.sum())
+        log.warning(f"有 {n_invalid} 个时刻无法识别，这些点不参与测算（可能影响日均值）")
+        keep_idx = np.where(~invalid_mask)[0]
+        hours = hours[keep_idx]
+        load_array = load_array[:, keep_idx]
+        if hours.size == 0:
+            log.error("所有时刻均无法识别，无法进行测算")
+            empty = np.zeros(n_days)
+            return [empty], [empty], [], []
     if not np.all(np.diff(hours) >= 0):
         sort_idx = np.argsort(hours)
         hours = hours[sort_idx]
@@ -7765,7 +7731,28 @@ class ProfessionalWindow(QMainWindow):
                 _uniq_labels.append(f"{lab}{_seen[lab]}")
             else:
                 _uniq_labels.append(lab)
-        col_labels = ['月份'] + _uniq_labels + ['月最小段总和(kWh)']
+        # v2.3.5fix(C4): 全零段（典型是平段）不再占列。
+        # 先扫一遍全部月份，只有「所有月份、所有段实例」都为 0 的段才隐藏；
+        # 任一月出现非零值就照常显示，避免把真实数据藏掉。
+        # 计算层（c_segs/d_segs）完全不动，只是不显示。
+        n_segs = len(self.charge_labels)
+        _seg_nonzero = [False] * n_segs
+        for month in months:
+            _c = self.charge_segments_dict.get(month, [])
+            _d = self.discharge_segments_dict.get(month, [])
+            for i in range(n_segs):
+                if _seg_nonzero[i]:
+                    continue
+                _cv = float(np.sum(np.nan_to_num(_c[i], nan=0.0))) if i < len(_c) else 0.0
+                _dv = float(np.sum(np.nan_to_num(_d[i], nan=0.0))) if i < len(_d) else 0.0
+                if (_cv + _dv) != 0.0:
+                    _seg_nonzero[i] = True
+        _keep_segs = [i for i in range(n_segs) if _seg_nonzero[i]]
+        _hidden = n_segs - len(_keep_segs)
+        if _hidden:
+            log.debug(f"隐藏 {_hidden} 个全零段列（所有月份均为 0，可能是平段）")
+
+        col_labels = ['月份'] + [_uniq_labels[i] for i in _keep_segs] + ['月最小段总和(kWh)']
         self.space_table.setColumnCount(len(col_labels))
         self.space_table.setHorizontalHeaderLabels(col_labels)
         self.space_table.setRowCount(len(months))
@@ -7781,7 +7768,7 @@ class ProfessionalWindow(QMainWindow):
             # 同一个索引 i 在 c_segs 与 d_segs 里指的是同一个段：
             # 充电段在 c_segs 有值、d_segs 为零数组，放电段反之，平段两边皆零。
             # 所以两者相加就是该段的空间，不会重复计入。
-            for i in range(len(self.charge_labels)):
+            for i in _keep_segs:
                 c_val = (float(np.sum(np.nan_to_num(c_segs[i], nan=0.0)))
                          if i < len(c_segs) else 0.0)
                 d_val = (float(np.sum(np.nan_to_num(d_segs[i], nan=0.0)))
