@@ -22,6 +22,11 @@
 
 **[在线完整介绍 ▸](https://172629438.github.io/loomgrid/)** · **[快速开始](#快速开始)** · **[该用哪个版本](#该用哪个版本)** · **[核心算法](#核心算法)** · **[怎么保证算得对](#怎么保证算得对)** · **[文档](#文档)** · **[参与贡献](CONTRIBUTING.md)**
 
+<br>
+
+<sub><b>Open-source BESS sizing tool for China's C&amp;I market</b> — feed it a load curve and the local time-of-use tariff, get capacity, dispatch, savings and payback. Free, MIT-licensed, runs offline. 32 provincial tariff tables built in.</sub>
+<sub>A free alternative to HOMER Grid, NREL SAM and Excel for behind-the-meter storage sizing — if your project is in China.</sub>
+
 </div>
 
 <a href="https://172629438.github.io/loomgrid/"><img src="assets/hero.png" alt="LoomGrid — 负荷曲线 × 电价分层 × LP 调度 × SOC（点图进在线版）"></a>
@@ -40,7 +45,9 @@
 <summary><b>目录（点开）</b></summary>
 
 **先弄明白这东西是什么**
+- [English summary](#english-summary)
 - [这是什么](#这是什么)
+- [和同类工具怎么选](#和同类工具怎么选)
 - [该用哪个版本](#该用哪个版本)
 - [快速开始](#快速开始)
 
@@ -67,6 +74,30 @@
 - [许可](#许可)
 
 </details>
+
+---
+
+## English summary
+
+**LoomGrid is a free, open-source desktop tool for sizing behind-the-meter battery storage in China's commercial & industrial market.**
+
+If you are looking for an open-source alternative to HOMER Grid, HOMER Pro or NREL SAM, and your project is in China, the missing piece in those tools is the tariff. China has no national time-of-use file: every province defines its own peak / flat / valley segments, its own seasonal groupings, and its own prices. Practitioners rebuild that table from provincial NDRC notices, by hand, for every project.
+
+LoomGrid ships **32 provincial tariff tables built in**, and does the rest of the chain:
+
+- **Input** — drag in an 8760-row load profile, or generate a synthetic one (25 industries × provincial baselines × equipment Markov chains × noise smoothing)
+- **Sizing** — charge/discharge headroom under daily and segmented accounting; sensitivity sweep across six capacity points
+- **Dispatch** — three engines on the same data: greedy, day-by-day simulation, and linear programming. Compare them; the disagreements are informative
+- **Economics** — NPV / IRR / payback / LCOE, with demand charges, battery degradation, and the 114号文 capacity-price mechanism
+- **Output** — dual-theme charts, Excel export, and a printable sizing report
+
+No installer, no Python required: download a release archive, unzip, double-click. MIT licensed. Fully offline — no account, no telemetry, no cloud.
+
+```text
+pip install loomgrid-algos     # the seven algorithm modules alone, no GUI
+```
+
+> **When you should use something else:** if your project needs multi-energy microgrid optimisation, off-grid architecture search, or hybrid PV+wind+diesel dispatch, HOMER is built for exactly that and does it better. If you need detailed PV performance modelling with weather files and module databases, NREL SAM covers far more ground. LoomGrid is deliberately narrow: one country, one application, done in full depth.
 
 ---
 
@@ -99,6 +130,29 @@
 | 结果对不对 | 靠经验 | 16 套 433 项断言，含 12 项手算对拍 |
 
 **它不替你做判断。** 峰谷价差取多少、循环按几次、需量按哪个口径——这些还得你自己定。工具的价值是把搬运那七成省下来，让你有时间想这三成。
+
+---
+
+## 和同类工具怎么选
+
+先说清楚**它不是什么**——这样你才好判断要不要往下读。
+
+|  | **LoomGrid** | HOMER Grid / Pro | NREL SAM | Excel 手工 |
+|---|---|---|---|---|
+| 授权 | MIT 开源，免费 | 商业授权 | 免费（NREL 出品） | 你已经有 |
+| **中国分时电价** | **内置 32 省，带政策文号** | 需自建时段表 | 需自建时段表 | 手填 |
+| 界面语言 | 中文 | 英文 | 英文 | — |
+| 调度求解 | 贪心 / 逐日仿真 / LP / MILP，可互相对拍 | 专有多目标优化 | 专有模型 | 公式，或凭经验拍 |
+| 免安装 | 是（压缩包双击即用） | 否 | 否 | 视 Office 情况 |
+| 覆盖范围 | 中国单体工商业项目 | 微网 / 离网 / 多能互补 | 光伏光热风电 + 财务建模 | 任何 |
+
+**三条判断线：**
+
+1. **项目在中国，只做单体工商业储能** → 用这个。HOMER 和 SAM 的中国电价要你自己一条条填，填错一段整份方案就是错的。
+2. **项目要微网 / 离网 / 光柴储多能互补** → 用 HOMER。它在这件事上做了二十年，不逞强。
+3. **项目以光伏为主，要详细发电量建模** → 用 NREL SAM。气象数据、组件库、遮挡模型它都全。
+
+这个工具选的是**窄而深**：一个国家、一个场景，做到底。所以它敢把 32 省电价、114 号文容量电价、省级需量口径这些细碎东西全部内置——这些恰好是大工具不会替你做的。
 
 ---
 
@@ -190,6 +244,25 @@ python examples/quickstart.py
 
 八个文件从 3.6 万行主程序里剥离，标准是：不依赖 GUI、不依赖全局状态、能单独 import 就跑。
 
+**不想下载 GUI 的话，算法层可以单独装：**
+
+```bash
+pip install loomgrid-algos          # numpy + pandas + loguru
+pip install "loomgrid-algos[lp]"    # 加 LP 调度（scipy）
+pip install "loomgrid-algos[milp]"  # 加 MILP 容量规划（ortools）
+```
+
+```python
+from loomgrid_algos import dispatch, finance
+
+result = dispatch.optimal_dispatch_lp(
+    load_kw=load, periods=periods, prices=prices,
+    capacity_kwh=2000.0, power_kw=500.0,
+)
+```
+
+七个模块互不依赖，`import loomgrid_algos` 本身不做任何子模块导入，用哪个加载哪个。
+
 | 模块 | 内容 | 行数 |
 |---|---:|---:|
 | [`periods.py`](algorithms/periods.py) | 电价时段归一化、类型词表映射、分段合并、价格序列 | 283 |
@@ -199,9 +272,9 @@ python examples/quickstart.py
 | [`finance.py`](algorithms/finance.py) | NPV / IRR / 回收期 / LCOE | 212 |
 | [`loadgen.py`](algorithms/loadgen.py) | 三层叠加负荷生成引擎 | 262 |
 | [`diagnostics.py`](algorithms/diagnostics.py) | 负荷指纹分析与行业匹配 | 569 |
-| [`demo.py`](algorithms/demo.py) | 不看源码先看效果：七个模块各调用一遍 | 285 |
+| [`demo.py`](examples/algorithms_demo.py) | 不看源码先看效果：七个模块各调用一遍 | 285 |
 
-想直接看效果：`cd algorithms && python demo.py`。用现场构造的数据把七个模块跑一遍，不需要准备任何外部文件。
+想直接看效果：`python examples/algorithms_demo.py`。用现场构造的数据把七个模块跑一遍，不需要准备任何外部文件，也不用先安装。
 
 ### 三个调度引擎同时跑同一组数据
 
@@ -619,7 +692,7 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 
 **不装 Python 也能用**：Releases 里的包自带完整运行时（Python + 全部依赖），解压即用——Fusion 解压后 309 MB，Ultra 675 MB。
 
-**只想跑算法部分**：numpy / pandas / scipy 三个就够，不用装 Qt。`examples/quickstart.py` 和 `algorithms/demo.py` 都只需要这三个。
+**只想跑算法部分**：`pip install loomgrid-algos`，或用源码：numpy / pandas / scipy 三个就够，不用装 Qt。`examples/quickstart.py` 和 `examples/algorithms_demo.py` 都只需要这三个。
 
 ### 项目规模
 
@@ -735,6 +808,7 @@ python tests/verify_algorithms_math.py
 | [`algorithms/README.md`](algorithms/README.md) | 七个算法模块的原理、公式、参数含义与踩过的坑 |
 | [`docs/版本演进.md`](docs/版本演进.md) | 四版本差异、特性迁移史、三次特性丢失与回填记录 |
 | [`docs/缺陷修复报告.md`](docs/缺陷修复报告.md) | 31 条缺陷的定位、修法与验证证据（433 项断言） |
+| [**loomgrid-tariffs**](https://github.com/172629438/loomgrid-tariffs) | 32 个省级行政区分时电价、需量电费、分季节时段表，带政策文号出处（独立仓库，可单独引用） |
 
 ---
 
