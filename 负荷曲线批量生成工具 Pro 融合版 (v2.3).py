@@ -33,6 +33,17 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
+# v2.3.2fix: 冻结环境（cx_Freeze / PyInstaller）下 sys.stdin/stdout/stderr 可能为 None，
+# 此时任何 print 或 .isatty() 都会抛 AttributeError（如 'NoneType' object has no
+# attribute 'isatty'），程序在启动阶段就死在那一行。在 import 后立刻补上标准流，
+# 后续所有代码都能安全使用它们。
+if sys.stdin is None:
+    sys.stdin = open(os.devnull, 'r', encoding='utf-8', errors='replace')
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, 'w', encoding='utf-8', errors='replace')
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, 'w', encoding='utf-8', errors='replace')
+
 # -------------------- PySide6 统一导入 --------------------
 from PySide6.QtCore import (
     QObject, Qt, Signal, Slot, QTimer, QThreadPool, QRunnable, QSemaphore, QByteArray,
@@ -97,7 +108,13 @@ def _check_and_install_dependencies():
         return
 
     # 仅在交互式终端（tty）环境下询问用户，避免 GUI 启动时卡死
-    if not sys.stdin.isatty():
+    # v2.3.2fix: 即使上面补了 devnull，仍加一层 try——isatty() 在某些冻结环境下会抛
+    # ValueError / OSError，不应因为探测终端而阻止程序启动。
+    try:
+        _interactive_tty = sys.stdin is not None and sys.stdin.isatty()
+    except (AttributeError, ValueError, OSError):
+        _interactive_tty = False
+    if not _interactive_tty:
         print("检测到非交互式环境，跳过自动安装。以下可选依赖缺失，部分功能可能受限：")
         for pkg in missing:
             print(f"  - {pkg}")

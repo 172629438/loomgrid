@@ -43,6 +43,20 @@
 
 **验证**：以用户提供的 `2026年1月.xlsx` 实测，扫描得 `asset='未命名' month='2026-01' days=31`，加载返回 `load_array shape=(31,96)`，日期 2026-01-01 至 01-31，96 个时刻，数值范围 [0.0, 993.9]。
 
+### 修复：冻结环境下启动即弹错误框
+
+打包后的 exe 启动就报 `AttributeError: 'NoneType' object has no attribute 'isatty'`，位置 `_check_and_install_dependencies`。
+
+冻结环境（cx_Freeze / PyInstaller 的 GUI 模式）下 `sys.stdin` 为 `None`，而代码直接调 `.isatty()`。同类风险还包括 `sys.stdout` / `sys.stderr` 为 `None` 时任何 `print` 都会抛异常。
+
+修法：import 之后立刻把三个标准流补到 `os.devnull`，`isatty()` 探测外再包一层 `try`。
+
+---
+
+## v2.3.2 构建环境说明
+
+本版用 **Python 3.12.13** 打包。本机默认的 3.14.5 打出的 exe 启动即 `0xC0000005` ACCESS_VIOLATION（依赖文件不缺，是 PySide6 6.11.1 在 3.14 冻结环境下的兼容问题）。换 3.12 后正常，体积也小一半（286 MB vs 649 MB）。
+
 ---
 
 ## v3.2.2 — 2026-10-28（Ultra，合并原 v3.2.2 ~ v3.2.8）
