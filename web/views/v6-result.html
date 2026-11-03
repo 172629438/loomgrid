@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoomGrid · V6 导出结果</title>
+<link rel="stylesheet" href="../theme/tokens.css">
+<link rel="stylesheet" href="../components/base.css">
+<link rel="stylesheet" href="../components/data-table.css">
+<link rel="stylesheet" href="../components/progress.css">
+<style>
+/* V6 是唯一没有源码对应的屏（原本只是「弹个框 + 打开文件夹」）。
+   结构沿用 V2/V4 三条：顶栏 / 左窄右宽 / 底栏动作区。 */
+.v6 {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg-canvas);
+}
+
+.v6__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex: none;
+}
+.v6__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
+  cursor: pointer;
+}
+.v6__back:hover { color: var(--text-primary); border-color: var(--border-strong); }
+.v6__title { font-size: var(--fs-md); color: var(--text-primary); }
+.v6__ctx {
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  padding-left: var(--sp-3);
+  border-left: 1px solid var(--border-subtle);
+}
+.v6__bar-right { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
+
+/* ── 摘要条 ───────────────────────────────────────
+   一行读数，不是四个大卡片。
+   这一屏用户要的是「成不成、少了几张」，不是被四个卡片的留白推着滚。 */
+.v6__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex: none;
+  flex-wrap: wrap;
+}
+.v6__stat { display: flex; align-items: baseline; gap: var(--sp-1); }
+.v6__stat-num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-xl);
+  color: var(--text-primary);
+  line-height: 1;
+}
+.v6__stat-num[data-kind="ok"] { color: var(--ok); }
+.v6__stat-num[data-kind="fail"] { color: var(--danger); }
+.v6__stat-label { font-size: var(--fs-xs); color: var(--text-muted); }
+
+/* 分隔：竖线，不是空隙堆叠 */
+.v6__sep { width: 1px; align-self: stretch; background: var(--border-subtle); }
+
+/* 与上次对比：只在有历史时出现，是这一屏独有的一条 */
+.v6__diff {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-1);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.v6__diff b {
+  font-family: var(--font-num);
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
+/* 输出位置：一行路径 + 两个小动作 */
+.v6__out {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+  min-width: 0;
+}
+.v6__path {
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+/* ── 主体两栏 ─────────────────────────────────── */
+.v6__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  flex: 1;
+  min-height: 0;
+}
+.v6__left { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.v6__right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--border-subtle);
+}
+
+.v6__pane-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  flex: none;
+}
+.v6__pane-head .v6__head-note {
+  margin-left: auto;
+  font-family: var(--font-num);
+  color: var(--text-faint);
+}
+.v6__scroll { overflow: auto; flex: 1; min-height: 0; }
+
+/* ── 缩略图网格 ───────────────────────────────────
+   用户导出完第一件事是想看成品。给图，不给文件名列表。 */
+.v6__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+}
+.v6__thumb {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-1);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--bg-surface);
+  transition: border-color var(--t-fast);
+}
+.v6__thumb:hover { border-color: var(--accent); }
+.v6__thumb-img {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background:
+    linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--accent) 12%, transparent) 58%),
+    var(--bg-canvas);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+/* 缩略图里那根代表曲线的折线：占位用，真实实现换成图片 */
+.v6__thumb-spark {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+}
+.v6__thumb-badge {
+  position: absolute;
+  top: var(--sp-1);
+  right: var(--sp-1);
+  padding: 0 var(--sp-1);
+  font-size: var(--fs-2xs);
+  font-family: var(--font-num);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-1);
+  color: var(--text-muted);
+}
+.v6__thumb-badge[data-kind="over"] { color: var(--warn); border-color: var(--warn); }
+.v6__thumb-meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-2xs);
+  border-top: 1px solid var(--border-subtle);
+}
+.v6__thumb-name {
+  font-family: var(--font-num);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v6__thumb-size {
+  margin-left: auto;
+  font-family: var(--font-num);
+  color: var(--text-faint);
+  flex: none;
+}
+
+/* ── 失败清单：按原因归并 ─────────────────────────
+   20 条平铺读不动；按原因分 3 组，用户一眼知道是 3 类问题。 */
+.v6__group { border-bottom: 1px solid var(--border-subtle); }
+.v6__group-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-surface);
+  cursor: pointer;
+}
+.v6__group-mark {
+  flex: none;
+  width: 6px; height: 6px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+.v6__group-body { min-width: 0; flex: 1; }
+.v6__group-title {
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  line-height: var(--lh-tight);
+}
+.v6__group-count {
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.v6__group-toggle {
+  flex: none;
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0 var(--sp-1);
+}
+.v6__group-items { padding: 0 0 var(--sp-2) 0; }
+.v6__fail-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3) var(--sp-1) calc(var(--sp-3) + 14px);
+  font-size: var(--fs-xs);
+}
+.v6__fail-name {
+  font-family: var(--font-num);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v6__fail-stage {
+  margin-left: auto;
+  font-family: var(--font-num);
+  color: var(--text-faint);
+  flex: none;
+}
+.v6__fail-raw {
+  margin: 0 var(--sp-3) var(--sp-2) calc(var(--sp-3) + 14px);
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--bg-canvas);
+  border-left: 2px solid var(--border-strong);
+  font-family: var(--font-num);
+  font-size: var(--fs-2xs);
+  line-height: var(--lh-base);
+  color: var(--text-faint);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ── 阶段耗时 ─────────────────────────────────── */
+.v6__stages {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+.v6__stage { display: flex; align-items: baseline; gap: var(--sp-1); }
+.v6__stage-num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+/* 耗时条：相对长度表达占比，比四个数字更容易看出瓶颈 */
+.v6__bars { display: flex; gap: 2px; margin-left: auto; align-items: center; }
+.v6__bar {
+  height: 4px;
+  border-radius: var(--r-1);
+  background: var(--accent);
+  opacity: 0.75;
+}
+
+/* ── 底栏 ─────────────────────────────────────── */
+.v6__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex: none;
+}
+.v6__foot-note { font-size: var(--fs-xs); color: var(--text-faint); }
+.v6__actions { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
+</style>
+</head>
+<body>
+<div class="v6">
+
+  <div class="v6__bar">
+    <button class="v6__back">← 返回工作台</button>
+    <span class="v6__title">导出结果</span>
+    <span class="v6__ctx">任务 #a41f · 完成于 09:42:18</span>
+    <div class="v6__bar-right">
+      <button class="btn" id="themeBtn">界面主题：深色</button>
+    </div>
+  </div>
+
+  <!-- 摘要条：一行读数 -->
+  <div class="v6__summary">
+    <div class="v6__stat">
+      <span class="v6__stat-num" data-kind="ok">9</span>
+      <span class="v6__stat-label">张已生成</span>
+    </div>
+    <div class="v6__stat">
+      <span class="v6__stat-num" data-kind="fail">3</span>
+      <span class="v6__stat-label">张失败</span>
+    </div>
+    <div class="v6__sep"></div>
+    <div class="v6__stat">
+      <span class="v6__stat-num">12</span>
+      <span class="v6__stat-label">个分组</span>
+    </div>
+    <div class="v6__stat">
+      <span class="v6__stat-num">18.4</span>
+      <span class="v6__stat-label">MB</span>
+    </div>
+    <div class="v6__sep"></div>
+
+    <div class="v6__diff">
+      与上次导出比：新增 <b>6</b> · 覆盖 <b>3</b> · 未变 <b>0</b>
+    </div>
+
+    <div class="v6__out">
+      <span class="v6__path">D:\输出\2026-01\负荷曲线批量</span>
+      <button class="btn">打开目录</button>
+      <button class="btn">复制路径</button>
+    </div>
+  </div>
+
+  <div class="v6__body">
+
+    <!-- 左：成功项缩略图 -->
+    <div class="v6__left">
+      <div class="v6__pane-head">
+        已生成
+        <span class="v6__head-note">9 张 · 点开看大图</span>
+      </div>
+      <div class="v6__scroll">
+        <div class="v6__grid">
+          <div class="v6__thumb">
+            <div class="v6__thumb-img">
+              <svg class="v6__thumb-spark" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0,58 L20,52 L40,64 L60,30 L80,26 L100,44 L120,38 L140,56 L160,50"
+                      fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent);opacity:.85"/>
+              </svg>
+              <span class="v6__thumb-badge" data-kind="new">新</span>
+            </div>
+            <div class="v6__thumb-meta">
+              <span class="v6__thumb-name">A-01_2026-01_负荷曲线.png</span>
+              <span class="v6__thumb-size">171 KB</span>
+            </div>
+          </div>
+
+          <div class="v6__thumb">
+            <div class="v6__thumb-img">
+              <svg class="v6__thumb-spark" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0,62 L20,56 L40,60 L60,36 L80,32 L100,48 L120,42 L140,58 L160,54"
+                      fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent);opacity:.85"/>
+              </svg>
+              <span class="v6__thumb-badge" data-kind="over">覆盖</span>
+            </div>
+            <div class="v6__thumb-meta">
+              <span class="v6__thumb-name">A-01_2026-02_负荷曲线.png</span>
+              <span class="v6__thumb-size">168 KB</span>
+            </div>
+          </div>
+
+          <div class="v6__thumb">
+            <div class="v6__thumb-img">
+              <svg class="v6__thumb-spark" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0,70 L20,66 L40,72 L60,44 L80,38 L100,58 L120,52 L140,68 L160,64"
+                      fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent);opacity:.85"/>
+              </svg>
+              <span class="v6__thumb-badge" data-kind="new">新</span>
+            </div>
+            <div class="v6__thumb-meta">
+              <span class="v6__thumb-name">A-02_2026-01_负荷曲线.png</span>
+              <span class="v6__thumb-size">158 KB</span>
+            </div>
+          </div>
+
+          <div class="v6__thumb">
+            <div class="v6__thumb-img">
+              <svg class="v6__thumb-spark" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0,50 L20,44 L40,56 L60,22 L80,18 L100,38 L120,30 L140,48 L160,42"
+                      fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent);opacity:.85"/>
+              </svg>
+              <span class="v6__thumb-badge" data-kind="new">新</span>
+            </div>
+            <div class="v6__thumb-meta">
+              <span class="v6__thumb-name">B-07_2026-01_负荷曲线.png</span>
+              <span class="v6__thumb-size">184 KB</span>
+            </div>
+          </div>
+
+          <div class="v6__thumb">
+            <div class="v6__thumb-img">
+              <svg class="v6__thumb-spark" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0,66 L20,60 L40,64 L60,28 L80,24 L100,46 L120,40 L140,60 L160,56"
+                      fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent);opacity:.85"/>
+              </svg>
+              <span class="v6__thumb-badge" data-kind="over">覆盖</span>
+            </div>
+            <div class="v6__thumb-meta">
+              <span class="v6__thumb-name">D-11_2026-01_负荷曲线.png</span>
+              <span class="v6__thumb-size">192 KB</span>
+            </div>
+          </div>
+
+          <div class="v6__thumb">
+            <div class="v6__thumb-img">
+              <svg class="v6__thumb-spark" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0,44 L20,38 L40,50 L60,16 L80,14 L100,32 L120,26 L140,42 L160,36"
+                      fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent);opacity:.85"/>
+              </svg>
+              <span class="v6__thumb-badge" data-kind="new">新</span>
+            </div>
+            <div class="v6__thumb-meta">
+              <span class="v6__thumb-name">E-05_2026-01_负荷曲线.png</span>
+              <span class="v6__thumb-size">176 KB</span>
+            </div>
+          </div>
+
+          <div class="v6__thumb">
+            <div class="v6__thumb-img">
+              <svg class="v6__thumb-spark" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0,72 L20,68 L40,70 L60,52 L80,46 L100,62 L120,56 L140,70 L160,66"
+                      fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent);opacity:.85"/>
+              </svg>
+              <span class="v6__thumb-badge" data-kind="new">新</span>
+            </div>
+            <div class="v6__thumb-meta">
+              <span class="v6__thumb-name">F-02_2026-01_负荷曲线.png</span>
+              <span class="v6__thumb-size">148 KB</span>
+            </div>
+          </div>
+
+          <div class="v6__thumb">
+            <div class="v6__thumb-img">
+              <svg class="v6__thumb-spark" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0,54 L20,48 L40,58 L60,26 L80,22 L100,40 L120,34 L140,52 L160,46"
+                      fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent);opacity:.85"/>
+              </svg>
+              <span class="v6__thumb-badge" data-kind="over">覆盖</span>
+            </div>
+            <div class="v6__thumb-meta">
+              <span class="v6__thumb-name">H-04_2026-01_负荷曲线.png</span>
+              <span class="v6__thumb-size">203 KB</span>
+            </div>
+          </div>
+
+          <div class="v6__thumb">
+            <div class="v6__thumb-img">
+              <svg class="v6__thumb-spark" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0,68 L20,62 L40,66 L60,34 L80,30 L100,50 L120,44 L140,62 L160,58"
+                      fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent);opacity:.85"/>
+              </svg>
+              <span class="v6__thumb-badge" data-kind="new">新</span>
+            </div>
+            <div class="v6__thumb-meta">
+              <span class="v6__thumb-name">J-03_2026-01_负荷曲线.png</span>
+              <span class="v6__thumb-size">167 KB</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：失败清单，按原因归并 -->
+    <div class="v6__right">
+      <div class="v6__pane-head">
+        失败 3 项
+        <span class="v6__head-note">按原因归并 · 3 类</span>
+      </div>
+      <div class="v6__scroll">
+
+        <div class="v6__group">
+          <div class="v6__group-head">
+            <i class="v6__group-mark"></i>
+            <div class="v6__group-body">
+              <div class="v6__group-title">缺少映射列：找不到可用的时刻列</div>
+              <div class="v6__group-count">1 项 · 阶段 parse</div>
+            </div>
+            <button class="v6__group-toggle" aria-label="展开">▾</button>
+          </div>
+          <div class="v6__group-items">
+            <div class="v6__fail-item">
+              <span class="v6__fail-name">C-03_2026-01</span>
+              <span class="v6__fail-stage">parse</span>
+            </div>
+            <pre class="v6__fail-raw">KeyError: 'time_col'
+  at core/ingest.py:412
+  列名候选：['时刻','时段'] 均未命中时刻格式</pre>
+          </div>
+        </div>
+
+        <div class="v6__group">
+          <div class="v6__group-head">
+            <i class="v6__group-mark"></i>
+            <div class="v6__group-body">
+              <div class="v6__group-title">数据值非法：时刻超出 0–24 范围</div>
+              <div class="v6__group-count">1 项 · 阶段 parse</div>
+            </div>
+            <button class="v6__group-toggle" aria-label="展开">▾</button>
+          </div>
+          <div class="v6__group-items">
+            <div class="v6__fail-item">
+              <span class="v6__fail-name">D-11_2026-01</span>
+              <span class="v6__fail-stage">parse</span>
+            </div>
+            <pre class="v6__fail-raw">ValueError: 时刻列含非法值 '25:00'（第 3 行）
+  建议：核对源文件是否把 24:00 写成了 25:00</pre>
+          </div>
+        </div>
+
+        <div class="v6__group">
+          <div class="v6__group-head">
+            <i class="v6__group-mark"></i>
+            <div class="v6__group-body">
+              <div class="v6__group-title">写入失败：文件被占用或目录无权限</div>
+              <div class="v6__group-count">1 项 · 阶段 generate</div>
+            </div>
+            <button class="v6__group-toggle" aria-label="展开">▾</button>
+          </div>
+          <div class="v6__group-items">
+            <div class="v6__fail-item">
+              <span class="v6__fail-name">F-02_2026-01</span>
+              <span class="v6__fail-stage">generate</span>
+            </div>
+            <pre class="v6__fail-raw">PermissionError: 无法写入 F仓储中心_2026-01_负荷曲线.png
+  路径可能被 Excel 或看图工具占用</pre>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 阶段耗时：数字 + 相对条 -->
+  <div class="v6__stages">
+    <div class="v6__stage"><span>解析</span><span class="v6__stage-num">0.8s</span></div>
+    <div class="v6__stage"><span>扫描</span><span class="v6__stage-num">2.1s</span></div>
+    <div class="v6__stage"><span>预加载</span><span class="v6__stage-num">1.4s</span></div>
+    <div class="v6__stage"><span>生成图表</span><span class="v6__stage-num">11.3s</span></div>
+    <div class="v6__bars" aria-hidden="true">
+      <i class="v6__bar" style="width:6px;opacity:.4"></i>
+      <i class="v6__bar" style="width:16px;opacity:.55"></i>
+      <i class="v6__bar" style="width:11px;opacity:.7"></i>
+      <i class="v6__bar" style="width:88px"></i>
+    </div>
+    <span style="margin-left:auto">总计 15.6s · 瓶颈在生成图表</span>
+  </div>
+
+  <div class="v6__foot">
+    <span class="v6__foot-note">报告已生成 · 可查看逐项明细</span>
+    <div class="v6__actions">
+      <button class="btn">返回工作台</button>
+      <button class="btn">导出失败清单 CSV</button>
+      <button class="btn">查看报告</button>
+      <button class="btn btn--primary">仅重试失败项</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const root = document.documentElement;
+const btn = document.getElementById('themeBtn');
+function sync() {
+  btn.textContent = '界面主题：' + (root.dataset.theme === 'dark' ? '深色' : '浅色');
+}
+btn.addEventListener('click', () => {
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  sync();
+});
+sync();
+
+// 失败组展开/收起：默认全展开（失败项少时要一眼看完），
+// 超过 5 组才默认收起（那时用户更需要总览）
+document.querySelectorAll('.v6__group-toggle').forEach(t => {
+  t.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const items = t.closest('.v6__group').querySelector('.v6__group-items');
+    const open = items.style.display !== 'none';
+    items.style.display = open ? 'none' : '';
+    t.textContent = open ? '▸' : '▾';
+  });
+});
+</script>
+</body>
+</html>
