@@ -101,7 +101,10 @@ def _extract_ym(d):
     0 与空值一律返回「未知月份」，不再伪造出一个 1970-01。
     """
     raw = str(d).strip()
-    if re.fullmatch(r"\d{5}(\.\d+)?", raw):
+    # v2.3.11fix2: 原来是 \d{5}，4 位数（如户号 1002）会漏到 pd.to_datetime，
+    # 被宽松解析成「公元 1002 年 1 月」。改为任意纯数字都先走区间判断：
+    # 只有 20000~80000 才是合法 Excel 序列号，其余一律未知月份。
+    if re.fullmatch(r"\d+(?:\.\d+)?", raw):
         try:
             days = float(raw)
             if 20000 <= days <= 80000:
@@ -773,9 +776,24 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
         else:
             wdate, wload = _detect_wide_matrix(sample_df, cols, max_sample)
             if wdate and wload:
-                result['date_col'] = wdate
-                result['load_col'] = wload
-                result['format_type'] = 'wide'
+                # v2.3.11fix2: 抽样验证 wdate 真的是日期列再覆盖。
+                # 词表已正确识别出「日期」时，宽表检测仍可能把「户号」这种
+                # 能解析成日期的数值列覆上来（1002 曾被解析成公元 1002 年 1 月），
+                # 而且 confidence 还给 1.0 —— 错得很有把握，最难发现。
+                probe = sample_df[wdate].head(20) if wdate in sample_df.columns else None
+                if probe is None:
+                    log.info(f"宽表检测候选日期列 {wdate!r} 不在样本里，不覆盖词表结果")
+                else:
+                    hit = sum(1 for v in probe if _extract_ym(v) != "未知月份")
+                    ratio = hit / max(len(probe), 1)
+                    if ratio >= 0.6:
+                        result['date_col'] = wdate
+                        result['load_col'] = wload
+                        result['format_type'] = 'wide'
+                    else:
+                        log.info(
+                            f"宽表检测候选日期列 {wdate!r} 仅 {ratio:.0%} 可解析，不覆盖词表结果"
+                        )
 
     if sample_df is not None and not sample_df.empty and result.get('format_type') not in ('wide', 'wide_transposed', 'accumulated'):
         # v2.3.3fix(I8): 列名是强信号，数值只是弱信号。列名已明确是功率

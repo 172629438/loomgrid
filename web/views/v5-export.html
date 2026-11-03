@@ -459,54 +459,93 @@ btnExport.addEventListener('click', async () => {
     const tid = r.data.task_id;
     if (!tid) throw new Error('后端未返回 task_id');
     setProgress('已提交 · 等待进度…');
-    watchProgress(tid, outDir);
+    watchProgress(tid);
   } catch (e) {
     btnExport.disabled = false;
     setProgress('失败：' + e.message);
   }
 });
 
-// WebSocket：四阶段 + progress + log + done
-function watchProgress(taskId, outDir) {
-  const wsBase = API_BASE.replace(/^http/, 'ws');
-  const ws = new WebSocket(wsBase + '/ws/progress?task_id=' + encodeURIComponent(taskId));
+// 进度：WebSocket 主力 + 轮询兜底。
+// 为什么不只信 WebSocket：协作方实测 PNG 已生成、done 事件却没送达，
+// 页面停在 V5。最后一条事件的可靠投递不能只赌一条长连接。
+let FINISHED = false;
+
+function finish(taskId, res) {
+  if (FINISHED) return;
+  FINISHED = true;
+  const okN = res && res.succeeded != null ? res.succeeded : ((res && res.files) || []).length;
+  const failN = ((res && res.failed) || []).length;
+  setProgress('完成 ' + okN + ' 张' + (failN ? ' · 失败 ' + failN : ''));
+  btnExport.disabled = false;
+  btnExport.textContent = '重新导出';
+  setTimeout(() => {
+    location.href = 'v6-result.html?task=' + encodeURIComponent(taskId)
+                  + '&ok=' + okN + '&fail=' + failN;
+  }, 500);
+}
+
+function watchProgress(taskId) {
   const stageName = { 'stage.parse': '解析', 'stage.scan': '扫描', 'stage.preload': '预加载', 'stage.generate': '生成图表' };
+  const wsBase = API_BASE.replace(/^http/, 'ws');
 
-  ws.onmessage = (ev) => {
-    let m;
-    try { m = JSON.parse(ev.data); } catch { return; }
-    const t = m.event || m.type || '';
-
-    if (stageName[t]) {
-      setProgress(stageName[t] + '…' + (m.data && m.data.total ? ' ' + m.data.total : ''));
-    } else if (t === 'progress') {
-      const d = m.data || {};
-      setProgress((d.stage ? stageName['stage.' + d.stage] || d.stage : '进行中')
-        + ' ' + (d.current || 0) + ' / ' + (d.total || '?'));
-    } else if (t === 'log') {
-      if (m.data && m.data.message) setProgress(m.data.message);
-    } else if (t === 'stage.error' || t === 'error') {
-      setProgress('出错：' + JSON.stringify((m.data && m.data.error) || m.data || {}));
-    } else if (t === 'done') {
-      const res = (m.data && m.data.result) || m.data || {};
-      const okN = res.succeeded != null ? res.succeeded : (res.files || []).length;
-      const failN = (res.failed || []).length;
-      setProgress('完成 ' + okN + ' 张' + (failN ? ' · 失败 ' + failN : ''));
-      btnExport.disabled = false;
-      btnExport.textContent = '重新导出';
-      ws.close();
-      // 有产出就去 V6 看结果
-      if (okN > 0) {
-        setTimeout(() => {
-          location.href = 'v6-result.html?task=' + encodeURIComponent(taskId)
-                        + '&ok=' + okN + '&fail=' + failN;
-        }, 600);
+  // ── 主力：WebSocket ──
+  let ws = null;
+  try {
+    ws = new WebSocket(wsBase + '/ws/progress?task_id=' + encodeURIComponent(taskId));
+    ws.onmessage = (ev) => {
+      let m;
+      try { m = JSON.parse(ev.data); } catch { return; }
+      const t = m.event || m.type || '';
+      if (stageName[t]) {
+        setProgress(stageName[t] + '…');
+      } else if (t === 'progress') {
+        const d = m.data || {};
+        setProgress((d.stage ? (stageName['stage.' + d.stage] || d.stage) : '进行中')
+          + ' ' + (d.current || 0) + ' / ' + (d.total || '?'));
+      } else if (t === 'log') {
+        if (m.data && m.data.message) setProgress(m.data.message);
+      } else if (t === 'stage.error' || t === 'error') {
+        setProgress('出错：' + JSON.stringify((m.data && m.data.error) || m.data || {}));
+      } else if (t === 'done') {
+        // tasks.py 的 emit(tid, "done", result) —— data 直接就是 result
+        finish(taskId, (m.data && m.data.result) || m.data || {});
+        try { ws.close(); } catch {}
       }
-    }
-  };
+    };
+    ws.onerror = () => { /* 交给轮询兜底，不在这里报错 */ };
+  } catch (e) {
+    /* 建连失败也不影响轮询 */
+  }
 
-  ws.onerror = () => setProgress('进度连接失败（导出可能仍在进行）');
-  ws.onclose = () => { if (btnExport.disabled) btnExport.disabled = false; };
+  // ── 兜底：轮询 /api/export/status ──
+  // 每 1.5s 一次，最长 5 分钟。拿到 done 就跳，WS 先到就把这里清掉。
+  const started = Date.now();
+  const timer = setInterval(async () => {
+    if (FINISHED) { clearInterval(timer); return; }
+    if (Date.now() - started > 5 * 60 * 1000) {
+      clearInterval(timer);
+      setProgress('等待超时（导出可能仍在进行，可查看输出目录）');
+      btnExport.disabled = false;
+      return;
+    }
+    try {
+      const r = await fetch(API_BASE + '/api/export/status?task_id=' + encodeURIComponent(taskId))
+        .then(x => x.json());
+      if (!r.ok) return;
+      const d = r.data || {};
+      if (d.status === 'done') {
+        clearInterval(timer);
+        finish(taskId, d.result || {});
+      } else if (d.status === 'failed') {
+        clearInterval(timer);
+        setProgress('导出失败：' + (d.error || '未知原因'));
+        btnExport.disabled = false;
+      }
+    } catch (e) {
+      /* 单次失败继续轮询 */
+    }
+  }, 1500);
 }
 
 // 全选
