@@ -170,6 +170,90 @@ try:
     except Exception as e:
         check("13) 无示数特征 + 有负荷列 → 200（不崩）", False, repr(e))
 
+    # 15) preview / calc 链路（需要 session）
+    if os.path.exists(sample):
+        # 用 inspect 给出的完整建议做 mapping —— 手写映射容易缺字段
+        # （宽表需要 load_col 里那一串时刻列名，缺了就扫不出东西）
+        _, insp = req("POST", "/api/ingest/inspect", {"path": sample})
+        full_map = insp["data"]["sheets"][0]["suggest"] if insp.get("ok") else None
+        code, body = req("POST", "/api/ingest/mapping",
+                         {"path": sample, "sheet": "Sheet1", "mapping": full_map})
+        sid = body["data"]["session_id"] if body.get("ok") else None
+        check("15) 为 preview 链路拿到 session", bool(sid))
+
+        if sid:
+            # preview JSON
+            code, body = req("GET", f"/api/preview?session_id={sid}&format=json")
+            ok_json = code == 200 and body.get("ok") is True
+            check("16) preview(json) 200", ok_json, str(body.get("error"))[:80])
+            if ok_json:
+                d = body["data"]
+                check("17) preview 返回宽表维度正确",
+                      d["shape"] == [5, 96] and len(d["time_labels"]) == 96,
+                      f"shape={d['shape']}")
+
+            # preview 二进制（用 urllib 直接读，不走 req）
+            try:
+                with urllib.request.urlopen(
+                        f"{BASE}/api/preview?session_id={sid}&format=bin", timeout=30) as r:
+                    raw = r.read()
+                    hdr = dict(r.headers)
+                n_rows = int.from_bytes(raw[0:4], "little")
+                n_cols = int.from_bytes(raw[4:8], "little")
+                expect = 8 + n_rows * n_cols * 4
+                check("18) preview(bin) 尺寸与头部一致",
+                      len(raw) == expect and n_rows == 5 and n_cols == 96,
+                      f"{n_rows}x{n_cols} bytes={len(raw)} expect={expect}")
+                hdr_low = {k.lower(): v for k, v in hdr.items()}
+                check("19) bin 响应头带标签",
+                      "x-time-labels" in hdr_low and "x-date-labels" in hdr_low,
+                      f"time 标签 {len(json.loads(hdr_low['x-time-labels']))} 个"
+                      if "x-time-labels" in hdr_low else str(list(hdr_low.keys())))
+            except Exception as e:
+                check("18) preview(bin) 尺寸与头部一致", False, repr(e))
+
+            SEGS = [{"start": 0, "end": 8, "type": "charge", "label": "充电1"},
+                    {"start": 8, "end": 11, "type": "discharge", "label": "放电1"},
+                    {"start": 11, "end": 14, "type": "charge", "label": "充电2"},
+                    {"start": 14, "end": 20, "type": "discharge", "label": "放电2"}]
+
+            code, body = req("POST", "/api/calc/spaces",
+                             {"session_id": sid, "segments": SEGS,
+                              "billing": {"value": 500}, "mode": "A"})
+            ok_sp = code == 200 and body.get("ok") is True
+            check("20) calc/spaces 200", ok_sp, str(body.get("error"))[:80])
+            if ok_sp:
+                segs_out = body["data"]["segments"]
+                check("21) spaces 返回 4 个段对象", len(segs_out) == 4, f"{len(segs_out)}")
+                check("22) 每段含 charge/discharge 数组且长度=天数",
+                      all(len(s["charge"]) == 5 and len(s["discharge"]) == 5 for s in segs_out))
+                total_c = sum(sum(s["charge"]) for s in segs_out)
+                total_d = sum(sum(s["discharge"]) for s in segs_out)
+                check("23) 充放空间均为正且合理",
+                      total_c > 0 and total_d > 0,
+                      f"充 {total_c:.1f} / 放 {total_d:.1f}")
+
+            for basis in ("min_feasible", "full_load"):
+                code, body = req("POST", "/api/calc/capacity",
+                                 {"session_id": sid, "segments": SEGS,
+                                  "billing": {"value": 500}, "mode": "A",
+                                  "basis": basis})
+                ok_cap = code == 200 and body.get("ok") is True
+                check(f"24) calc/capacity({basis}) 200", ok_cap, str(body.get("error"))[:80])
+                if not ok_cap:
+                    continue
+                d = body["data"]
+                v = d["daily_demand"]["value_kwh"]
+                tp = d["daily_throughput_kwh_per_day"]
+                check(f"25) {basis} 日需求非零（占位零已过滤）", v > 0, f"{v:.2f}")
+                check(f"26) {basis} 吞吐量与需求是两个独立字段",
+                      "daily_throughput_kwh_per_day" in d
+                      and "daily_demand" in d and "value_kwh" in d["daily_demand"],
+                      f"需求 {v:.2f} kWh / 吞吐 {tp:.2f} kWh/天")
+                check(f"27) {basis} 两个量纲数值不同",
+                      abs(v - tp) > 1e-9 or (v == 0 and tp == 0),
+                      f"{v:.2f} vs {tp:.2f}")
+
 finally:
     proc.terminate()
     try:

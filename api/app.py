@@ -16,7 +16,9 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from api.routes_calc import router as calc_router
 from api.routes_ingest import router as ingest_router
+from api.routes_preview import router as preview_router
 from api.schemas import Envelope
 
 logging.basicConfig(level=logging.INFO,
@@ -34,6 +36,8 @@ app = FastAPI(
 )
 
 app.include_router(ingest_router)
+app.include_router(preview_router)
+app.include_router(calc_router)
 
 
 @app.exception_handler(Exception)
@@ -61,4 +65,8 @@ def health():
         "status": "ok",
         "modules": ["core.ingest", "services.config", "services.provider", "services.capacity"],
         "demand_basis": [b.value for b in DemandBasis],
+        "endpoints": [
+            "POST /api/ingest/inspect", "POST /api/ingest/mapping",
+            "GET /api/preview", "POST /api/calc/spaces", "POST /api/calc/capacity",
+        ],
     }).model_dump()
