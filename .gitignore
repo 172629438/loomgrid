@@ -74,3 +74,7 @@ build_logs/
 loomgrid_*_main.py
 
 !assets/versions/*.png
+
+# 打包产物目录（本机 release 构建残留，不入库）
+build_release/
+

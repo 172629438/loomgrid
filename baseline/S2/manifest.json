@@ -1,0 +1,591 @@
+{
+  "id": "S2",
+  "name": "单日24点",
+  "group": "单日",
+  "notes": "单日 × 低分辨率",
+  "covers": [],
+  "known_defects": [],
+  "inputs": [
+    "S2_单日24点.xlsx"
+  ],
+  "stages": {
+    "parse": {
+      "S2_单日24点": {
+        "grade": "strict",
+        "summaries": [
+          {
+            "file_path": "<REPO>\\baseline\\_inputs\\S2\\S2_单日24点.xlsx",
+            "sheet_name": "Sheet1",
+            "asset_value": "未命名",
+            "month_str": "2026-01",
+            "date_count": 1,
+            "time_points": 24,
+            "min_val": 120.0,
+            "max_val": 900.0,
+            "mapping": {
+              "date_col": "日期",
+              "load_col": [
+                "00:00",
+                "01:00",
+                "02:00",
+                "03:00",
+                "04:00",
+                "05:00",
+                "06:00",
+                "07:00",
+                "08:00",
+                "09:00",
+                "10:00",
+                "11:00",
+                "12:00",
+                "13:00",
+                "14:00",
+                "15:00",
+                "16:00",
+                "17:00",
+                "18:00",
+                "19:00",
+                "20:00",
+                "21:00",
+                "22:00",
+                "23:00"
+              ],
+              "format_type": "wide",
+              "header_row": 0
+            }
+          }
+        ],
+        "wide": {
+          "shape": [
+            1,
+            24
+          ],
+          "sha256": "508a29b9623bd381ab5d8888c0942195ce217cf22040701db29a1bcb49a91751",
+          "nan_count": 0,
+          "sum": 7027.529500000001,
+          "min": 120.0,
+          "max": 900.0,
+          "mean": 292.8137291666667
+        },
+        "wide_npy": "wide.npy",
+        "date_labels": [
+          "2026-01-20"
+        ],
+        "time_labels": [
+          "00:00",
+          "01:00",
+          "02:00",
+          "03:00",
+          "04:00",
+          "05:00",
+          "06:00",
+          "07:00",
+          "08:00",
+          "09:00",
+          "10:00",
+          "11:00",
+          "12:00",
+          "13:00",
+          "14:00",
+          "15:00",
+          "16:00",
+          "17:00",
+          "18:00",
+          "19:00",
+          "20:00",
+          "21:00",
+          "22:00",
+          "23:00"
+        ]
+      }
+    },
+    "calc": {
+      "S2_单日24点": {
+        "grade": "strict",
+        "variants": {
+          "A_no_bill": {
+            "ok": true,
+            "charge": {
+              "shape": [
+                4,
+                1
+              ],
+              "sha256": "66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925",
+              "nan_count": 0,
+              "sum": 0.0,
+              "min": 0.0,
+              "max": 0.0,
+              "mean": 0.0
+            },
+            "discharge": {
+              "shape": [
+                4,
+                1
+              ],
+              "sha256": "66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925",
+              "nan_count": 0,
+              "sum": 0.0,
+              "min": 0.0,
+              "max": 0.0,
+              "mean": 0.0
+            },
+            "charge_daily": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "discharge_daily": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "charge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "discharge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "seg_npy": {
+              "charge": "seg_charge_A_no_bill.npy",
+              "discharge": "seg_discharge_A_no_bill.npy"
+            },
+            "daily_total": {
+              "charge": [
+                0.0
+              ],
+              "discharge": [
+                0.0
+              ]
+            },
+            "capacity_calc": {
+              "note": "口径=各段逐日求和（纯函数验证用，非 UI 日最小段口径）",
+              "target_days": 1,
+              "capacity": 0.0,
+              "days_for_capacity": 1
+            }
+          },
+          "A_cap500": {
+            "ok": true,
+            "charge": {
+              "shape": [
+                4,
+                1
+              ],
+              "sha256": "b59a9bf1f20d55e7d0ab26f7861cb87ca17353a29182b74671a2639aeff6f483",
+              "nan_count": 0,
+              "sum": 3075.2684,
+              "min": 0.0,
+              "max": 3028.7414,
+              "mean": 768.8171
+            },
+            "discharge": {
+              "shape": [
+                4,
+                1
+              ],
+              "sha256": "a2c9e572617700b5d4ed7b5f22c498c6d4ccdd94890f819caea8a375b6152466",
+              "nan_count": 0,
+              "sum": 2636.886102,
+              "min": 0.0,
+              "max": 1994.307996,
+              "mean": 659.2215255
+            },
+            "charge_daily": [
+              3028.7414,
+              0.0,
+              46.52699999999999,
+              0.0
+            ],
+            "discharge_daily": [
+              0.0,
+              642.578106,
+              0.0,
+              1994.307996
+            ],
+            "charge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "discharge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "seg_npy": {
+              "charge": "seg_charge_A_cap500.npy",
+              "discharge": "seg_discharge_A_cap500.npy"
+            },
+            "daily_total": {
+              "charge": [
+                3075.2684
+              ],
+              "discharge": [
+                2636.886102
+              ]
+            },
+            "capacity_calc": {
+              "note": "口径=各段逐日求和（纯函数验证用，非 UI 日最小段口径）",
+              "target_days": 1,
+              "capacity": 2636.886102,
+              "days_for_capacity": 1
+            }
+          },
+          "A_cap500_ignneg": {
+            "ok": true,
+            "charge": {
+              "shape": [
+                4,
+                1
+              ],
+              "sha256": "b59a9bf1f20d55e7d0ab26f7861cb87ca17353a29182b74671a2639aeff6f483",
+              "nan_count": 0,
+              "sum": 3075.2684,
+              "min": 0.0,
+              "max": 3028.7414,
+              "mean": 768.8171
+            },
+            "discharge": {
+              "shape": [
+                4,
+                1
+              ],
+              "sha256": "a2c9e572617700b5d4ed7b5f22c498c6d4ccdd94890f819caea8a375b6152466",
+              "nan_count": 0,
+              "sum": 2636.886102,
+              "min": 0.0,
+              "max": 1994.307996,
+              "mean": 659.2215255
+            },
+            "charge_daily": [
+              3028.7414,
+              0.0,
+              46.52699999999999,
+              0.0
+            ],
+            "discharge_daily": [
+              0.0,
+              642.578106,
+              0.0,
+              1994.307996
+            ],
+            "charge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "discharge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "seg_npy": {
+              "charge": "seg_charge_A_cap500_ignneg.npy",
+              "discharge": "seg_discharge_A_cap500_ignneg.npy"
+            },
+            "daily_total": {
+              "charge": [
+                3075.2684
+              ],
+              "discharge": [
+                2636.886102
+              ]
+            },
+            "capacity_calc": {
+              "note": "口径=各段逐日求和（纯函数验证用，非 UI 日最小段口径）",
+              "target_days": 1,
+              "capacity": 2636.886102,
+              "days_for_capacity": 1
+            }
+          },
+          "B_cap500": {
+            "ok": true,
+            "charge": {
+              "shape": [
+                4,
+                1
+              ],
+              "sha256": "66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925",
+              "nan_count": 0,
+              "sum": 0.0,
+              "min": 0.0,
+              "max": 0.0,
+              "mean": 0.0
+            },
+            "discharge": {
+              "shape": [
+                4,
+                1
+              ],
+              "sha256": "66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925",
+              "nan_count": 0,
+              "sum": 0.0,
+              "min": 0.0,
+              "max": 0.0,
+              "mean": 0.0
+            },
+            "charge_daily": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "discharge_daily": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "charge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "discharge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "seg_npy": {
+              "charge": "seg_charge_B_cap500.npy",
+              "discharge": "seg_discharge_B_cap500.npy"
+            },
+            "daily_total": {
+              "charge": [
+                0.0
+              ],
+              "discharge": [
+                0.0
+              ]
+            },
+            "capacity_calc": {
+              "note": "口径=各段逐日求和（纯函数验证用，非 UI 日最小段口径）",
+              "target_days": 1,
+              "capacity": 0.0,
+              "days_for_capacity": 1
+            }
+          }
+        }
+      }
+    },
+    "plot": {
+      "S2_单日24点": {
+        "grade": "loose",
+        "variants": {
+          "light_default": {
+            "ok": true,
+            "sha256": "ecc52a1d609f287158e1ab3dea6b541d19c0a295442cbf2797cdb93733c78373",
+            "size": [
+              3184,
+              1579
+            ],
+            "bytes": 141084,
+            "file": "plot_light_default.png"
+          },
+          "dark_default": {
+            "ok": true,
+            "sha256": "9a27ff55df4a6abe439922618350ea60905186d367aa10733d0da41587dfd6b5",
+            "size": [
+              3184,
+              1579
+            ],
+            "bytes": 135466,
+            "file": "plot_dark_default.png"
+          }
+        }
+      }
+    },
+    "export": {
+      "S2_单日24点": {
+        "grade": "strict",
+        "result": {
+          "excel": {
+            "ok": true,
+            "file": "midwide.xlsx",
+            "sha256_bytes": "4c3dacd64e0e44b338a63452afe7951d5b1dc5f2594791bd74cdc4a8cbffa350",
+            "shape": [
+              1,
+              24
+            ],
+            "values_sha256": "508a29b9623bd381ab5d8888c0942195ce217cf22040701db29a1bcb49a91751",
+            "roundtrip_max_abs_diff": 0.0,
+            "index": [
+              "2026-01-20"
+            ],
+            "columns": [
+              "00:00",
+              "01:00",
+              "02:00",
+              "03:00",
+              "04:00",
+              "05:00",
+              "06:00",
+              "07:00",
+              "08:00",
+              "09:00",
+              "10:00",
+              "11:00",
+              "12:00",
+              "13:00",
+              "14:00",
+              "15:00",
+              "16:00",
+              "17:00",
+              "18:00",
+              "19:00",
+              "20:00",
+              "21:00",
+              "22:00",
+              "23:00"
+            ]
+          }
+        }
+      }
+    },
+    "report": {
+      "grade": "strict",
+      "charts": [
+        "plot_dark_default.png",
+        "plot_light_default.png"
+      ],
+      "result": {
+        "ok": false,
+        "error": "未返回路径",
+        "log": [
+          "生成报告失败: cannot access local variable 'html' where it is not associated with a value"
+        ]
+      }
+    },
+    "widgets": {
+      "grade": "info",
+      "result": {
+        "plot_options_default": {
+          "show_daily": true,
+          "show_avg": true,
+          "show_max_demand": false,
+          "fit_types": [],
+          "highlight_mode": "none",
+          "weekday_color": "#1f77b4",
+          "weekend_color": "#FF8C00",
+          "holiday_color": "#DC143C",
+          "weekend_line_width": 1.8,
+          "holiday_line_width": 2.0,
+          "show_weekend_bg": false,
+          "legend_position": "right",
+          "mark_anomalies": false,
+          "dark_theme": false
+        },
+        "config_keys": [
+          "_lock",
+          "cfg",
+          "restored_from_backup"
+        ],
+        "config_default": {
+          "restored_from_backup": false,
+          "cfg": {
+            "config_version": 14,
+            "price_strategies": {},
+            "active_strategy": null,
+            "active_province": "浙江",
+            "preview_templates": {},
+            "highlight_templates": {},
+            "window_geometry": {
+              "MainWindow": "<hidden>"
+            },
+            "app_settings": {
+              "auto_open_dir": "<hidden>",
+              "last_output_dir": "<hidden>",
+              "recent_output_dirs": "<hidden>",
+              "last_multiplier": "<hidden>",
+              "last_csv_encoding": "<hidden>",
+              "last_title_template": "<hidden>",
+              "last_filename_template": "<hidden>",
+              "show_daily": true,
+              "show_avg": true,
+              "show_max_demand": false,
+              "last_billing_enabled": "<hidden>",
+              "last_billing_value": "<hidden>",
+              "last_strategy_name": "<hidden>",
+              "classify_by_asset": false,
+              "quick_mode": true,
+              "scan_workers": 1
+            },
+            "last_mapping": "<hidden>",
+            "column_fingerprints": {},
+            "feedback_data": {}
+          }
+        },
+        "period_types": [
+          "CHARGE",
+          "DISCHARGE",
+          "CHARGE_LABEL",
+          "DISCHARGE_LABEL"
+        ]
+      }
+    }
+  },
+  "per_input": [
+    {
+      "input": "S2_单日24点.xlsx",
+      "sheet": "Sheet1",
+      "error": null,
+      "summaries": [
+        {
+          "file_path": "<REPO>\\baseline\\_inputs\\S2\\S2_单日24点.xlsx",
+          "sheet_name": "Sheet1",
+          "asset_value": "未命名",
+          "month_str": "2026-01",
+          "date_count": 1,
+          "time_points": 24,
+          "min_val": 120.0,
+          "max_val": 900.0,
+          "mapping": {
+            "date_col": "日期",
+            "load_col": [
+              "00:00",
+              "01:00",
+              "02:00",
+              "03:00",
+              "04:00",
+              "05:00",
+              "06:00",
+              "07:00",
+              "08:00",
+              "09:00",
+              "10:00",
+              "11:00",
+              "12:00",
+              "13:00",
+              "14:00",
+              "15:00",
+              "16:00",
+              "17:00",
+              "18:00",
+              "19:00",
+              "20:00",
+              "21:00",
+              "22:00",
+              "23:00"
+            ],
+            "format_type": "wide",
+            "header_row": 0
+          }
+        }
+      ]
+    }
+  ]
+}

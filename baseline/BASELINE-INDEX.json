@@ -1,0 +1,255 @@
+{
+  "captured_at": "2026-11-03T22:29:18",
+  "env": {
+    "python": "3.12.9",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "numpy": "2.4.4",
+    "pandas": "3.0.2",
+    "matplotlib": "3.10.9",
+    "fusion_file_sha256": "270f6f5acf7d11d5c5024f34cec1bc150279b283e72ebe32d7471e632cb9db38",
+    "fusion_lines": 10763,
+    "scipy": "1.17.1",
+    "openpyxl": "3.1.5",
+    "loguru": "0.7.3",
+    "chardet": "7.4.3",
+    "chinese_calendar": "1.11.0",
+    "PySide6": "6.11.0",
+    "cjk_font": "SimHei"
+  },
+  "scenarios": [
+    {
+      "id": "W1",
+      "name": "宽表96点",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "W2",
+      "name": "宽表24点",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "W3",
+      "name": "宽表多资产",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "L1",
+      "name": "长表96点",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "L2",
+      "name": "长表多资产",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "L3",
+      "name": "长表含无效时刻",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "T1",
+      "name": "转置宽表",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "T2",
+      "name": "转置累计",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "A1",
+      "name": "长表示数",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "A2",
+      "name": "宽表行累计",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "S1",
+      "name": "单日96点",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "S2",
+      "name": "单日24点",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "Y1",
+      "name": "文件名带年份·数据无年份",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "Y2",
+      "name": "文件名带年份·数据带年份",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "N1",
+      "name": "全负倒送",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "E1",
+      "name": "UTF-8-BOM CSV",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "E2",
+      "name": "GBK CSV",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    },
+    {
+      "id": "E3",
+      "name": "资产名含特殊字符",
+      "fatal": null,
+      "stages": [
+        "parse",
+        "calc",
+        "plot",
+        "export",
+        "report",
+        "widgets"
+      ]
+    }
+  ]
+}

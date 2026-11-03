@@ -1,0 +1,308 @@
+{
+  "seed": 20261103,
+  "scenarios": [
+    {
+      "id": "W1",
+      "name": "宽表96点",
+      "group": "宽表",
+      "notes": "日常主路径，96 点 5 天",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "W1/W1_宽表96点.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "0b724e82c937df7df996f98a557d3be48dba7ece1de79e49ff85fc62b5f4186a",
+          "bytes": 8126
+        }
+      ]
+    },
+    {
+      "id": "W2",
+      "name": "宽表24点",
+      "group": "宽表",
+      "notes": "小时级分辨率",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "W2/W2_宽表24点.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "7933cc962beab46c20498f2e233fc351e88c589ccda5e7cbf727fdc62774103a",
+          "bytes": 5739
+        }
+      ]
+    },
+    {
+      "id": "W3",
+      "name": "宽表多资产",
+      "group": "宽表",
+      "notes": "两个 sheet 视为两个资产",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "W3/W3_宽表多资产.xlsx",
+          "sheet": "A栋",
+          "mapping_override": null,
+          "sha256": "4534027cbe87b98965fe5d818a2a1481955f65aa0bed6b5cd63b7ca29de3221e",
+          "bytes": 9932
+        },
+        {
+          "path": "W3/W3_宽表多资产.xlsx",
+          "sheet": "B栋",
+          "mapping_override": null,
+          "sha256": "4534027cbe87b98965fe5d818a2a1481955f65aa0bed6b5cd63b7ca29de3221e",
+          "bytes": 9932
+        }
+      ]
+    },
+    {
+      "id": "L1",
+      "name": "长表96点",
+      "group": "长表",
+      "notes": "长表主路径",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "L1/L1_长表96点.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "be0bb23c60ffb9e668838eed77b31a404ba5f646ff52fc59c369fef6e224d4d1",
+          "bytes": 13551
+        }
+      ]
+    },
+    {
+      "id": "L2",
+      "name": "长表多资产",
+      "group": "长表",
+      "notes": "资产编号列分组",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "L2/L2_长表多资产.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "a704a23aedc0b0fdf16ee23b2d36c7cdb16d33f0f8353f6df029bb8d5ce63bf5",
+          "bytes": 16913
+        }
+      ]
+    },
+    {
+      "id": "L3",
+      "name": "长表含无效时刻",
+      "group": "长表",
+      "notes": "25:00 与空时刻，验证不静默丢弃",
+      "covers": [
+        "C1"
+      ],
+      "inputs": [
+        {
+          "path": "L3/L3_长表含无效时刻.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "a9957be94630fda57029594abfcb0a029ad41312dc14f5a3f8484318ad44775c",
+          "bytes": 10077
+        }
+      ]
+    },
+    {
+      "id": "T1",
+      "name": "转置宽表",
+      "group": "转置",
+      "notes": "时间行 × 日期列",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "T1/T1_转置宽表.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "730ac318ddc811dd1df026c823a10cc4bcfa2a3bdf183632a6619145d65fab18",
+          "bytes": 7362
+        }
+      ]
+    },
+    {
+      "id": "T2",
+      "name": "转置累计",
+      "group": "转置",
+      "notes": "转置 × 示数叠加",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "T2/T2_转置累计.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "8c78aa71dc41d9d84a4002d28fd07d5ae14e4d514cab85f615e11f86a3a43be3",
+          "bytes": 6430
+        }
+      ]
+    },
+    {
+      "id": "A1",
+      "name": "长表示数",
+      "group": "累计",
+      "notes": "日重置单调递增",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "A1/A1_长表示数.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "7e85e7c087cd894b2a13ea981069135ea60c89abde411e8f26710d92c28f1d2f",
+          "bytes": 11147
+        }
+      ]
+    },
+    {
+      "id": "A2",
+      "name": "宽表行累计",
+      "group": "累计",
+      "notes": "行内累计差分成功率",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "A2/A2_宽表行累计.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "5f449d87f5efcf50e0ab712da6bc0ae18c7d3517767f77863023a8a52554f5c8",
+          "bytes": 8106
+        }
+      ]
+    },
+    {
+      "id": "S1",
+      "name": "单日96点",
+      "group": "单日",
+      "notes": "单日形态",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "S1/S1_单日96点.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "1ade7d39fb405093b7b026f95237d448b24172e6a36a4cd4706b732f07b38ebc",
+          "bytes": 5988
+        }
+      ]
+    },
+    {
+      "id": "S2",
+      "name": "单日24点",
+      "group": "单日",
+      "notes": "单日 × 低分辨率",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "S2/S2_单日24点.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "892a75026f9b3d98a04e19502330d368907e667484bb2076705bf0c435801454",
+          "bytes": 5161
+        }
+      ]
+    },
+    {
+      "id": "Y1",
+      "name": "文件名带年份·数据无年份",
+      "group": "含年份文件名",
+      "notes": "2025 文件名 + 无年份数据，C8 默认今年",
+      "covers": [
+        "C8"
+      ],
+      "inputs": [
+        {
+          "path": "Y1/A栋2025年负荷.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "7f70da323441e6d6e0c1f5e0efcb9444322d29870bfc7dfd2681191707774a3b",
+          "bytes": 7079
+        }
+      ]
+    },
+    {
+      "id": "Y2",
+      "name": "文件名带年份·数据带年份",
+      "group": "含年份文件名",
+      "notes": "两侧年份一致对照",
+      "covers": [
+        "C8"
+      ],
+      "inputs": [
+        {
+          "path": "Y2/B栋2025年负荷-带年份.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "e07c0ecd3499bed174c57925232ca12fc8713f31709b0efbfa2c37ea4ea9ca23",
+          "bytes": 7082
+        }
+      ]
+    },
+    {
+      "id": "N1",
+      "name": "全负倒送",
+      "group": "全负",
+      "notes": "全天负负荷",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "N1/N1_全负倒送.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "83d8b1184fd97ed33e81df0a640add999b75eea9db1de0dd57c2ef4409f2abc3",
+          "bytes": 7102
+        }
+      ]
+    },
+    {
+      "id": "E1",
+      "name": "UTF-8-BOM CSV",
+      "group": "编码边界",
+      "notes": "Excel 另存 UTF-8 带 BOM",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "E1/E1_utf8bom.csv",
+          "sheet": "CSV文件",
+          "mapping_override": null,
+          "sha256": "93e44779b3beea028e2bd7bbc4fbe168ab2dd3e10f326c1a6b6e7c13e22f3bcc",
+          "bytes": 7623
+        }
+      ]
+    },
+    {
+      "id": "E2",
+      "name": "GBK CSV",
+      "group": "编码边界",
+      "notes": "中文 Excel 默认另存编码",
+      "covers": [],
+      "inputs": [
+        {
+          "path": "E2/E2_gbk.csv",
+          "sheet": "CSV文件",
+          "mapping_override": null,
+          "sha256": "b7a4ff9d31493f5576c62996a5258dbc07f232e46b188d883646a20918e66fe7",
+          "bytes": 7688
+        }
+      ]
+    },
+    {
+      "id": "E3",
+      "name": "资产名含特殊字符",
+      "group": "编码边界",
+      "notes": "资产名含 & < >（文件名只含 &，< > 是 Windows 非法字符），报告需 HTML 转义",
+      "covers": [
+        "C2"
+      ],
+      "inputs": [
+        {
+          "path": "E3/A&B楼负荷.xlsx",
+          "sheet": "Sheet1",
+          "mapping_override": null,
+          "sha256": "7c57eec98c0a99757163111300761ed7561ae418f9250ab62bcd5b022ac4370a",
+          "bytes": 11014
+        }
+      ]
+    }
+  ]
+}

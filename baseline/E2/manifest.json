@@ -1,0 +1,771 @@
+{
+  "id": "E2",
+  "name": "GBK CSV",
+  "group": "编码边界",
+  "notes": "中文 Excel 默认另存编码",
+  "covers": [],
+  "known_defects": [],
+  "inputs": [
+    "E2_gbk.csv"
+  ],
+  "stages": {
+    "parse": {
+      "E2_gbk": {
+        "grade": "strict",
+        "summaries": [
+          {
+            "file_path": "<REPO>\\baseline\\_inputs\\E2\\E2_gbk.csv",
+            "sheet_name": "CSV文件",
+            "asset_value": "未命名",
+            "month_str": "2026-01",
+            "date_count": 3,
+            "time_points": 96,
+            "min_val": 120.0,
+            "max_val": 954.0,
+            "mapping": {
+              "date_col": "日期",
+              "time_col": "时间",
+              "load_col": "正向有功功率",
+              "format_type": "long",
+              "header_row": 0
+            }
+          }
+        ],
+        "wide": {
+          "shape": [
+            3,
+            96
+          ],
+          "sha256": "5f551d54f9024a428454f0e045ef17aed32dd96a0ad135b6f41309857c56d6b9",
+          "nan_count": 0,
+          "sum": 86860.33769999999,
+          "min": 120.0,
+          "max": 954.0,
+          "mean": 301.59839479166664
+        },
+        "wide_npy": "wide.npy",
+        "date_labels": [
+          "2026-01-15",
+          "2026-01-16",
+          "2026-01-17"
+        ],
+        "time_labels": [
+          "00:00",
+          "00:15",
+          "00:30",
+          "00:45",
+          "01:00",
+          "01:15",
+          "01:30",
+          "01:45",
+          "02:00",
+          "02:15",
+          "02:30",
+          "02:45",
+          "03:00",
+          "03:15",
+          "03:30",
+          "03:45",
+          "04:00",
+          "04:15",
+          "04:30",
+          "04:45",
+          "05:00",
+          "05:15",
+          "05:30",
+          "05:45",
+          "06:00",
+          "06:15",
+          "06:30",
+          "06:45",
+          "07:00",
+          "07:15",
+          "07:30",
+          "07:45",
+          "08:00",
+          "08:15",
+          "08:30",
+          "08:45",
+          "09:00",
+          "09:15",
+          "09:30",
+          "09:45",
+          "10:00",
+          "10:15",
+          "10:30",
+          "10:45",
+          "11:00",
+          "11:15",
+          "11:30",
+          "11:45",
+          "12:00",
+          "12:15",
+          "12:30",
+          "12:45",
+          "13:00",
+          "13:15",
+          "13:30",
+          "13:45",
+          "14:00",
+          "14:15",
+          "14:30",
+          "14:45",
+          "15:00",
+          "15:15",
+          "15:30",
+          "15:45",
+          "16:00",
+          "16:15",
+          "16:30",
+          "16:45",
+          "17:00",
+          "17:15",
+          "17:30",
+          "17:45",
+          "18:00",
+          "18:15",
+          "18:30",
+          "18:45",
+          "19:00",
+          "19:15",
+          "19:30",
+          "19:45",
+          "20:00",
+          "20:15",
+          "20:30",
+          "20:45",
+          "21:00",
+          "21:15",
+          "21:30",
+          "21:45",
+          "22:00",
+          "22:15",
+          "22:30",
+          "22:45",
+          "23:00",
+          "23:15",
+          "23:30",
+          "23:45"
+        ]
+      }
+    },
+    "calc": {
+      "E2_gbk": {
+        "grade": "strict",
+        "variants": {
+          "A_no_bill": {
+            "ok": true,
+            "charge": {
+              "shape": [
+                4,
+                3
+              ],
+              "sha256": "2ea9ab9198d1638007400cd2c3bef1cc745b864b76011a0e1bc52180ac6452d4",
+              "nan_count": 0,
+              "sum": 0.0,
+              "min": 0.0,
+              "max": 0.0,
+              "mean": 0.0
+            },
+            "discharge": {
+              "shape": [
+                4,
+                3
+              ],
+              "sha256": "2ea9ab9198d1638007400cd2c3bef1cc745b864b76011a0e1bc52180ac6452d4",
+              "nan_count": 0,
+              "sum": 0.0,
+              "min": 0.0,
+              "max": 0.0,
+              "mean": 0.0
+            },
+            "charge_daily": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "discharge_daily": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "charge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "discharge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "seg_npy": {
+              "charge": "seg_charge_A_no_bill.npy",
+              "discharge": "seg_discharge_A_no_bill.npy"
+            },
+            "daily_total": {
+              "charge": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "discharge": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "capacity_calc": {
+              "note": "口径=各段逐日求和（纯函数验证用，非 UI 日最小段口径）",
+              "target_days": 2,
+              "capacity": 0.0,
+              "days_for_capacity": 3
+            }
+          },
+          "A_cap500": {
+            "ok": true,
+            "charge": {
+              "shape": [
+                4,
+                3
+              ],
+              "sha256": "882706d0068c82157fa868360dcd5025056345caa31357624468e6b6d05954ea",
+              "nan_count": 0,
+              "sum": 9055.8813,
+              "min": 0.0,
+              "max": 3030.2003250000002,
+              "mean": 754.6567749999999
+            },
+            "discharge": {
+              "shape": [
+                4,
+                3
+              ],
+              "sha256": "fca436e8cc6e3bc4d2c03ca09bc782647d2b0438b309e64d6b869e65616ff308",
+              "nan_count": 0,
+              "sum": 8029.4028450000005,
+              "min": 0.0,
+              "max": 2051.0904247500007,
+              "mean": 669.11690375
+            },
+            "charge_daily": [
+              3030.2003250000002,
+              3001.106425,
+              2972.0123499999995,
+              0.0,
+              0.0,
+              0.0,
+              22.471575,
+              17.520737500000003,
+              12.569887499999993,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "discharge_daily": [
+              0.0,
+              0.0,
+              0.0,
+              629.9815117500001,
+              648.8809136250001,
+              667.780420125,
+              0.0,
+              0.0,
+              0.0,
+              2004.0829469999999,
+              2027.5866277500002,
+              2051.0904247500007
+            ],
+            "charge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "discharge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "seg_npy": {
+              "charge": "seg_charge_A_cap500.npy",
+              "discharge": "seg_discharge_A_cap500.npy"
+            },
+            "daily_total": {
+              "charge": [
+                3052.6719,
+                3018.627162,
+                2984.582237
+              ],
+              "discharge": [
+                2634.064459,
+                2676.467541,
+                2718.870845
+              ]
+            },
+            "capacity_calc": {
+              "note": "口径=各段逐日求和（纯函数验证用，非 UI 日最小段口径）",
+              "target_days": 2,
+              "capacity": 2676.467541,
+              "days_for_capacity": 2
+            }
+          },
+          "A_cap500_ignneg": {
+            "ok": true,
+            "charge": {
+              "shape": [
+                4,
+                3
+              ],
+              "sha256": "882706d0068c82157fa868360dcd5025056345caa31357624468e6b6d05954ea",
+              "nan_count": 0,
+              "sum": 9055.8813,
+              "min": 0.0,
+              "max": 3030.2003250000002,
+              "mean": 754.6567749999999
+            },
+            "discharge": {
+              "shape": [
+                4,
+                3
+              ],
+              "sha256": "fca436e8cc6e3bc4d2c03ca09bc782647d2b0438b309e64d6b869e65616ff308",
+              "nan_count": 0,
+              "sum": 8029.4028450000005,
+              "min": 0.0,
+              "max": 2051.0904247500007,
+              "mean": 669.11690375
+            },
+            "charge_daily": [
+              3030.2003250000002,
+              3001.106425,
+              2972.0123499999995,
+              0.0,
+              0.0,
+              0.0,
+              22.471575,
+              17.520737500000003,
+              12.569887499999993,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "discharge_daily": [
+              0.0,
+              0.0,
+              0.0,
+              629.9815117500001,
+              648.8809136250001,
+              667.780420125,
+              0.0,
+              0.0,
+              0.0,
+              2004.0829469999999,
+              2027.5866277500002,
+              2051.0904247500007
+            ],
+            "charge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "discharge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "seg_npy": {
+              "charge": "seg_charge_A_cap500_ignneg.npy",
+              "discharge": "seg_discharge_A_cap500_ignneg.npy"
+            },
+            "daily_total": {
+              "charge": [
+                3052.6719,
+                3018.627162,
+                2984.582237
+              ],
+              "discharge": [
+                2634.064459,
+                2676.467541,
+                2718.870845
+              ]
+            },
+            "capacity_calc": {
+              "note": "口径=各段逐日求和（纯函数验证用，非 UI 日最小段口径）",
+              "target_days": 2,
+              "capacity": 2676.467541,
+              "days_for_capacity": 2
+            }
+          },
+          "B_cap500": {
+            "ok": true,
+            "charge": {
+              "shape": [
+                4,
+                3
+              ],
+              "sha256": "2ea9ab9198d1638007400cd2c3bef1cc745b864b76011a0e1bc52180ac6452d4",
+              "nan_count": 0,
+              "sum": 0.0,
+              "min": 0.0,
+              "max": 0.0,
+              "mean": 0.0
+            },
+            "discharge": {
+              "shape": [
+                4,
+                3
+              ],
+              "sha256": "2ea9ab9198d1638007400cd2c3bef1cc745b864b76011a0e1bc52180ac6452d4",
+              "nan_count": 0,
+              "sum": 0.0,
+              "min": 0.0,
+              "max": 0.0,
+              "mean": 0.0
+            },
+            "charge_daily": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "discharge_daily": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "charge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "discharge_labels": [
+              "上午充",
+              "午间放",
+              "下午充",
+              "晚间放"
+            ],
+            "seg_npy": {
+              "charge": "seg_charge_B_cap500.npy",
+              "discharge": "seg_discharge_B_cap500.npy"
+            },
+            "daily_total": {
+              "charge": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "discharge": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "capacity_calc": {
+              "note": "口径=各段逐日求和（纯函数验证用，非 UI 日最小段口径）",
+              "target_days": 2,
+              "capacity": 0.0,
+              "days_for_capacity": 3
+            }
+          }
+        }
+      }
+    },
+    "plot": {
+      "E2_gbk": {
+        "grade": "loose",
+        "variants": {
+          "light_default": {
+            "ok": true,
+            "sha256": "6dca6f1a490e470a7a664cbeb42eab6ce860616344a580e2b7e62ff16eeec7be",
+            "size": [
+              3184,
+              1579
+            ],
+            "bytes": 210723,
+            "file": "plot_light_default.png"
+          },
+          "dark_default": {
+            "ok": true,
+            "sha256": "91d796646c261a1220173c35666eb5fa85aeb40cceac5cdc4ed5a9ea92b0894b",
+            "size": [
+              3184,
+              1579
+            ],
+            "bytes": 195090,
+            "file": "plot_dark_default.png"
+          }
+        }
+      }
+    },
+    "export": {
+      "E2_gbk": {
+        "grade": "strict",
+        "result": {
+          "excel": {
+            "ok": true,
+            "file": "midwide.xlsx",
+            "sha256_bytes": "18fffbbe509f1fff0201f5c49d697373dcbfe842ec4e1cbd069af0bff5163618",
+            "shape": [
+              3,
+              96
+            ],
+            "values_sha256": "5f551d54f9024a428454f0e045ef17aed32dd96a0ad135b6f41309857c56d6b9",
+            "roundtrip_max_abs_diff": 0.0,
+            "index": [
+              "2026-01-15",
+              "2026-01-16",
+              "2026-01-17"
+            ],
+            "columns": [
+              "00:00",
+              "00:15",
+              "00:30",
+              "00:45",
+              "01:00",
+              "01:15",
+              "01:30",
+              "01:45",
+              "02:00",
+              "02:15",
+              "02:30",
+              "02:45",
+              "03:00",
+              "03:15",
+              "03:30",
+              "03:45",
+              "04:00",
+              "04:15",
+              "04:30",
+              "04:45",
+              "05:00",
+              "05:15",
+              "05:30",
+              "05:45",
+              "06:00",
+              "06:15",
+              "06:30",
+              "06:45",
+              "07:00",
+              "07:15",
+              "07:30",
+              "07:45",
+              "08:00",
+              "08:15",
+              "08:30",
+              "08:45",
+              "09:00",
+              "09:15",
+              "09:30",
+              "09:45",
+              "10:00",
+              "10:15",
+              "10:30",
+              "10:45",
+              "11:00",
+              "11:15",
+              "11:30",
+              "11:45",
+              "12:00",
+              "12:15",
+              "12:30",
+              "12:45",
+              "13:00",
+              "13:15",
+              "13:30",
+              "13:45",
+              "14:00",
+              "14:15",
+              "14:30",
+              "14:45",
+              "15:00",
+              "15:15",
+              "15:30",
+              "15:45",
+              "16:00",
+              "16:15",
+              "16:30",
+              "16:45",
+              "17:00",
+              "17:15",
+              "17:30",
+              "17:45",
+              "18:00",
+              "18:15",
+              "18:30",
+              "18:45",
+              "19:00",
+              "19:15",
+              "19:30",
+              "19:45",
+              "20:00",
+              "20:15",
+              "20:30",
+              "20:45",
+              "21:00",
+              "21:15",
+              "21:30",
+              "21:45",
+              "22:00",
+              "22:15",
+              "22:30",
+              "22:45",
+              "23:00",
+              "23:15",
+              "23:30",
+              "23:45"
+            ]
+          }
+        }
+      }
+    },
+    "report": {
+      "grade": "strict",
+      "charts": [
+        "plot_dark_default.png",
+        "plot_light_default.png"
+      ],
+      "result": {
+        "ok": false,
+        "error": "未返回路径",
+        "log": [
+          "生成报告失败: cannot access local variable 'html' where it is not associated with a value"
+        ]
+      }
+    },
+    "widgets": {
+      "grade": "info",
+      "result": {
+        "plot_options_default": {
+          "show_daily": true,
+          "show_avg": true,
+          "show_max_demand": false,
+          "fit_types": [],
+          "highlight_mode": "none",
+          "weekday_color": "#1f77b4",
+          "weekend_color": "#FF8C00",
+          "holiday_color": "#DC143C",
+          "weekend_line_width": 1.8,
+          "holiday_line_width": 2.0,
+          "show_weekend_bg": false,
+          "legend_position": "right",
+          "mark_anomalies": false,
+          "dark_theme": false
+        },
+        "config_keys": [
+          "_lock",
+          "cfg",
+          "restored_from_backup"
+        ],
+        "config_default": {
+          "restored_from_backup": false,
+          "cfg": {
+            "config_version": 14,
+            "price_strategies": {},
+            "active_strategy": null,
+            "active_province": "浙江",
+            "preview_templates": {},
+            "highlight_templates": {},
+            "window_geometry": {
+              "MainWindow": "<hidden>"
+            },
+            "app_settings": {
+              "auto_open_dir": "<hidden>",
+              "last_output_dir": "<hidden>",
+              "recent_output_dirs": "<hidden>",
+              "last_multiplier": "<hidden>",
+              "last_csv_encoding": "<hidden>",
+              "last_title_template": "<hidden>",
+              "last_filename_template": "<hidden>",
+              "show_daily": true,
+              "show_avg": true,
+              "show_max_demand": false,
+              "last_billing_enabled": "<hidden>",
+              "last_billing_value": "<hidden>",
+              "last_strategy_name": "<hidden>",
+              "classify_by_asset": false,
+              "quick_mode": true,
+              "scan_workers": 1
+            },
+            "last_mapping": "<hidden>",
+            "column_fingerprints": {},
+            "feedback_data": {}
+          }
+        },
+        "period_types": [
+          "CHARGE",
+          "DISCHARGE",
+          "CHARGE_LABEL",
+          "DISCHARGE_LABEL"
+        ]
+      }
+    }
+  },
+  "per_input": [
+    {
+      "input": "E2_gbk.csv",
+      "sheet": "CSV文件",
+      "error": null,
+      "summaries": [
+        {
+          "file_path": "<REPO>\\baseline\\_inputs\\E2\\E2_gbk.csv",
+          "sheet_name": "CSV文件",
+          "asset_value": "未命名",
+          "month_str": "2026-01",
+          "date_count": 3,
+          "time_points": 96,
+          "min_val": 120.0,
+          "max_val": 954.0,
+          "mapping": {
+            "date_col": "日期",
+            "time_col": "时间",
+            "load_col": "正向有功功率",
+            "format_type": "long",
+            "header_row": 0
+          }
+        }
+      ]
+    }
+  ]
+}
