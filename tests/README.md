@@ -48,6 +48,7 @@ python tests/verify_pipeline.py
 | `verify_provider.py` | 14 | DataProvider 缓存：注入路径、两层缓存隔离、clear 语义、错误隔离、内存淘汰 | pandas + openpyxl（无 Qt） |
 | `verify_wide_detect.py` | 17 | 宽表日期列判定：_is_valid_ym 谓词、_extract_ym 关键值、两种列序（日期在前/户号在前）下 date_col 与 load_col 都不错 | 无（pandas） |
 | `verify_wiring.py` | 16 | 接线：upload → inspect → mapping，真实 uvicorn + 真实 HTTP | 需 fastapi/uvicorn |
+| `verify_excel_e2e.py` | 23 | Excel 端到端：真 datetime 日期列 → upload / inspect / mapping / spaces / export → PNG。验证 Excel 读取路径，以及 C8 补年份不被 datetime 误触发 | 需 openpyxl / fastapi / uvicorn |
 | `verify_wiring_e2e.py` | 11 | 端到端：upload → inspect → mapping → export/run → WebSocket → PNG 落盘（校验魔数） | 需 fastapi/uvicorn/websockets |
 | `verify_capacity.py` | 18 | 容量口径：min_feasible / full_load 定义、日吞吐量、段选择、占位零影响 | 无（纯 numpy） |
 | `verify_segment_filter.py` | 9 | 占位零过滤：two_two 过滤后非零、one_one 不被破坏、选错方向边界 | PySide6（offscreen） |
