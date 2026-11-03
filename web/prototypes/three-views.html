@@ -68,8 +68,11 @@ table.grid th { position: sticky; top: 0; text-align: left; font-weight: 500; fo
 table.grid td { padding: 5px var(--sp-3); border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
 table.grid tbody tr:hover td { background: var(--bg-raised); }
 table.grid td.r, table.grid th.r { text-align: right; }
-table.grid tbody tr.sel td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+table.grid tbody tr.sel td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 table.grid tbody tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+/* 选中行次列提亮，扫视时不只是靠一条 2px 线 */
+table.grid tbody tr.sel td:nth-child(2) { color: var(--text-primary); }
+table.grid tbody tr:not(.sel) td:nth-child(2) { color: var(--text-muted); }
 .mono { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
 .badge { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs);
@@ -100,8 +103,8 @@ table.grid tbody tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--accent)
 .tree-children { margin-left: calc(var(--sp-3) + 5px); padding-left: var(--sp-2);
   border-left: 1px solid var(--border-subtle); }
 .tree-children .tree-item { padding-left: var(--sp-2); }
-.chk { width: 12px; height: 12px; border: 1px solid var(--border-strong);
-  border-radius: var(--r-1); flex: none; }
+.chk { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--border-strong);
+  border-radius: var(--r-1); flex: none; vertical-align: middle; }
 .chk.on { background: var(--accent); border-color: var(--accent); }
 
 .plot-area { flex: 1; padding: var(--sp-3) var(--sp-4); display: flex;
