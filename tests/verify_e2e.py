@@ -138,7 +138,13 @@ def run_pipeline(mod, fp, sheet, mapping_override=None):
             return None, None, None, f"scan_error:{res.get('error', '')}"
         if not res:
             return [], None, None, "no_summary"
-        gs = mod.GroupSummary.from_dict(res[0])
+        # Fusion 的 GroupSummary 有 from_dict（白名单过滤额外字段）；
+        # Ultra 没有。本测试同时跑两个产品，所以用兼容写法——
+        # 改 Fusion 不应让 Ultra 的测试挂。
+        if hasattr(mod.GroupSummary, "from_dict"):
+            gs = mod.GroupSummary.from_dict(res[0])
+        else:
+            gs = mod.GroupSummary(**res[0])
         provider = mod.DataProvider()
         data = provider.get_group_data(gs)
         if not data:

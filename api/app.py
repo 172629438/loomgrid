@@ -12,10 +12,12 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from api.routes_calc import router as calc_router
 from api.routes_export import router as export_router
@@ -63,6 +65,7 @@ app.include_router(export_router)
 app.include_router(ws_router)
 
 
+
 @app.exception_handler(Exception)
 async def unhandled(request: Request, exc: Exception):
     """未预期异常也走统一包络，不把堆栈直接吐给前端。"""
@@ -95,3 +98,14 @@ def health():
             "WS /ws/progress",
         ],
     }).model_dump()
+
+
+# ── 前端静态文件 ────────────────────────────────────────────
+# 开发期用 python -m http.server 跑 web/，但打包成 exe 后没有那个服务 ——
+# 必须由 FastAPI 自己提供。**挂载必须放在所有路由定义之后**：
+# app.mount("/") 按注册顺序匹配，挂在前面会把 /api/health 这类路由盖住。
+# 目录来源：环境变量 LGM_WEB_DIR（launcher 会设），否则回落到仓库里的 web/。
+_WEB_DIR = os.environ.get("LGM_WEB_DIR") or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
+if os.path.isdir(_WEB_DIR):
+    app.mount("/", StaticFiles(directory=_WEB_DIR, html=True), name="web")

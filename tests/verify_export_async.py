@@ -93,10 +93,16 @@ def collect_ws(tid: str, timeout: float = 60.0) -> list[dict]:
     return asyncio.run(_run())
 
 
+# path 白名单收紧后，直接引 baseline 里的文件会被拒（行为正确）。
+# 用 LGM_ALLOW_ROOTS 声明可信目录 —— 与本文件同样处理的其他测试一致。
+_env = dict(os.environ)
+_env["PYTHONPATH"] = ROOT
+_env["LGM_ALLOW_ROOTS"] = os.path.join(ROOT, "baseline", "_inputs")
+
 proc = subprocess.Popen(
     [sys.executable, "-m", "uvicorn", "api.app:app", "--port", str(PORT),
      "--log-level", "warning"],
-    cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    cwd=ROOT, env=_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
 outdir = tempfile.mkdtemp(prefix="lg_ws_")
 try:
