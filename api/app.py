@@ -16,7 +16,7 @@ import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from api.routes_calc import router as calc_router
@@ -98,6 +98,22 @@ def health():
             "WS /ws/progress",
         ],
     }).model_dump()
+
+
+# ── 根路径 ──────────────────────────────────────────────────
+# 用户双击 exe 后浏览器可能落在根路径上。没有这条就会看到 FastAPI 的
+# {"detail":"Not Found"} —— 一行 JSON，用户会以为程序坏了。
+# 必须定义在 app.mount("/") 之前，否则被静态挂载吃掉。
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse("/views/v1-workbench.html", status_code=307)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """空 favicon：避免控制台一条 404。真图标以后再补。"""
+    from fastapi.responses import Response
+    return Response(status_code=204)
 
 
 # ── 前端静态文件 ────────────────────────────────────────────

@@ -39,10 +39,29 @@ DIST = os.path.join(REPO, "dist")
 BUILD = os.path.join(REPO, "build")
 STEM = "LoomGrid-Fusion"
 
-# 不打包的：测试、工具脚本、基线数据、开发期产物
+# 不打包的：测试、工具脚本、基线数据、开发期产物，
+# 以及本机装了但 LoomGrid 完全用不到的重量级包。
+# PyInstaller 会把环境里的包按 import 链全收进来 —— 第一次打包 _internal 到 949 MB，
+# 里面躺着 torch(359MB)、cv2(138MB)、llvmlite(101MB)、scipy(72MB)、transformers(35MB)，
+# 这些都是别的项目装的，跟一个算负荷曲线的工具没有任何关系。
 EXCLUDES = [
     "tests", "tools", "baseline", "dist", "build", ".git",
     "PySide6", "PyQt5", "PyQt6", "tkinter",
+    # 机器学习棧
+    "torch", "torchvision", "torchaudio", "transformers", "accelerate",
+    "onnxruntime", "safetensors", "huggingface_hub", "hf_xet",
+    "tiktoken", "tokenizers", "sklearn", "scikit_learn", "numba", "llvmlite",
+    # 图像/视频
+    "cv2", "opencv_python", "PIL.ImageQt",
+    # 科学计算里 LoomGrid 不用的那部分（scipy 只被 sklearn 拉到，两者都排）
+    "scipy", "sympy",
+    # 开发工具与编辑器集成
+    "jedi", "parso", "IPython", "mypy", "lief", "ast_serialize",
+    "grpc", "opentelemetry", "google", "openai",
+    # web 棧里只要 fastapi/starlette/uvicorn，其余服务端框架全排
+    "jinja2", "werkzeug", "sqlalchemy", "aiohttp", "tornado",
+    "bs4", "lxml", "curl_cffi", "Crypto", "cryptography", "bcrypt",
+    "psutil", "typer", "rich", "prompt_toolkit", "watchfiles",
 ]
 
 # uvicorn 的动态导入 PyInstaller 扫不到，必须显式声明
@@ -138,6 +157,22 @@ def smoke(exe: str) -> bool:
 
             import urllib.request
             base = "http://127.0.0.1:%d" % port
+            # 根路径必须能落到工作台 —— 用户双击 exe 看到的第一屏就是它。
+            # 这一项曾经漏测：所有测试 curl 的都是 /api/health 和 /views/xxx，
+            # 没人 curl 过 /，于是用户双击看到一行 {"detail":"Not Found"}。
+            try:
+                req = urllib.request.Request(base + "/", method="GET")
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    body = resp.read()
+                    final = resp.geturl()
+                good = resp.status == 200 and "workbench" in final
+                print("  [%s] 根路径 → 工作台（%s，%d 字节）"
+                      % ("PASS" if good else "FAIL", final.replace(base, ""), len(body)))
+                ok = ok and good
+            except Exception as exc:
+                print("  [FAIL] 根路径：%s" % exc)
+                ok = False
+
             for path, name in (("/api/health", "后端 health"),
                                ("/views/v1-workbench.html", "前端工作台"),
                                ("/theme/tokens.css", "设计令牌")):
