@@ -280,6 +280,21 @@ python tools/check_layering.py -v     # 同时打印每层实际引入了什么
 | Ultra 版本 | v3.2.9 |
 | Release 资产 SHA-256 | 见对应 Release 说明 |
 | 进行中 | Fusion 彻底重构（方案 D：Qt → Web），阶段 0 基线已完成 |
-| 待办 | C3「月最小段总和」取 min 方式待确认；C7 `24h_belongs_current_month` 是个不生效的开关；C8 日期无年份默认今年 |
+| 待办 | C7 `24h_belongs_current_month` 是个不生效的开关；C8 日期无年份默认今年 |
+
+### C3 已定案（2026-11-03）
+
+**「月最小段总和」不是容量，是吞吐量。** 用户确认的 API 口径：
+
+```
+容量口径（枚举，kWh）        min_feasible  最小可行容量：min(所有段的值)
+                          full_load     满载利用率：max(min(每段的充,放))
+
+日吞吐量（独立字段，kWh/天）  sum(min(充电空间, 放电空间)) 逐段求和
+```
+
+**两者不同量纲，不可互换。** 前两个回答「电池装多大」，第三个回答「一天能搬多少能量」。
+API 里必须分两个字段（`daily_demand` 与 `daily_throughput_kwh_per_day`），
+不能做进同一个枚举——否则调用方会当同义词选，差一倍以上。
 
 > 最后更新：2026-11-03
