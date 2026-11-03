@@ -18,7 +18,7 @@
 - 减少不必要 DataFrame 深拷贝
 """
 
-import sys, os, re, json, math, time, io, logging, atexit, warnings, subprocess, traceback, gc
+import sys, os, re, json, math, time, io, html, logging, atexit, warnings, subprocess, traceback, gc
 import logging.handlers
 import multiprocessing as mp
 import threading
@@ -1272,8 +1272,11 @@ def _read_file_full(fp, sheet=None, hrow=0, enc=None, delimiter=',', force_chunk
                 for c in chunk.select_dtypes(include=['object', 'string']).columns:
                     try:
                         chunk[c] = _clean_series(chunk[c])
-                    except Exception:
-                        pass
+                    except Exception as _cle:
+                        # v2.3.7fix: 原来是裸 pass，清洗失败连痕迹都没留。
+                        # 整块路径那边一直有 log.debug，分块路径反而漏了——
+                        # 同一个动作两处实现，只给一处加日志就是这种结果。
+                        log.debug(f"分块列清洗失败 [{c}]: {_cle}")
                 chunks.append(chunk)
             df = pd.concat(chunks, ignore_index=True)
             if _bad_lines:
@@ -10250,10 +10253,13 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"完成，已生成 {len(paths)} 张图表至 {self.output_dir}")
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("生成完成")
-        msg_box.setText(f"图表已成功生成至:\n{self.output_dir}\n共 {len(paths)} 张\n报告: {report_path}")
+        # v2.3.7fix: _generate_report 失败时返回 None，不能再把 None 写进文案
+        # 并挂一个会报错的「打开报告」按钮。
+        _tail = f"\n报告: {report_path}" if report_path else "\n（报告生成失败，图表不受影响）"
+        msg_box.setText(f"图表已成功生成至:\n{self.output_dir}\n共 {len(paths)} 张{_tail}")
         open_btn = msg_box.addButton("打开文件夹", QMessageBox.ActionRole)
         copy_btn = msg_box.addButton("复制路径", QMessageBox.ActionRole)
-        report_btn = msg_box.addButton("打开报告", QMessageBox.ActionRole)
+        report_btn = msg_box.addButton("打开报告", QMessageBox.ActionRole) if report_path else None
         return_preview_btn = None
         if self._preview_dlg is not None:
             return_preview_btn = msg_box.addButton("返回预览窗口", QMessageBox.ActionRole)
@@ -10304,7 +10310,7 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
 <body>
 <h1>负荷曲线批量生成报告</h1>
 <p>生成时间: {now}</p>
-<p>输出目录: {self.output_dir}</p>
+<p>输出目录: {html.escape(str(self.output_dir))}</p>
 <p>成功 <span class="success">{success_count}</span> 张，失败 <span class="failure">{fail_count}</span> 张，总计 {total} 张。</p>
 """
 
@@ -10316,13 +10322,19 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
                         if os.path.basename(p).startswith(_sanitize_name(s.asset_value)):
                             info = {'asset': s.asset_value, 'month': s.month_str, 'file': os.path.basename(s.file_path)}
                             break
-                    html += f"<tr><td>{i}</td><td>{os.path.basename(p)}</td><td>{info.get('asset','?')}</td><td>{info.get('month','?')}</td><td>{info.get('file','?')}</td></tr>"
+                    # v2.3.7fix: 文件名/资产号/源文件名都可能含 & < >（如「A&B楼负荷.xlsx」），
+                    # 直接拼进 HTML 会破坏页面结构，逐列转义。
+                    html += (f"<tr><td>{i}</td>"
+                             f"<td>{html.escape(os.path.basename(p))}</td>"
+                             f"<td>{html.escape(str(info.get('asset', '?')))}</td>"
+                             f"<td>{html.escape(str(info.get('month', '?')))}</td>"
+                             f"<td>{html.escape(str(info.get('file', '?')))}</td></tr>")
                 html += "</table>"
 
             if fail_count > 0:
                 html += "<h2>失败列表</h2><ul>"
                 for f in failed:
-                    html += f"<li class='failure'>{f}</li>"
+                    html += f"<li class='failure'>{html.escape(str(f))}</li>"
                 html += "</ul>"
 
             html += "</body></html>"
@@ -10332,8 +10344,10 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
             self._log(f"生成报告已保存至: {report_path}")
             return report_path
         except Exception as e:
+            # v2.3.7fix: 原来这里也 return report_path，但文件根本没写成——
+            # 调用方会显示「报告: <路径>」并挂「打开报告」按钮，点开是空的。
             self._log(f"生成报告失败: {e}")
-            return report_path
+            return None
 
     def _return_to_preview(self):
         if not self._preview_dlg:
