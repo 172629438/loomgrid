@@ -157,6 +157,34 @@ gh release create fusion-vX.Y.Z "<zip路径>" \
 - 重新打包后覆盖：`gh release upload fusion-vX.Y.Z <zip> --clobber`
 - **每次覆盖都要更新说明里的 SHA-256**，否则下载者没法校验
 - `--latest` 只给 Fusion 的正式修复版；Ultra 的 Lite 标记要手动清
+- **发完新版必跑这一条：**
+
+  ```bash
+  python tools/release_hints.py --fix-existing --force
+  ```
+
+  不带 `--force` 是幂等的（只补缺失的段），**旧版的推荐指向不会跟着更新**——
+  于是 17 个 Release 会继续挂着旧指引，用户点进去看到「你正在看的这一版就是
+  当前生产版本」，然后下载了旧包。
+
+### 大资产上传：拆成两步，不要用带资产的 create
+
+`gh release create <tag> <zip>` 会先建 draft，**资产传完才 publish**。
+272 MB 的包在这台机器上要传十分钟以上，一旦命令超时，**draft 连同 tag 和正文
+全部被回收**——一次失败丢掉全部工作（实测过一次）。
+
+改成：
+
+```bash
+# ① 只建壳，秒级完成，tag 与正文立即落地
+gh release create <tag> --title "..." --notes-file <文件>
+
+# ② 单独传资产，失败可重试，不影响已发布的东西
+gh release upload <tag> <zip> --clobber
+```
+
+上传期间 `gh release upload` **不输出进度**，别拿日志大小判生死——看进程在不在、
+最后查 `assets` 里有没有 `state=uploaded`。
 
 ---
 
