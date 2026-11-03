@@ -91,10 +91,33 @@ def _safe_get_col(df, col_name):
     return series
 
 def _extract_ym(d):
+    """从任意日期表示里取 YYYY-MM。
+
+    v2.3.11fix: 数字要先判 Excel 序列号，不能直接丢给 pd.to_datetime ——
+    后者把数字当纳秒，任何数字都会落到 1970-01（epoch）。
+    用户看到的「未找到月份 '1970-01'」就是这么来的。
+
+    序列号有效区间取 20000~80000（1954-10 ~ 2119-01），超出即视为无效值。
+    0 与空值一律返回「未知月份」，不再伪造出一个 1970-01。
+    """
+    raw = str(d).strip()
+    if re.fullmatch(r"\d{5}(\.\d+)?", raw):
+        try:
+            days = float(raw)
+            if 20000 <= days <= 80000:
+                # Excel 的序列号原点：1899-12-30（含 1900 闰年 bug 修正）
+                dt = pd.Timestamp("1899-12-30") + pd.Timedelta(days=days)
+                return dt.strftime("%Y-%m")
+        except Exception:
+            pass
+        return "未知月份"
+
     try:
-        dt = pd.to_datetime(d, errors='coerce')
+        # 用 raw（已转字符串）而不是 d：pd.to_datetime(0) 会得到 1970-01，
+        # 而 pd.to_datetime('0') 是 NaT。数字一律只能走上面的序列号分支。
+        dt = pd.to_datetime(raw, errors="coerce")
         if pd.notna(dt):
-            return dt.strftime('%Y-%m')
+            return dt.strftime("%Y-%m")
     except Exception:
         pass
     s = str(d).strip()

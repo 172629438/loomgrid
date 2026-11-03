@@ -269,8 +269,10 @@
       <div class="shell__sec">输出位置 <span class="shell__sec-note">必填</span></div>
       <div class="v5__dir">
         <div class="v5__dir-row">
-          <span class="v5__dir-path" id="outDir">D:\输出\2026-01</span>
+          <input class="v5__dir-path" id="outDir" value="D:\输出\2026-01"
+                 placeholder="必填：导出目录的完整路径" spellcheck="false">
         </div>
+        <div class="field__hint" id="dirHint">目录不存在会自动创建</div>
         <div class="v5__dir-row">
           <button class="btn" style="flex:1">浏览</button>
           <button class="btn" style="flex:1">新建文件夹</button>
@@ -430,7 +432,14 @@ btnExport.addEventListener('click', async () => {
     alert('没有 session。请从 V2 确认映射后进入本页，\n或确认后端已启动。');
     return;
   }
-  const outDir = document.getElementById('outDir').textContent.trim();
+  const dirEl = document.getElementById('outDir');
+  const outDir = (dirEl.value || '').trim();
+  if (!outDir) {
+    document.getElementById('dirHint').textContent = '请先填写输出目录';
+    document.getElementById('dirHint').dataset.kind = 'error';
+    dirEl.focus();
+    return;
+  }
   const tpl = document.getElementById('tplName').value;
 
   btnExport.disabled = true;

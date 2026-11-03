@@ -91,7 +91,23 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
                 continue
             data = _PROVIDER.get_group_data(gs)
             if not data:
-                failed.append({"group": i, "error": _PROVIDER.get_load_error(gs) or "无数据"})
+                # 诊断字段全带上：这类「未找到月份」的报错，光看一句 message
+                # 无法判断是月份错了、资产错了，还是日期列根本没解析出来。
+                failed.append({
+                    "group": i,
+                    "error": _PROVIDER.get_load_error(gs) or "无数据",
+                    "diag": {
+                        "month_str": gs.month_str,
+                        "asset_value": gs.asset_value,
+                        "file_path": gs.file_path,
+                        "sheet_name": gs.sheet_name,
+                        "date_count": gs.date_count,
+                        "time_points": gs.time_points,
+                        "date_col": (gs.mapping or {}).get("date_col"),
+                        "asset_col": (gs.mapping or {}).get("asset_col"),
+                        "format_type": (gs.mapping or {}).get("format_type"),
+                    },
+                })
                 continue
             summaries.append(gs)
             prepared.append((gs, data))
