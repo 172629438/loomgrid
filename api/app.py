@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from api.routes_calc import router as calc_router
@@ -35,6 +36,16 @@ app = FastAPI(
         "与 `daily_throughput_kwh_per_day`（kWh/天，一天能搬多少能量）——"
         "两者不可互换、不可比较。"
     ),
+)
+
+# CORS：前端页面跑在 http://127.0.0.1:8899（静态服务）或 file://，
+# 而 API 跑在 8000 —— 跨源。允许本机任意端口，不开放给外部来源。
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(ingest_router)

@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 import threading
 import uuid
 
 import pandas as pd
-from fastapi import APIRouter
+from fastapi import APIRouter, File, UploadFile
 
 from api.schemas import (
     Confidence, Envelope, GroupInfo, InspectData, InspectMappingData,
@@ -86,6 +87,44 @@ def assess_confidence(mapping: dict, df: pd.DataFrame) -> Confidence:
         reasons.append("建议逐项核对映射后再继续")
     return Confidence(score=round(score, 2), reasons=reasons)
 
+
+_UPLOAD_DIR = tempfile.mkdtemp(prefix="loomgrid-upload-")
+
+
+@router.post("/upload", response_model=Envelope)
+async def upload(file: UploadFile = File(...)):
+    """接收上传的表格文件，落到临时目录，返回可给 /inspect 用的路径。
+
+    浏览器拿不到本地文件路径（<input type="file"> 只给 File 对象），
+    所以「真实文件跑通全链路」必须先经过这里。
+    """
+    name = file.filename or "upload.xlsx"
+    ext = os.path.splitext(name)[1].lower()
+    if ext not in (".xlsx", ".xlsm", ".xls", ".csv", ".xlsb"):
+        return _err("INGEST_UNSUPPORTED_TYPE", f"不支持的扩展名：{ext}")
+
+    try:
+        data = await file.read()
+    except Exception as e:
+        return _err("INGEST_READ_FAILED", f"读取上传内容失败：{e}")
+
+    if not data:
+        return _err("INGEST_READ_FAILED", "上传内容为空")
+
+    # 保留原始文件名（去路径），便于 inspect 里 _detect_file_format_type 判断
+    safe_name = os.path.basename(name).replace("/", "_").replace("\\", "_")
+    dest = os.path.join(_UPLOAD_DIR, safe_name)
+    try:
+        with open(dest, "wb") as f:
+            f.write(data)
+    except Exception as e:
+        return _err("INGEST_READ_FAILED", f"写入临时文件失败：{e}")
+
+    return Envelope(ok=True, data={
+        "path": dest,
+        "filename": safe_name,
+        "size": len(data),
+    })
 
 @router.post("/inspect", response_model=Envelope)
 def inspect(payload: dict):
