@@ -237,21 +237,21 @@
         <div class="field">
           <span class="field__label">日期列<abbr>*</abbr></span>
           <div class="field__control">
-            <select class="field__select"><option>日期</option><option>日期时间</option><option>时间</option></select>
+            <select class="field__select" id="selDate"><option>日期</option><option>日期时间</option><option>时间</option></select>
           </div>
           <div class="field__hint">已自动匹配（相似度 100%）</div>
         </div>
         <div class="field">
           <span class="field__label">时间列</span>
           <div class="field__control">
-            <select class="field__select"><option>（不适用）</option><option>时间</option></select>
+            <select class="field__select" id="selTime"><option>（不适用）</option><option>时间</option></select>
           </div>
           <div class="field__hint">宽表/示数表无需选择，时刻从列名识别</div>
         </div>
         <div class="field">
           <span class="field__label">资产列</span>
           <div class="field__control">
-            <select class="field__select"><option>（未选择）</option><option>户号</option><option>表号</option><option>资产</option></select>
+            <select class="field__select" id="selAsset"><option>（未选择）</option><option>户号</option><option>表号</option><option>资产</option></select>
           </div>
         </div>
         <div class="field">
@@ -297,15 +297,15 @@
 
       <div class="shell__pane" style="flex:0 0 42%">
         <div class="shell__pane-head">
-          样本数据 <span class="shell__sec-note">前 5 行 · 6 列</span>
+          样本数据 <span class="shell__sec-note" id="sampleNote">前 5 行 · 6 列</span>
         </div>
         <div class="shell__scroll data-table">
           <table>
-            <thead><tr>
+            <thead id="sampleHead"><tr>
               <th style="width:88px">日期</th><th style="width:64px">户号</th>
               <th data-align="right" data-type="num">00:00</th><th data-align="right" data-type="num">00:15</th><th data-align="right" data-type="num">00:30</th><th data-align="right" data-type="num">00:45</th>
             </tr></thead>
-            <tbody>
+            <tbody id="sampleRows">
               <tr><td>2026-01-01</td><td>1002</td><td data-align="right" data-type="num">312.4</td><td data-align="right" data-type="num">308.9</td><td data-align="right" data-type="num">301.2</td><td data-align="right" data-type="num">298.7</td></tr>
               <tr><td>2026-01-02</td><td>1002</td><td data-align="right" data-type="num">305.1</td><td data-align="right" data-type="num">302.6</td><td data-align="right" data-type="num">299.4</td><td data-align="right" data-type="num">297.2</td></tr>
               <tr><td>2026-01-03</td><td>1002</td><td data-align="right" data-type="num">418.3</td><td data-align="right" data-type="num">412.0</td><td data-align="right" data-type="num">405.6</td><td data-align="right" data-type="num">399.1</td></tr>
@@ -478,6 +478,29 @@ function renderInspect(filename, data) {
     }
   }
 
+  // ② 样本数据：用 inspect 返回的 sample_rows，不再显示 mock。
+  // 用户会拿这张表核「我的数据长这样吗」，假数据比空表更糟。
+  const sTb = document.getElementById('sampleRows');
+  const sHead = document.getElementById('sampleHead');
+  const sNote = document.getElementById('sampleNote');
+  const srows = sh.sample_rows || [];
+  const scols = sh.sample_columns || [];
+  if (sTb) {
+    if (srows.length && scols.length) {
+      if (sHead) {
+        sHead.innerHTML = '<tr>' + scols.map((c, i) =>
+          '<th' + (i === 0 ? ' style="width:88px"' : '') + '>' + c + '</th>').join('') + '</tr>';
+      }
+      if (sNote) sNote.textContent = '前 ' + srows.length + ' 行 · ' + scols.length + ' 列（真实样本）';
+      sTb.innerHTML = srows.map(r =>
+        '<tr>' + r.map((v, i) => '<td' + (i >= 1 ? ' data-align="right" data-type="num"' : '') + '>'
+          + (v == null ? '' : String(v)) + '</td>').join('') + '</tr>').join('');
+    } else {
+      sTb.innerHTML = '<tr><td colspan="6" style="color:var(--text-faint);text-align:center;padding:var(--sp-3)">无样本数据</td></tr>';
+      if (sNote) sNote.textContent = '无';
+    }
+  }
+
   // 列名表重建
   const cols = sh.columns || [];
   const sug = sh.suggest || {};
@@ -511,13 +534,14 @@ function renderInspect(filename, data) {
   }
 
   // 映射四列
-  const selects = document.querySelectorAll('.shell__panel[data-side="left"] select.field__select');
-  if (selects.length >= 4) {
-    // 日期列
-    fillSelect(selects[0], cols, dateCol);
-    fillSelect(selects[1], ['（不适用）'].concat(cols), timeCol || '（不适用）');
-    fillSelect(selects[2], ['（未选择）'].concat(cols), assetCol || '（未选择）');
-  }
+  // 必须按 id 取 —— 左栏有 5 个 select（编码/分隔符/日期/时间/资产），
+  // 按数组下标取会把编码下拉当成日期列填（表现为「日期列显示户号」）。
+  const selDate = document.getElementById('selDate');
+  const selTime = document.getElementById('selTime');
+  const selAsset = document.getElementById('selAsset');
+  if (selDate) fillSelect(selDate, cols, dateCol);
+  if (selTime) fillSelect(selTime, ['（不适用）'].concat(cols), timeCol || '（不适用）');
+  if (selAsset) fillSelect(selAsset, ['（未选择）'].concat(cols), assetCol || '（未选择）');
   const loadInput = document.querySelector('.shell__panel[data-side="left"] input[readonly]');
   if (loadInput) {
     loadInput.value = loadCols.length

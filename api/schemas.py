@@ -69,6 +69,9 @@ class SheetInfo(BaseModel):
     rows_sampled: int
     suggest: MappingSuggest
     confidence: Confidence
+    sample_columns: list[str] = []
+    sample_rows: list[list] = []
+    yearless_samples: list[str] = []
 
 
 class InspectData(BaseModel):

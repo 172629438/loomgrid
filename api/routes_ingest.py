@@ -20,7 +20,7 @@ from api.schemas import (
 )
 from core.timegrid import _get_day_type
 from core.ingest import (
-    _detect_file_format_type, _read_file_full, _safe_excel_sheets,
+    _detect_file_format_type, _looks_yearless, _read_file_full, _safe_excel_sheets,
     _scan_file_worker, _smart_classify_columns, get_columns_fast,
 )
 
@@ -199,14 +199,50 @@ def inspect(payload: dict):
         mapping.setdefault("header_row", 0)
         suggest = MappingSuggest(**{k: v for k, v in mapping.items()
                                     if k in MappingSuggest.model_fields})
+        # 样本行与无年份检测：V2 要用它们显示真实样本表 + C8 提示。
+        # 只取前 6 列、前 5 行 —— 96 列的宽表全传会把响应撑到几 MB。
+        _smp_cols = cols[:6]
+        _smp_rows = [[("" if pd.isna(v) else str(v)) for v in row]
+                     for row in df[_smp_cols].head(5).itertuples(index=False, name=None)] if _smp_cols else []
+
+        _yl = []
+        _dc = mapping.get("date_col")
+        if _dc and _dc in df.columns:
+            for _v in df[_dc].head(200):
+                if _looks_yearless(_v):
+                    _sv = str(_v).strip()
+                    if _sv not in _yl:
+                        _yl.append(_sv)
+                    if len(_yl) >= 5:
+                        break
+
         out.append(SheetInfo(name=sheet_name, columns=cols,
                              rows_sampled=min(len(df), MAX_ROWS_SAMPLE),
                              suggest=suggest,
-                             confidence=assess_confidence(mapping, df)))
+                             confidence=assess_confidence(mapping, df),
+                             sample_columns=[str(c) for c in _smp_cols],
+                             sample_rows=_smp_rows,
+                             yearless_samples=_yl))
 
     if not out:
         return _err("INGEST_READ_FAILED", "文件里没有可用数据")
-    return Envelope(ok=True, data=InspectData(path=path, sheets=out).model_dump()).model_dump()
+    _yl_all = []
+    for _si in out:
+        for _v in (getattr(_si, "yearless_samples", None) or []):
+            if _v not in _yl_all:
+                _yl_all.append(_v)
+    _hints = {}
+    if _yl_all:
+        import datetime as _dt
+        _y = _dt.date.today().year
+        _hints["guessed_year"] = {
+            "value": _y, "count": len(_yl_all), "samples": _yl_all[:5],
+            "message": "有 %d 个日期没有年份，已按 %d 年处理。如数据属于往年，请手动指定年份。"
+                       % (len(_yl_all), _y),
+        }
+
+    return Envelope(ok=True, data={**InspectData(path=path, sheets=out).model_dump(),
+                                   "hints": _hints}).model_dump()
 
 
 def _build_days(month_str: str, dates: list) -> list:
