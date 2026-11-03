@@ -254,6 +254,53 @@ gh release upload <tag> <zip> --clobber
 
 ---
 
+## 五之二、calc 接口的业务口径（schema 里没写，必须知道）
+
+### `charge_space` 只吃负负荷（光伏倒送），正负荷再低也不产生充电空间
+
+```python
+neg_load = np.maximum(-sub_load, 0)
+charge_space = sum(min(rated_power, neg_load) * dt) * 0.93
+```
+
+**这个产品里的「充电」= 把光伏倒送的电存起来**，不是「谷时低价买电充进去」。
+
+储能行业里「充电」至少两种含义：
+
+```
+光伏消纳型   负负荷 → 存起来 → 省的是倒送损失
+峰谷套利型   谷时低价买 → 峰时高价卖 → 省的是峰谷价差
+```
+
+两者在代码里都叫 `charge_space`，但**输入的负荷形态完全相反**。
+造测试数据时若全是正负荷，充电段会恒为 0 —— **那不是 bug，是数据不符合该口径**。
+要测充电段，数据里必须有负值。
+
+连带：`mode="A"`（需量模式）且没有容量线时充电也是 0 ——
+A 模式按需量管，不知道容量线就不知道能充多少，于是不充。
+
+### 两个接口的契约细节
+
+```
+POST /api/calc/spaces
+  segments[].start / end    float 小时（0.0 / 8.0），不是 "00:00" 字符串
+  segments[].type           "charge" | "discharge"
+  mode                      "A" = 需量（吃容量线）
+                            "B" / "C" = 功率（吃 rated_power）
+  rated_power               功率模式必填，否则充电/放电空间全 0
+
+POST /api/calc/capacity
+  daily_charge[]            逐日序列 —— 不是 session_id + periods
+  daily_discharge[]
+  basis                     min_feasible | full_load
+  dod_percent               默认 95
+```
+
+**这两个接口的 description 目前没写清上述语义**，
+所以每个接的人都要猜几次。给端点补 description 是待办。
+
+---
+
 ## 六、已知待确认（下一个接手的别当成 bug 改）
 
 1. **「月最小段总和」列的算法**：现在取的是本行所有值的最小值，
