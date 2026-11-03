@@ -473,6 +473,8 @@ let FINISHED = false;
 
 function finish(taskId, res) {
   if (FINISHED) return;
+  // 空结果不认：宁可多等一轮，也不要显示「0 张成功」而图其实在磁盘上
+  if (!res || (res.succeeded == null && !(res.files && res.files.length))) return;
   FINISHED = true;
   const okN = res && res.succeeded != null ? res.succeeded : ((res && res.files) || []).length;
   const failN = ((res && res.failed) || []).length;
@@ -535,8 +537,11 @@ function watchProgress(taskId) {
       if (!r.ok) return;
       const d = r.data || {};
       if (d.status === 'done') {
+        // result 还没落位时不要结束 —— 空对象会让「成功数」变成 0，
+        // 而图其实已经生成。继续等下一轮。
+        if (!d.result) return;
         clearInterval(timer);
-        finish(taskId, d.result || {});
+        finish(taskId, d.result);
       } else if (d.status === 'failed') {
         clearInterval(timer);
         setProgress('导出失败：' + (d.error || '未知原因'));

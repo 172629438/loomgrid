@@ -83,8 +83,12 @@ class TaskStore:
             t = self._tasks.get(tid)
             if not t:
                 return
-            t["status"] = "done"
+            # 先写 result 再改 status：反过来会出现「status 已是 done、
+            # result 还是 None」的极短窗口，前端轮询恰好落进去就拿到空结果
+            # （表现为「0 张成功」而图已在磁盘上）。
+            # 读的一方以 status 为信号，就必须保证 status 变更时 result 已就位。
             t["result"] = result
+            t["status"] = "done"
             t["updated_at"] = time.time()
         self.emit(tid, "done", result)
 

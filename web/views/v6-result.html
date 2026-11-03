@@ -255,14 +255,14 @@
   <div class="shell__bar">
     <button class="shell__back">← 返回工作台</button>
     <span class="shell__title">导出结果</span>
-    <span class="shell__ctx">任务 #a41f · 完成于 09:42:18</span>
+    <span class="shell__ctx" id="ctx">任务 #a41f · 完成于 09:42:18</span>
     <div class="shell__bar-right">
       <button class="btn" id="themeBtn">界面主题：深色</button>
     </div>
   </div>
 
   <!-- 摘要条：一行读数 -->
-  <div class="v6__summary">
+  <div class="v6__summary" id="summary">
     <div class="v6__stat">
       <span class="v6__stat-num" data-kind="ok">9</span>
       <span class="v6__stat-label">张已生成</span>
@@ -302,7 +302,7 @@
         <span class="shell__pane-note">9 张 · 点开看大图</span>
       </div>
       <div class="shell__scroll">
-        <div class="v6__grid">
+        <div class="v6__grid" id="grid">
           <div class="v6__thumb">
             <div class="v6__thumb-img">
               <svg class="v6__thumb-spark" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true">
@@ -435,10 +435,10 @@
     <!-- 右：失败清单，按原因归并 -->
     <div class="shell__panel" data-side="right">
       <div class="shell__pane-head">
-        失败 3 项
+        <span id="failTitle">失败 3 项</span>
         <span class="shell__pane-note">按原因归并 · 3 类</span>
       </div>
-      <div class="shell__scroll">
+      <div class="shell__scroll" id="fails">
 
         <div class="v6__group">
           <div class="v6__group-head">
@@ -503,7 +503,7 @@
   </div>
 
   <!-- 阶段耗时：数字 + 相对条 -->
-  <div class="v6__stages">
+  <div class="v6__stages" id="stages">
     <div class="v6__stage"><span>解析</span><span class="v6__stage-num">0.8s</span></div>
     <div class="v6__stage"><span>扫描</span><span class="v6__stage-num">2.1s</span></div>
     <div class="v6__stage"><span>预加载</span><span class="v6__stage-num">1.4s</span></div>
@@ -540,8 +540,157 @@ btn.addEventListener('click', () => {
 });
 sync();
 
+// ── 接线：按 task 拉真实结果 ──────────────────────────
+// 一屏里混真数据和假数据比全假更糟 —— 用户会以为那个数是这次导出的。
+// 所以数据源没有的项（与上次导出比、阶段耗时）直接隐藏。
+const API_BASE = (location.protocol === 'file:' || location.port === '8899')
+  ? 'http://127.0.0.1:8000' : '';
+
+const QS = new URLSearchParams(location.search);
+const TASK = QS.get('task') || '';
+
+const ctxEl = document.getElementById('ctx');
+const summaryEl = document.getElementById('summary');
+const gridEl = document.getElementById('grid');
+const failsEl = document.getElementById('fails');
+const stagesEl = document.getElementById('stages');
+const headNote = document.querySelector('.shell__panel[data-side="left"] .shell__pane-note');
+
+function fmtBytes(n) {
+  if (n == null) return '—';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+function markDemo() {
+  // 无 task 参数：这是演示数据，必须标出来，否则会被当成这次的结果
+  ctxEl.textContent = '演示数据（未接任务）';
+  ctxEl.style.color = 'var(--warn)';
+}
+
+async function loadTask(taskId) {
+  try {
+    const r = await fetch(API_BASE + '/api/export/status?task_id=' + encodeURIComponent(taskId))
+      .then(x => x.json());
+    if (!r.ok) throw new Error((r.error && r.error.message) || '任务不存在或已过期');
+    const d = r.data || {};
+    const res = d.result || {};
+    if (d.status !== 'done') {
+      ctxEl.textContent = '任务状态：' + d.status + '（尚未完成）';
+      ctxEl.style.color = 'var(--warn)';
+      return;
+    }
+    render(res);
+  } catch (e) {
+    ctxEl.textContent = '读取任务失败：' + e.message;
+    ctxEl.style.color = 'var(--danger)';
+  }
+}
+
+function render(res) {
+  const files = res.files || [];
+  const failed = res.failed || [];
+  const total = res.total != null ? res.total : files.length + failed.length;
+
+  // 顶栏
+  ctxEl.style.color = '';
+  ctxEl.textContent = '任务 ' + (res.task_id || TASK).slice(0, 8) + ' · ' + files.length + ' 张成功';
+
+  // 摘要：只保留有真实数据的项
+  // 总体积从 files 的 basename 算不出来（那是文件名不是大小），
+  // 后端 result 里也没有 size 字段 —— 隐藏这一项而不是编一个数。
+  summaryEl.innerHTML = `
+    <div class="v6__stat">
+      <span class="v6__stat-num" data-kind="ok">${files.length}</span>
+      <span class="v6__stat-label">张已生成</span>
+    </div>
+    <div class="v6__stat">
+      <span class="v6__stat-num" data-kind="fail">${failed.length}</span>
+      <span class="v6__stat-label">张失败</span>
+    </div>
+    <div class="v6__sep"></div>
+    <div class="v6__stat">
+      <span class="v6__stat-num">${total}</span>
+      <span class="v6__stat-label">个分组</span>
+    </div>
+    <div class="v6__out">
+      <span class="v6__path" title="${(res.output_dir || '').replace(/"/g, '&quot;')}">${res.output_dir || '—'}</span>
+      <button class="btn" id="btnOpenDir">打开目录</button>
+      <button class="btn" id="btnCopyDir">复制路径</button>
+    </div>`;
+
+  const openBtn = document.getElementById('btnOpenDir');
+  const copyBtn = document.getElementById('btnCopyDir');
+  if (openBtn) openBtn.addEventListener('click', () => {
+    // 浏览器不能打开本机目录，只能提示路径（复制到剪贴板由用户去资源管理器粘）
+    alert('输出目录：\n' + (res.output_dir || ''));
+  });
+  if (copyBtn) copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(res.output_dir || '');
+      copyBtn.textContent = '已复制';
+      setTimeout(() => { copyBtn.textContent = '复制路径'; }, 1500);
+    } catch (e) {
+      alert('复制失败，请手动记下：\n' + (res.output_dir || ''));
+    }
+  });
+
+  // 与上次导出比：数据源没有历史记录 —— 整块不渲染（假数字比没有更糟）
+
+  // 缩略图：只有文件名，没有尺寸/图片本身，用文件名 + 「已生成」角标
+  if (headNote) headNote.textContent = files.length + ' 张 · 点开看大图';
+  if (files.length) {
+    gridEl.innerHTML = files.map((f, i) => `
+      <div class="v6__thumb">
+        <div class="v6__thumb-img">
+          <svg class="v6__thumb-spark" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0,60 L20,54 L40,64 L60,30 L80,26 L100,46 L120,40 L140,58 L160,52"
+                  fill="none" stroke="currentColor" stroke-width="1.5"
+                  style="color:var(--accent);opacity:.85"/>
+          </svg>
+          <span class="v6__thumb-badge" data-kind="new">新</span>
+        </div>
+        <div class="v6__thumb-meta">
+          <span class="v6__thumb-name" title="${f.replace(/"/g, '&quot;')}">${f}</span>
+          <span class="v6__thumb-size">${i + 1}</span>
+        </div>
+      </div>`).join('');
+  } else {
+    gridEl.innerHTML = '<div style="padding:var(--sp-4);color:var(--text-faint);font-size:var(--fs-sm)">本次没有生成任何图片</div>';
+  }
+
+  // 失败清单
+  const failTitle = document.getElementById('failTitle');
+  if (failTitle) failTitle.textContent = failed.length ? '失败 ' + failed.length + ' 项' : '失败';
+  if (!failed.length) {
+    failsEl.innerHTML = '<div style="padding:var(--sp-4);color:var(--text-faint);font-size:var(--fs-sm)">没有失败项</div>';
+    const note = document.querySelector('.shell__panel[data-side="right"] .shell__pane-note');
+    if (note) note.textContent = '0 项';
+  } else {
+    failsEl.innerHTML = failed.map((f, i) => `
+      <div class="v6__group">
+        <div class="v6__group-head">
+          <i class="v6__group-mark"></i>
+          <div class="v6__group-body">
+            <div class="v6__group-title">${(f.error || '未知错误').split('\n')[0]}</div>
+            <div class="v6__group-count">分组 ${f.group != null ? f.group : i + 1}</div>
+          </div>
+        </div>
+        <div class="v6__group-items">
+          <pre class="v6__fail-raw">${(f.diag ? JSON.stringify(f.diag, null, 2) + '\n\n' : '') + (f.error || '')}</pre>
+        </div>
+      </div>`).join('');
+  }
+
+  // 阶段耗时：status 里没有分段耗时 —— 整块隐藏
+  if (stagesEl) stagesEl.style.display = 'none';
+}
+
 // 失败组展开/收起：默认全展开（失败项少时要一眼看完），
 // 超过 5 组才默认收起（那时用户更需要总览）
+if (TASK) { loadTask(TASK); } else { markDemo(); }
+
 document.querySelectorAll('.v6__group-toggle').forEach(t => {
   t.addEventListener('click', (e) => {
     e.stopPropagation();
