@@ -17,7 +17,15 @@ import re
 import threading
 
 import matplotlib
-import matplotlib.pyplot as plt
+
+# 服务端出图必须用无界面后端。
+# 不设的话，uvicorn 的同步端点跑在线程池而非主线程，matplotlib 会警告
+# 「Starting a Matplotlib GUI outside of the main thread」；换台机器或
+# 后端解析顺序一变就可能挂或泄漏。
+# 本模块只做 fig.savefig，不显示窗口，Agg 完全够用。
+# 必须在 import pyplot 之前设置。
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 import pandas as pd
 log = logging.getLogger(__name__)

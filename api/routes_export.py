@@ -1,17 +1,28 @@
 # -*- coding: utf-8 -*-
-"""导出端点：批量出图、取报告。
+"""导出端点：批量出图（异步）+ 取报告。
 
 对应真值表 ⑥ ⑦。
 
-当前是**同步执行**——请求返回时图已经出完。真值是异步（立刻返回 task_id，
-进度走 WebSocket），但异步需要任务队列与 ws-progress 配合，那一步还没做。
-同步版能跑通完整链路，先让 curl 验收过闸门，异步化留到 ws-progress 那一步。
+异步形态
+--------
+POST /api/export/run 提交任务后**立即返回 task_id**，实际执行在后台线程，
+进度通过 WS /ws/progress?task_id=... 推送。
+
+四阶段事件与 ProcessingThread 的顺序一致：
+  stage.parse → stage.scan → stage.preload → stage.generate
+
+⚠️ 调用方注意
+-------------
+task_id 拿到不代表导出成功。要看：
+  · WebSocket 的 done 事件里的 succeeded / failed
+  · 或轮询 GET /api/export/status?task_id=...
+HTTP 200 只表示任务已受理。
 """
 from __future__ import annotations
 
 import logging
 import os
-import uuid
+import threading
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
@@ -25,14 +36,12 @@ from services.export import (
     export_midwide, generate_report, plot_group,
 )
 from services.provider import DataProvider
+from services.tasks import TASK_STORE
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/export", tags=["export"])
 
 _PROVIDER = DataProvider()
-
-# task_id -> {"output_dir","files","failed","report","groups"}
-_TASKS: dict[str, dict] = {}
 
 
 def _err(code: str, message: str, detail: dict | None = None) -> dict:
@@ -44,7 +53,6 @@ class ExportRunRequest(BaseModel):
     session_id: str
     output_dir: str = Field(description="输出目录，不存在会自动创建")
     groups: list[int] | None = Field(default=None, description="要导出的分组序号；省略=全部")
-    # 默认值与主程序界面一致，从 services.export 引——不要在这里另写一份
     title_template: str = Field(
         default=DEFAULT_TITLE_TEMPLATE,
         description="标题模板，可用占位符：{table_no} {year_month} {asset} {sheet}")
@@ -58,15 +66,92 @@ class ExportRunRequest(BaseModel):
     export_midwide: bool = False
 
 
+def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: list[int]):
+    """后台线程里跑的实际导出，按四阶段推进。"""
+    TASK_STORE.set_status(tid, "running")
+    files: list[str] = []
+    failed: list[dict] = []
+    summaries: list[GroupSummary] = []
+
+    try:
+        total = len(idxs)
+
+        # 阶段 1：解析与映射（本任务里是取分组摘要）
+        TASK_STORE.emit(tid, "stage.parse", {"stage": "parse", "index": 1, "total": 4})
+        TASK_STORE.emit(tid, "progress", {"current": 0, "total": total})
+
+        # 阶段 2：扫描（取宽表数据）
+        TASK_STORE.emit(tid, "stage.scan", {"stage": "scan", "index": 2, "total": 4})
+        prepared: list[tuple[GroupSummary, dict]] = []
+        for i in idxs:
+            try:
+                gs = GroupSummary(**summaries_raw[i])
+            except Exception as e:
+                failed.append({"group": i, "error": f"分组信息不完整：{e}"})
+                continue
+            data = _PROVIDER.get_group_data(gs)
+            if not data:
+                failed.append({"group": i, "error": _PROVIDER.get_load_error(gs) or "无数据"})
+                continue
+            summaries.append(gs)
+            prepared.append((gs, data))
+
+        # 阶段 3：预加载（这里已完成，作为阶段标记）
+        TASK_STORE.emit(tid, "stage.preload", {"stage": "preload", "index": 3, "total": 4})
+
+        # 阶段 4：图表生成
+        TASK_STORE.emit(tid, "stage.generate", {"stage": "generate", "index": 4, "total": 4})
+        for n, (gs, data) in enumerate(prepared, 1):
+            try:
+                p = plot_group(gs, data, req.output_dir,
+                               title_template=req.title_template,
+                               filename_template=req.filename_template,
+                               plot_options=req.plot_options,
+                               billing=req.billing,
+                               price_periods=req.price_periods,
+                               multiplier=req.multiplier)
+                files.append(p)
+                if req.export_midwide:
+                    files.append(export_midwide(gs, data, req.output_dir))
+                TASK_STORE.emit(tid, "log", {"level": "info",
+                                             "message": f"已生成 {os.path.basename(p)}"})
+            except Exception as e:
+                log.exception("出图失败 group=%s", gs.asset_value)
+                failed.append({"group": gs.asset_value, "error": f"{type(e).__name__}: {e}"})
+            TASK_STORE.emit(tid, "progress", {"current": n, "total": len(prepared)})
+
+        report_path = None
+        try:
+            report_path = generate_report(files, failed, summaries, req.output_dir)
+        except Exception as e:
+            log.exception("报告生成失败")
+            failed.append({"group": -1, "error": f"报告生成失败：{e}"})
+
+        result = {
+            "task_id": tid,
+            "total": total,
+            "succeeded": len(files),
+            "failed": failed,
+            "files": [os.path.basename(f) for f in files],
+            "output_dir": req.output_dir,
+            "report": os.path.basename(report_path) if report_path else None,
+        }
+        TASK_STORE.finish(tid, result)
+    except Exception as e:
+        log.exception("导出任务异常")
+        TASK_STORE.fail(tid, f"{type(e).__name__}: {e}", failed)
+
+
 @router.post("/run", response_model=Envelope,
              description=(
-                 "批量出图（当前同步）。\n\n"
-                 "**调用方不能只看 HTTP 状态码判断成功**："
-                 "请求本身处理完就返回 200，但可能 `succeeded: 0`、`failed` 里全是错误。"
-                 "必须读 `succeeded` 与 `failed` 才能知道导出是否真的成功。"
+                 "提交批量出图任务，**立即返回 task_id**（异步）。\n\n"
+                 "进度通过 `WS /ws/progress?task_id=...` 推送，四阶段事件：\n"
+                 "`stage.parse` → `stage.scan` → `stage.preload` → `stage.generate`，\n"
+                 "结束发 `done`，出错发 `stage.error`（payload 里带 failed 明细）。\n\n"
+                 "**HTTP 200 只表示任务已受理，不代表导出成功。**\n"
+                 "要看 done 事件里的 succeeded / failed，或查 GET /api/export/status。"
              ))
 def run(req: ExportRunRequest):
-    """批量出图（同步）。返回文件清单与 task_id。"""
     sess = get_session(req.session_id)
     if not sess:
         return _err("EXPORT_TASK_NOT_FOUND", f"session 不存在：{req.session_id}")
@@ -90,65 +175,49 @@ def run(req: ExportRunRequest):
     if bad:
         return _err("EXPORT_PARTIAL_FAILED", f"分组序号越界：{bad}")
 
-    files: list[str] = []
-    failed: list[dict] = []
-    summaries: list[GroupSummary] = []
-
-    for i in idxs:
-        try:
-            gs = GroupSummary(**summaries_raw[i])
-        except Exception as e:
-            failed.append({"group": i, "error": f"分组信息不完整：{e}"})
-            continue
-        summaries.append(gs)
-        data = _PROVIDER.get_group_data(gs)
-        if not data:
-            failed.append({"group": i, "error": _PROVIDER.get_load_error(gs) or "无数据"})
-            continue
-        try:
-            p = plot_group(gs, data, req.output_dir,
-                           title_template=req.title_template,
-                           filename_template=req.filename_template,
-                           plot_options=req.plot_options,
-                           billing=req.billing,
-                           price_periods=req.price_periods,
-                           multiplier=req.multiplier)
-            files.append(p)
-            if req.export_midwide:
-                files.append(export_midwide(gs, data, req.output_dir))
-        except Exception as e:
-            log.exception("出图失败 group=%s", i)
-            failed.append({"group": i, "error": f"{type(e).__name__}: {e}"})
-
-    report_path = None
-    try:
-        report_path = generate_report(files, failed, summaries, req.output_dir)
-    except Exception as e:
-        log.exception("报告生成失败")
-        failed.append({"group": -1, "error": f"报告生成失败：{e}"})
-
-    tid = uuid.uuid4().hex
-    _TASKS[tid] = {"output_dir": req.output_dir, "files": files,
-                   "failed": failed, "report": report_path, "groups": idxs}
+    tid = TASK_STORE.create("export")
+    th = threading.Thread(target=_execute, args=(tid, req, summaries_raw, idxs),
+                          daemon=True, name=f"export-{tid[:8]}")
+    th.start()
 
     return Envelope(ok=True, data={
         "task_id": tid,
+        "accepted": True,
         "total": len(idxs),
-        "succeeded": len(files),
-        "failed": failed,
-        "files": [os.path.basename(f) for f in files],
-        "output_dir": req.output_dir,
-        "report": os.path.basename(report_path) if report_path else None,
+        "ws": f"/ws/progress?task_id={tid}",
+        "status_url": f"/api/export/status?task_id={tid}",
+    }).model_dump()
+
+
+@router.get("/status", response_model=Envelope)
+def status(task_id: str):
+    """任务状态与结果（WS 不便使用时的兜底）。"""
+    t = TASK_STORE.get(task_id)
+    if not t:
+        return _err("EXPORT_TASK_NOT_FOUND", f"任务不存在或已过期：{task_id}")
+    return Envelope(ok=True, data={
+        "task_id": task_id,
+        "status": t["status"],
+        "result": t["result"],
+        "error": t["error"],
+        "events": len(t["events"]),
     }).model_dump()
 
 
 @router.get("/report", response_class=HTMLResponse)
 def report(task_id: str):
     """取某个任务的 HTML 报告。"""
-    task = _TASKS.get(task_id)
-    if not task or not task.get("report") or not os.path.exists(task["report"]):
-        return HTMLResponse(
-            content="<h1>报告不存在</h1><p>task_id 无效或报告尚未生成。</p>",
-            status_code=404)
-    with open(task["report"], encoding="utf-8") as f:
+    t = TASK_STORE.get(task_id)
+    if not t or not t.get("result"):
+        return HTMLResponse(content="<h1>报告不存在</h1><p>任务未完成或 task_id 无效。</p>",
+                            status_code=404)
+    rpt = t["result"].get("report")
+    outdir = t["result"].get("output_dir")
+    if not rpt or not outdir:
+        return HTMLResponse(content="<h1>报告不存在</h1><p>该任务没有产出报告。</p>",
+                            status_code=404)
+    path = os.path.join(outdir, rpt)
+    if not os.path.exists(path):
+        return HTMLResponse(content="<h1>报告文件已丢失</h1>", status_code=404)
+    with open(path, encoding="utf-8") as f:
         return HTMLResponse(content=f.read())

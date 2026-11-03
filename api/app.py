@@ -20,6 +20,7 @@ from api.routes_calc import router as calc_router
 from api.routes_export import router as export_router
 from api.routes_ingest import router as ingest_router
 from api.routes_preview import router as preview_router
+from api.ws_progress import router as ws_router
 from api.schemas import Envelope
 
 logging.basicConfig(level=logging.INFO,
@@ -40,6 +41,7 @@ app.include_router(ingest_router)
 app.include_router(preview_router)
 app.include_router(calc_router)
 app.include_router(export_router)
+app.include_router(ws_router)
 
 
 @app.exception_handler(Exception)
@@ -70,6 +72,7 @@ def health():
         "endpoints": [
             "POST /api/ingest/inspect", "POST /api/ingest/mapping",
             "GET /api/preview", "POST /api/calc/spaces", "POST /api/calc/capacity",
-            "POST /api/export/run", "GET /api/export/report",
+            "POST /api/export/run", "GET /api/export/status", "GET /api/export/report",
+            "WS /ws/progress",
         ],
     }).model_dump()
