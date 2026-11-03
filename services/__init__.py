@@ -4,7 +4,8 @@
 分层规则见仓库根 AGENTS.md「分层依赖禁令」，用 tools/check_layering.py 校验。
 
 已完成搬入：
-    config.py   Config 的 45 个业务方法（配置读写、迁移链、校验、模板管理）
+    config.py    Config 的 45 个业务方法（配置读写、迁移链、校验、模板管理）
+    provider.py  DataProvider + MemoryLimitedCache（两层缓存、宽表取数）
 
 窗口几何那 4 个方法不在这里——它们是界面状态，归 ui/window_state.py。
 
@@ -15,4 +16,4 @@
 """
 from __future__ import annotations
 
-__all__ = ["config"]
+__all__ = ["config", "provider"]
