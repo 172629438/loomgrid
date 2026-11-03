@@ -6,45 +6,14 @@
 <title>LoomGrid · V2 列映射</title>
 <link rel="stylesheet" href="../theme/tokens.css">
 <link rel="stylesheet" href="../components/base.css">
+<link rel="stylesheet" href="../components/app-shell.css">
 <link rel="stylesheet" href="../components/param-form.css">
 <link rel="stylesheet" href="../components/data-table.css">
 <style>
 /* V2 布局：左「解析与映射」固定 340，右「列名与样本」吃掉剩余宽度。
    一屏里同时看到「我选了什么」和「选出来是什么」，不用来回滚。 */
-.v2 {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: var(--bg-canvas);
-}
 
 /* 顶栏：全局导航 + 界面主题（全局唯一入口） */
-.v2__bar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-4);
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  flex: none;
-}
-.v2__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: var(--sp-1) var(--sp-2);
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--r-1);
-  cursor: pointer;
-}
-.v2__back:hover { color: var(--text-primary); border-color: var(--border-strong); }
-.v2__title {
-  font-size: var(--fs-md);
-  color: var(--text-primary);
-}
 .v2__file {
   font-family: var(--font-num);
   font-size: var(--fs-xs);
@@ -52,46 +21,11 @@
   padding-left: var(--sp-3);
   border-left: 1px solid var(--border-subtle);
 }
-.v2__bar-right { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
 
 /* 主体：两栏 */
-.v2__body {
-  display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
-  flex: 1;
-  min-height: 0;
-}
 
-.v2__left {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--sp-3);
-  overflow: auto;
-  border-right: 1px solid var(--border-subtle);
-}
-.v2__right {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-}
 
 /* 区块标题：比分组标题更轻，只是视觉分隔 */
-.v2__sec {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-  padding-bottom: var(--sp-1);
-  border-bottom: 1px solid var(--border-subtle);
-}
-.v2__sec-note {
-  margin-left: auto;
-  font-family: var(--font-num);
-  color: var(--text-faint);
-}
 
 /* 表型提示条：识别结论。是信息不是错误，所以走中性底 + 前缀点 */
 .v2__hint {
@@ -161,38 +95,6 @@
 .v2__fmt[data-checked="true"] .v2__fmt-desc { color: var(--text-muted); }
 
 /* 右栏：列名表 + 样本表上下分 */
-.v2__pane {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-}
-.v2__pane + .v2__pane { border-top: 1px solid var(--border-subtle); }
-.v2__pane-head {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
-  flex: none;
-}
-.v2__pane-head .v2__sec-note { margin-left: auto; }
-.v2__scroll { overflow: auto; flex: 1; min-height: 0; }
-
-/* 底栏：三个选项 + 动作 */
-.v2__foot {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-4);
-  border-top: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  flex: none;
-}
-.v2__opts { display: flex; flex-direction: column; gap: 2px; }
 .v2__opt {
   display: flex;
   align-items: center;
@@ -202,7 +104,6 @@
   cursor: pointer;
 }
 .v2__opt input { accent-color: var(--accent); }
-.v2__actions { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
 
 /* 相似度：作为一列读数，等宽右对齐 */
 .v2__sim {
@@ -224,24 +125,24 @@
 </style>
 </head>
 <body>
-<div class="v2">
+<div class="shell">
 
   <!-- 顶栏：导航 + 全局界面主题 -->
-  <div class="v2__bar">
-    <button class="v2__back">← 返回工作台</button>
-    <span class="v2__title">列映射</span>
+  <div class="shell__bar">
+    <button class="shell__back">← 返回工作台</button>
+    <span class="shell__title">列映射</span>
     <span class="v2__file">A栋负荷2026.xlsx · Sheet1 · 多工作表</span>
-    <div class="v2__bar-right">
+    <div class="shell__bar-right">
       <button class="btn" id="themeBtn">界面主题：深色</button>
     </div>
   </div>
 
-  <div class="v2__body">
+  <div class="shell__body" data-layout="narrow-left">
 
     <!-- 左：解析与映射 -->
-    <div class="v2__left">
+    <div class="shell__panel" data-side="left">
 
-      <div class="v2__sec">解析设置 <span class="v2__sec-note">3 项</span></div>
+      <div class="shell__sec">解析设置 <span class="shell__sec-note">3 项</span></div>
 
       <div class="form">
         <div class="field">
@@ -271,7 +172,7 @@
 
       <button class="btn" style="align-self:flex-start">刷新列名</button>
 
-      <div class="v2__sec">数据格式 <span class="v2__sec-note">已自动识别</span></div>
+      <div class="shell__sec">数据格式 <span class="shell__sec-note">已自动识别</span></div>
 
       <div class="v2__formats" role="radiogroup" aria-label="数据格式">
         <label class="v2__fmt" data-checked="false">
@@ -305,7 +206,7 @@
         <span>检测到多列时间点负荷（宽表格式），时刻将从列名自动识别</span>
       </div>
 
-      <div class="v2__sec">
+      <div class="shell__sec">
         映射设置
         <span class="v2__dots">
           <i class="v2__dot" data-on="true"></i>
@@ -313,7 +214,7 @@
           <i class="v2__dot" data-on="false" data-optional="true"></i>
           <i class="v2__dot" data-on="true"></i>
         </span>
-        <span class="v2__sec-note">2 必填 / 2 可选</span>
+        <span class="shell__sec-note">2 必填 / 2 可选</span>
       </div>
 
       <div class="form">
@@ -349,13 +250,13 @@
     </div>
 
     <!-- 右：列名与样本 -->
-    <div class="v2__right">
+    <div class="shell__panel" data-side="right">
 
-      <div class="v2__pane">
-        <div class="v2__pane-head">
-          列名 <span class="v2__sec-note">98 列 &nbsp;·&nbsp; 映射 2 / 4 已定</span>
+      <div class="shell__pane">
+        <div class="shell__pane-head">
+          列名 <span class="shell__sec-note">98 列 &nbsp;·&nbsp; 映射 2 / 4 已定</span>
         </div>
-        <div class="v2__scroll data-table">
+        <div class="shell__scroll data-table">
           <table>
             <thead><tr>
               <th style="width:44px">#</th>
@@ -378,11 +279,11 @@
         </div>
       </div>
 
-      <div class="v2__pane" style="flex:0 0 42%">
-        <div class="v2__pane-head">
-          样本数据 <span class="v2__sec-note">前 5 行 · 6 列</span>
+      <div class="shell__pane" style="flex:0 0 42%">
+        <div class="shell__pane-head">
+          样本数据 <span class="shell__sec-note">前 5 行 · 6 列</span>
         </div>
-        <div class="v2__scroll data-table">
+        <div class="shell__scroll data-table">
           <table>
             <thead><tr>
               <th style="width:88px">日期</th><th style="width:64px">户号</th>
@@ -402,13 +303,13 @@
   </div>
 
   <!-- 底栏：选项 + 动作 -->
-  <div class="v2__foot">
+  <div class="shell__foot">
     <div class="v2__opts">
       <label class="v2__opt"><input type="checkbox" checked> 保存此配置以便下次自动推荐</label>
       <label class="v2__opt"><input type="checkbox"> 应用到本次所有文件</label>
     </div>
     <label class="v2__opt" style="margin-left:var(--sp-4)"><input type="checkbox"> 跳过手动确认</label>
-    <div class="v2__actions">
+    <div class="shell__actions">
       <button class="btn">跳过此文件</button>
       <button class="btn">取消全部</button>
       <button class="btn btn--primary">确认</button>

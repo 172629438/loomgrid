@@ -6,91 +6,18 @@
 <title>LoomGrid · V4 测算</title>
 <link rel="stylesheet" href="../theme/tokens.css">
 <link rel="stylesheet" href="../components/base.css">
+<link rel="stylesheet" href="../components/app-shell.css">
 <link rel="stylesheet" href="../components/param-form.css">
 <link rel="stylesheet" href="../components/data-table.css">
 <link rel="stylesheet" href="../components/capacity-card.css">
 <style>
 /* V4 布局沿用 V2 定下的三条：顶栏结构 / 左 340 固定 + 右自适应 / 底栏动作区。
    六屏一致，用户才不会觉得换了个程序。 */
-.v4 {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: var(--bg-canvas);
-}
 
-.v4__bar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-4);
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  flex: none;
-}
-.v4__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: var(--sp-1) var(--sp-2);
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--r-1);
-  cursor: pointer;
-}
-.v4__back:hover { color: var(--text-primary); border-color: var(--border-strong); }
-.v4__title { font-size: var(--fs-md); color: var(--text-primary); }
-.v4__ctx {
-  font-family: var(--font-num);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-  padding-left: var(--sp-3);
-  border-left: 1px solid var(--border-subtle);
-}
-.v4__bar-right { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
 
-.v4__body {
-  display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
-  flex: 1;
-  min-height: 0;
-}
 
-.v4__left {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--sp-3);
-  /* grid 子项默认 min-height:auto，内容超长时不会启动滚动，
-     而是直接溢出到容器外被裁掉。必须显式归零。 */
-  min-height: 0;
-  overflow: auto;
-  border-right: 1px solid var(--border-subtle);
-}
-.v4__right {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-}
 
 /* 区块标题：与 V2 同一套 */
-.v4__sec {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-  padding-bottom: var(--sp-1);
-  border-bottom: 1px solid var(--border-subtle);
-}
-.v4__sec-note {
-  margin-left: auto;
-  font-family: var(--font-num);
-  color: var(--text-faint);
-}
 
 /* 规划模式 / 评估策略：两块分段选择器。
    它们是本屏最上层的判断，改一个下面全变，所以要显眼且成组。 */
@@ -158,23 +85,6 @@
 }
 
 /* 右栏：表格区 + 详情区 */
-.v4__pane { display: flex; flex-direction: column; min-height: 0; }
-.v4__pane-head {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
-  flex: none;
-}
-.v4__pane-head .v4__sec-note { margin-left: auto; }
-.v4__scroll { overflow: auto; flex: 1; min-height: 0; }
-
-/* Tab：月度汇总 / 每日详情 */
-.v4__tabs { display: flex; gap: var(--sp-1); }
 .v4__tab {
   padding: 2px var(--sp-2);
   font-size: var(--fs-xs);
@@ -198,41 +108,27 @@
 .v4__no { color: var(--warn); }
 
 /* 底栏 */
-.v4__foot {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-4);
-  border-top: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  flex: none;
-}
-.v4__foot-note {
-  font-size: var(--fs-xs);
-  color: var(--text-faint);
-}
-.v4__actions { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
 </style>
 </head>
 <body>
-<div class="v4">
+<div class="shell">
 
   <!-- 顶栏：与 V2 同构 -->
-  <div class="v4__bar">
-    <button class="v4__back">← 返回预览</button>
-    <span class="v4__title">容量测算</span>
-    <span class="v4__ctx">A-01 · 2026-01 · 31 天 · 96 点</span>
-    <div class="v4__bar-right">
+  <div class="shell__bar">
+    <button class="shell__back">← 返回预览</button>
+    <span class="shell__title">容量测算</span>
+    <span class="shell__ctx">A-01 · 2026-01 · 31 天 · 96 点</span>
+    <div class="shell__bar-right">
       <button class="btn" id="themeBtn">界面主题：深色</button>
     </div>
   </div>
 
-  <div class="v4__body">
+  <div class="shell__body" data-layout="narrow-left">
 
     <!-- 左：参数与规划 -->
-    <div class="v4__left">
+    <div class="shell__panel" data-side="left">
 
-      <div class="v4__sec">参数设置 <span class="v4__sec-note">3 项</span></div>
+      <div class="shell__sec">参数设置 <span class="shell__sec-note">3 项</span></div>
       <div class="form">
         <div class="field">
           <span class="field__label">容量线<abbr>*</abbr></span>
@@ -263,7 +159,7 @@
         </div>
       </div>
 
-      <div class="v4__sec">容量规划 <span class="v4__sec-note">两级联动</span></div>
+      <div class="shell__sec">容量规划 <span class="shell__sec-note">两级联动</span></div>
 
       <div class="form">
         <div class="field" data-layout="stack">
@@ -308,7 +204,7 @@
         </div>
       </div>
 
-      <div class="v4__sec">测算结果 <span class="v4__sec-note">实时</span></div>
+      <div class="shell__sec">测算结果 <span class="shell__sec-note">实时</span></div>
 
       <div class="v4__result">
         <div class="v4__result-row">
@@ -326,7 +222,7 @@
         <div class="v4__result-sub">等效 30.4 天（按全年基准折算，含模拟补齐）</div>
       </div>
 
-      <div class="v4__sec">系统规模 <span class="v4__sec-note">按单柜反推</span></div>
+      <div class="shell__sec">系统规模 <span class="shell__sec-note">按单柜反推</span></div>
       <div class="form">
         <div class="field">
           <span class="field__label">单柜功率</span>
@@ -357,14 +253,14 @@
     </div>
 
     <!-- 右：空间表 + 详情 -->
-    <div class="v4__right">
+    <div class="shell__panel" data-side="right">
 
-      <div class="v4__pane" style="flex:1">
-        <div class="v4__pane-head">
+      <div class="shell__pane" style="flex:1">
+        <div class="shell__pane-head">
           月度充放电空间
-          <span class="v4__sec-note">kWh · 忽略负荷负值</span>
+          <span class="shell__sec-note">kWh · 忽略负荷负值</span>
         </div>
-        <div class="v4__scroll data-table">
+        <div class="shell__scroll data-table">
           <table>
             <thead>
               <tr>
@@ -504,15 +400,15 @@
         </div>
       </div>
 
-      <div class="v4__pane" style="flex:0 0 38%;border-top:1px solid var(--border-subtle)">
-        <div class="v4__pane-head">
+      <div class="shell__pane" style="flex:0 0 38%;border-top:1px solid var(--border-subtle)">
+        <div class="shell__pane-head">
           <div class="v4__tabs">
             <button class="v4__tab" data-on="true">每日详情</button>
             <button class="v4__tab" data-on="false">月度汇总</button>
           </div>
-          <span class="v4__sec-note">2026-01 · 31 天</span>
+          <span class="shell__sec-note">2026-01 · 31 天</span>
         </div>
-        <div class="v4__scroll data-table">
+        <div class="shell__scroll data-table">
           <table>
             <thead>
               <tr>
@@ -540,9 +436,9 @@
   </div>
 
   <!-- 底栏：左说明 + 右动作 -->
-  <div class="v4__foot">
-    <span class="v4__foot-note">时间分辨率已统一为 15 分钟 · 平段 12 列全零，保留列位以便横向对比</span>
-    <div class="v4__actions">
+  <div class="shell__foot">
+    <span class="shell__foot-note">时间分辨率已统一为 15 分钟 · 平段 12 列全零，保留列位以便横向对比</span>
+    <div class="shell__actions">
       <button class="btn">负荷模拟</button>
       <button class="btn">恢复原始数据</button>
       <button class="btn btn--primary">应用到预览</button>

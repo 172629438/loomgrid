@@ -6,49 +6,13 @@
 <title>LoomGrid · V6 导出结果</title>
 <link rel="stylesheet" href="../theme/tokens.css">
 <link rel="stylesheet" href="../components/base.css">
+<link rel="stylesheet" href="../components/app-shell.css">
 <link rel="stylesheet" href="../components/data-table.css">
 <link rel="stylesheet" href="../components/progress.css">
 <style>
 /* V6 是唯一没有源码对应的屏（原本只是「弹个框 + 打开文件夹」）。
    结构沿用 V2/V4 三条：顶栏 / 左窄右宽 / 底栏动作区。 */
-.v6 {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: var(--bg-canvas);
-}
 
-.v6__bar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-4);
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  flex: none;
-}
-.v6__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: var(--sp-1) var(--sp-2);
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--r-1);
-  cursor: pointer;
-}
-.v6__back:hover { color: var(--text-primary); border-color: var(--border-strong); }
-.v6__title { font-size: var(--fs-md); color: var(--text-primary); }
-.v6__ctx {
-  font-family: var(--font-num);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-  padding-left: var(--sp-3);
-  border-left: 1px solid var(--border-subtle);
-}
-.v6__bar-right { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
 
 /* ── 摘要条 ───────────────────────────────────────
    一行读数，不是四个大卡片。
@@ -115,47 +79,7 @@
 }
 
 /* ── 主体两栏 ─────────────────────────────────── */
-.v6__body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
-  flex: 1;
-  min-height: 0;
-}
-.v6__left { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-.v6__right {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  border-left: 1px solid var(--border-subtle);
-}
 
-.v6__pane-head {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
-  flex: none;
-}
-.v6__pane-head .v6__head-note {
-  margin-left: auto;
-  font-family: var(--font-num);
-  color: var(--text-faint);
-}
-.v6__scroll { overflow: auto; flex: 1; min-height: 0; }
-
-/* ── 缩略图网格 ───────────────────────────────────
-   用户导出完第一件事是想看成品。给图，不给文件名列表。 */
-.v6__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: var(--sp-2);
-  padding: var(--sp-3);
-}
 .v6__thumb {
   display: flex;
   flex-direction: column;
@@ -312,8 +236,8 @@
   color: var(--text-primary);
 }
 /* 耗时条：相对长度表达占比，比四个数字更容易看出瓶颈 */
-.v6__bars { display: flex; gap: 2px; margin-left: auto; align-items: center; }
-/* 名字必须与顶栏 .v6__bar 区分开 —— 同名时后定义的 height/background
+.v6__timeline { display: flex; gap: 2px; margin-left: auto; align-items: center; }
+/* 阶段条类名必须与顶栏区分开 —— 同名时后定义的 height/background
    会覆盖顶栏，把整条导航压成一根蓝带（协作方截图捕获的 P0）。 */
 .v6__timebar {
   height: 4px;
@@ -323,27 +247,16 @@
 }
 
 /* ── 底栏 ─────────────────────────────────────── */
-.v6__foot {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-4);
-  border-top: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  flex: none;
-}
-.v6__foot-note { font-size: var(--fs-xs); color: var(--text-faint); }
-.v6__actions { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
 </style>
 </head>
 <body>
-<div class="v6">
+<div class="shell">
 
-  <div class="v6__bar">
-    <button class="v6__back">← 返回工作台</button>
-    <span class="v6__title">导出结果</span>
-    <span class="v6__ctx">任务 #a41f · 完成于 09:42:18</span>
-    <div class="v6__bar-right">
+  <div class="shell__bar">
+    <button class="shell__back">← 返回工作台</button>
+    <span class="shell__title">导出结果</span>
+    <span class="shell__ctx">任务 #a41f · 完成于 09:42:18</span>
+    <div class="shell__bar-right">
       <button class="btn" id="themeBtn">界面主题：深色</button>
     </div>
   </div>
@@ -380,15 +293,15 @@
     </div>
   </div>
 
-  <div class="v6__body">
+  <div class="shell__body" data-layout="narrow-right">
 
     <!-- 左：成功项缩略图 -->
-    <div class="v6__left">
-      <div class="v6__pane-head">
+    <div class="shell__panel" data-side="left">
+      <div class="shell__pane-head">
         已生成
-        <span class="v6__head-note">9 张 · 点开看大图</span>
+        <span class="shell__pane-note">9 张 · 点开看大图</span>
       </div>
-      <div class="v6__scroll">
+      <div class="shell__scroll">
         <div class="v6__grid">
           <div class="v6__thumb">
             <div class="v6__thumb-img">
@@ -520,12 +433,12 @@
     </div>
 
     <!-- 右：失败清单，按原因归并 -->
-    <div class="v6__right">
-      <div class="v6__pane-head">
+    <div class="shell__panel" data-side="right">
+      <div class="shell__pane-head">
         失败 3 项
-        <span class="v6__head-note">按原因归并 · 3 类</span>
+        <span class="shell__pane-note">按原因归并 · 3 类</span>
       </div>
-      <div class="v6__scroll">
+      <div class="shell__scroll">
 
         <div class="v6__group">
           <div class="v6__group-head">
@@ -595,7 +508,7 @@
     <div class="v6__stage"><span>扫描</span><span class="v6__stage-num">2.1s</span></div>
     <div class="v6__stage"><span>预加载</span><span class="v6__stage-num">1.4s</span></div>
     <div class="v6__stage"><span>生成图表</span><span class="v6__stage-num">11.3s</span></div>
-    <div class="v6__bars" aria-hidden="true">
+    <div class="v6__timeline" aria-hidden="true">
       <i class="v6__timebar" style="width:6px;opacity:.4"></i>
       <i class="v6__timebar" style="width:16px;opacity:.55"></i>
       <i class="v6__timebar" style="width:11px;opacity:.7"></i>
@@ -604,9 +517,9 @@
     <span style="margin-left:auto">总计 15.6s · 瓶颈在生成图表</span>
   </div>
 
-  <div class="v6__foot">
-    <span class="v6__foot-note">报告已生成 · 可查看逐项明细</span>
-    <div class="v6__actions">
+  <div class="shell__foot">
+    <span class="shell__foot-note">报告已生成 · 可查看逐项明细</span>
+    <div class="shell__actions">
       <button class="btn">返回工作台</button>
       <button class="btn">导出失败清单 CSV</button>
       <button class="btn">查看报告</button>
