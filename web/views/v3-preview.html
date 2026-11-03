@@ -223,6 +223,32 @@
 .v3__date[data-kind="missing"] { background: transparent; border: 1px dashed var(--border-strong); color: var(--text-faint); }
 .v3__date[data-selected="true"] { box-shadow: inset 0 0 0 1px var(--text-primary); }
 
+/* 图例：四种底色必须能对上。没有图例时用户看到某个日期颜色不同，
+   会问「这天怎么了」而得不到答案。 */
+.v3__date-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+}
+.v3__date-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.v3__date-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-1);
+  display: inline-block;
+}
+.v3__date-legend i[data-kind="weekday"] { background: var(--bg-raised); border: 1px solid var(--border-subtle); }
+.v3__date-legend i[data-kind="weekend"] { background: color-mix(in srgb, var(--accent-dim) 35%, var(--bg-raised)); }
+.v3__date-legend i[data-kind="holiday"] { background: color-mix(in srgb, var(--ref-line) 40%, var(--bg-raised)); }
+.v3__date-legend i[data-kind="missing"] { background: transparent; border: 1px dashed var(--border-strong); }
+
 /* 倍率 / 电价：数值 + 三档应用 */
 .v3__apply {
   display: flex;
@@ -391,7 +417,7 @@
             <span class="v3__date" data-kind="weekend">10</span>
             <span class="v3__date" data-kind="weekend">11</span>
             <span class="v3__date" data-kind="weekday">12</span>
-            <span class="v3__date" data-kind="weekday">13</span>
+            <span class="v3__date" data-kind="missing">13</span>
             <span class="v3__date" data-kind="weekday">14</span>
             <span class="v3__date" data-kind="weekday">15</span>
             <span class="v3__date" data-kind="weekday">16</span>
@@ -410,6 +436,12 @@
             <span class="v3__date" data-kind="weekday">29</span>
             <span class="v3__date" data-kind="weekday">30</span>
             <span class="v3__date" data-kind="weekend">31</span>
+          </div>
+          <div class="v3__date-legend">
+            <span><i data-kind="weekday"></i>工作日</span>
+            <span><i data-kind="weekend"></i>周末</span>
+            <span><i data-kind="holiday"></i>节假日</span>
+            <span><i data-kind="missing"></i>缺数据</span>
           </div>
         </div>
 
