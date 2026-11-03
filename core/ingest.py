@@ -148,9 +148,45 @@ def _extract_ym(d):
         # 而 pd.to_datetime('0') 是 NaT。数字一律只能走上面的序列号分支。
         dt = pd.to_datetime(raw, errors="coerce")
         if pd.notna(dt):
+            # 年份 < 1900 一律视为解析失败：0001-01 是 pd.to_datetime 对
+            # 无法识别的格式给出的「像日期的东西」，比报错更难发现。
+            if dt.year < 1900:
+                # M-D 形式（无年份）：'01-15' 被 pd.to_datetime 当成公元 1 年。
+                # 月份合法时补今年并留警告；否则确实无法识别。
+                _md2 = re.match(r"^(\d{1,2})-(\d{1,2})$", raw)
+                if _md2 and 1 <= int(_md2.group(1)) <= 12:
+                    import datetime as _dt2
+                    _y2 = _dt2.date.today().year
+                    log.warning(
+                        f"日期 '{raw}' 无年份，按 {_y2} 年处理；如属往年请指定年份"
+                    )
+                    return "%s-%02d" % (_y2, int(_md2.group(1)))
+                log.warning(f"日期 '{raw}' 解析出年份 {dt.year}，视为无法识别")
+                return UNKNOWN_MONTH
             return dt.strftime("%Y-%m")
     except Exception:
         pass
+    # C8：中文年月日 / 无年份日期。
+    # 这三种格式此前全部落到 pd.to_datetime 并被解析成公元 1 年（0001-01），
+    # 看起来像个日期，比直接报错更糟。
+    _cn = re.match(r"^(\d{4})\s*年\s*(\d{1,2})\s*月(?:\s*(\d{1,2})\s*日?)?$", raw)
+    if _cn:
+        return "%s-%02d" % (_cn.group(1), int(_cn.group(2)))
+
+    _md = re.match(r"^(\d{1,2})\s*月(?:\s*(\d{1,2})\s*日?)?$", raw)
+    if _md:
+        import datetime as _dt
+        _y = _dt.date.today().year
+        log.warning(f"日期 '{raw}' 无年份，按 {_y} 年处理；如属往年请指定年份")
+        return "%s-%02d" % (_y, int(_md.group(1)))
+
+    _dash = re.match(r"^(\d{1,2})-(\d{1,2})$", raw)
+    if _dash and 1 <= int(_dash.group(1)) <= 12:
+        import datetime as _dt
+        _y = _dt.date.today().year
+        log.warning(f"日期 '{raw}' 无年份，按 {_y} 年处理；如属往年请指定年份")
+        return "%s-%02d" % (_y, int(_dash.group(1)))
+
     s = str(d).strip()
     m = re.match(r'^(\d{4}-\d{2})$', s)
     if m:
