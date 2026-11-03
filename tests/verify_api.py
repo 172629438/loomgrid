@@ -259,6 +259,50 @@ try:
                       f"total 充 {tpobj['total_charge_kwh']:.1f} / 放 "
                       f"{tpobj['total_discharge_kwh']:.1f} → 瓶颈 {tpobj['min_side']}")
 
+            # 29) 硬闸门：导出真实 PNG + 报告
+            import tempfile
+            outdir = tempfile.mkdtemp(prefix="lg_export_")
+            code, body = req("POST", "/api/export/run",
+                             {"session_id": sid, "output_dir": outdir,
+                              "export_midwide": True})
+            ok_exp = code == 200 and body.get("ok") is True
+            check("29) export/run 200", ok_exp, str(body.get("error"))[:100])
+            if ok_exp:
+                d = body["data"]
+                check("30) 导出成功数 > 0", d["succeeded"] > 0,
+                      f"成功 {d['succeeded']} / 总 {d['total']}")
+                # 真实 PNG
+                pngs = [f for f in os.listdir(outdir) if f.lower().endswith(".png")]
+                check("31) 真实 PNG 已生成", len(pngs) > 0, str(pngs[:2]))
+                if pngs:
+                    p0 = os.path.join(outdir, pngs[0])
+                    size = os.path.getsize(p0)
+                    with open(p0, "rb") as fh:
+                        magic = fh.read(8)
+                    check("32) PNG 文件非空且魔数正确",
+                          size > 1000 and magic == b"\x89PNG\r\n\x1a\n",
+                          f"{size} 字节, magic={magic[:4]}")
+                # 中间宽表
+                xlsxs = [f for f in os.listdir(outdir) if f.lower().endswith(".xlsx")]
+                check("33) 中间宽表已导出", len(xlsxs) > 0, str(xlsxs[:2]))
+                # 报告
+                rpt = os.path.join(outdir, "生成报告.html")
+                check("34) 报告文件已生成", os.path.exists(rpt),
+                      f"{os.path.getsize(rpt) if os.path.exists(rpt) else 0} 字节")
+                # 取报告端点
+                try:
+                    with urllib.request.urlopen(
+                            f"{BASE}/api/export/report?task_id={d['task_id']}",
+                            timeout=30) as r:
+                        html_text = r.read().decode("utf-8")
+                    check("35) /api/export/report 返回 HTML",
+                          "负荷曲线批量生成报告" in html_text and "成功列表" in html_text,
+                          f"{len(html_text)} 字符")
+                except Exception as e:
+                    check("35) /api/export/report 返回 HTML", False, repr(e))
+                import shutil as _sh
+                _sh.rmtree(outdir, ignore_errors=True)
+
 finally:
     proc.terminate()
     try:

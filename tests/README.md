@@ -48,7 +48,7 @@ python tests/verify_pipeline.py
 | `verify_provider.py` | 14 | DataProvider 缓存：注入路径、两层缓存隔离、clear 语义、错误隔离、内存淘汰 | pandas + openpyxl（无 Qt） |
 | `verify_capacity.py` | 18 | 容量口径：min_feasible / full_load 定义、日吞吐量、段选择、占位零影响 | 无（纯 numpy） |
 | `verify_segment_filter.py` | 9 | 占位零过滤：two_two 过滤后非零、one_one 不被破坏、选错方向边界 | PySide6（offscreen） |
-| `verify_api.py` | 32 | API 层：起真实 uvicorn，验证 health / ingest / preview(含 bin) / calc 两端点 / 错误路径 | fastapi + uvicorn |
+| `verify_api.py` | 41 | API 层：起真实 uvicorn，验证 health / ingest / preview(含 bin) / calc 两端点 / export 两端点（产出真实 PNG 与报告）/ 错误路径 | fastapi + uvicorn + matplotlib |
 | `verify_e2e.py` | — | 真实 Excel 文件的读取链路 | 样例数据 |
 | `verify_ingest.py` | — | 数据摄入与分析引擎模式切换 | 样例数据 |
 | `verify_fixes_batch1.py` | 12 | 第一批缺陷修复的回归 | — |
