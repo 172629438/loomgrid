@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.8（2026-11-03 修复：报告 HTML 未转义、报告失败仍返回路径、分块列清洗无日志）
+发布版本：LoomGrid Fusion v2.3.9（2026-11-03 修复：宽表行累计被误判为转置宽表）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -18,7 +18,10 @@
 - 减少不必要 DataFrame 深拷贝
 """
 
-import sys, os, re, json, math, time, io, html, logging, atexit, warnings, subprocess, traceback, gc
+import sys, os, re, json, math, time, io, logging, atexit, warnings, subprocess, traceback, gc
+# v2.3.9fix: html 模块别名导入。_generate_report 里有同名局部变量 html，
+# 直接 import html 会被那个局部变量遮蔽，导致 html.escape 抛 UnboundLocalError。
+import html as html_mod
 import logging.handlers
 import multiprocessing as mp
 import threading
@@ -159,7 +162,7 @@ MAX_FILENAME_LEN = 50
 # v2.3.6fix(K5): 版本号只能有一个来源。
 # 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
 # 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
-FUSION_VERSION = "2.3.8"
+FUSION_VERSION = "2.3.9"
 FUSION_APP_NAME = "LoomGrid Fusion"
 DEFAULT_ENCODING_LIST = ['utf-8-sig', 'utf-8', 'gb18030', 'gbk', 'gb2312', 'latin1']
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
@@ -1410,6 +1413,19 @@ def _detect_transposed_wide(df: pd.DataFrame, cols, max_sample=100):
             continue
         valid_ratio = (time_vals != INVALID_MINUTES).mean()
         if valid_ratio >= 0.8:
+            # v2.3.9fix(C9): 时刻列必须真的像「一天里的时刻序列」。
+            # 原判据只看「值能否解析成时间」，而 _parse_min('0') 是成功的——
+            # 宽表行累计表的 00:00 列每天重置为 0，几个 0 全被当成时刻 00:00，
+            # 整表因此被判成转置宽表，输出 [95,1] 垃圾且不报错。
+            # 真正的转置表时刻列有三个硬特征：数量足够、互不重复、覆盖一天。
+            valid = time_vals[time_vals != INVALID_MINUTES]
+            if len(valid) < 8:
+                continue
+            _uniq_ratio = valid.nunique() / float(len(valid))
+            _span = float(valid.max() - valid.min())
+            if _uniq_ratio < 0.8 or _span < 720:
+                log.debug(f"转置判定跳过列 {time_col}: 唯一率={_uniq_ratio:.2f} 跨度={_span:.0f}分钟")
+                continue
             date_cols = []
             for c in cols[time_idx+1:]:
                 try:
@@ -10310,7 +10326,7 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
 <body>
 <h1>负荷曲线批量生成报告</h1>
 <p>生成时间: {now}</p>
-<p>输出目录: {html.escape(str(self.output_dir))}</p>
+<p>输出目录: {html_mod.escape(str(self.output_dir))}</p>
 <p>成功 <span class="success">{success_count}</span> 张，失败 <span class="failure">{fail_count}</span> 张，总计 {total} 张。</p>
 """
 
@@ -10325,16 +10341,16 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
                     # v2.3.7fix: 文件名/资产号/源文件名都可能含 & < >（如「A&B楼负荷.xlsx」），
                     # 直接拼进 HTML 会破坏页面结构，逐列转义。
                     html += (f"<tr><td>{i}</td>"
-                             f"<td>{html.escape(os.path.basename(p))}</td>"
-                             f"<td>{html.escape(str(info.get('asset', '?')))}</td>"
-                             f"<td>{html.escape(str(info.get('month', '?')))}</td>"
-                             f"<td>{html.escape(str(info.get('file', '?')))}</td></tr>")
+                             f"<td>{html_mod.escape(os.path.basename(p))}</td>"
+                             f"<td>{html_mod.escape(str(info.get('asset', '?')))}</td>"
+                             f"<td>{html_mod.escape(str(info.get('month', '?')))}</td>"
+                             f"<td>{html_mod.escape(str(info.get('file', '?')))}</td></tr>")
                 html += "</table>"
 
             if fail_count > 0:
                 html += "<h2>失败列表</h2><ul>"
                 for f in failed:
-                    html += f"<li class='failure'>{html.escape(str(f))}</li>"
+                    html += f"<li class='failure'>{html_mod.escape(str(f))}</li>"
                 html += "</ul>"
 
             html += "</body></html>"
