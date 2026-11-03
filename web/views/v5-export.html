@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoomGrid · V5 导出</title>
+<link rel="stylesheet" href="../theme/tokens.css">
+<link rel="stylesheet" href="../components/base.css">
+<link rel="stylesheet" href="../components/app-shell.css">
+<link rel="stylesheet" href="../components/data-table.css">
+<style>
+/* V5 与 V2 同族（表单 + 清单），骨架已熟。
+   主体用 narrow-right：左边清单（主角）、右边设置（配角 340）。 */
+
+/* 模板区：输入 + 实时展开预览。
+   用户在导出前最想知道「文件会叫什么」，所以预览必须在同一屏。 */
+.v5__tpl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.v5__tpl-input {
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+}
+/* 展开结果：等宽、可选中、前缀箭头表示「这是结果不是输入」 */
+.v5__tpl-preview {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-1);
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+.v5__tpl-preview::before {
+  content: "→";
+  color: var(--text-faint);
+  flex: none;
+}
+.v5__tpl-preview[data-invalid="true"] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.v5__tpl-placeholders {
+  font-family: var(--font-num);
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+}
+
+/* 三色配置：一行一个色块 + 色值读数 */
+.v5__color {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.v5__swatch {
+  width: 18px;
+  height: 12px;
+  border-radius: var(--r-1);
+  border: 1px solid var(--border-strong);
+  flex: none;
+}
+.v5__color-val {
+  margin-left: auto;
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* 输出目录：路径 + 两个小动作 */
+.v5__dir {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.v5__dir-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-1);
+}
+.v5__dir-path {
+  flex: 1;
+  min-width: 0;
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-1);
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 预计信息：三项读数，底栏用 */
+.v5__estimate {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.v5__estimate b {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+.v5__estimate[data-kind="warn"] b { color: var(--warn); }
+
+/* 冲突行：整行淡黄底 + 状态列写「将被覆盖」。
+   不是错误，所以不用红。 */
+.v5__overwrite { color: var(--warn); }
+.v5__size {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+/* 清单表头里的全选与计数 */
+.v5__list-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.v5__list-count {
+  margin-left: auto;
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="shell__bar">
+    <button class="shell__back">← 返回预览</button>
+    <span class="shell__title">导出</span>
+    <span class="shell__ctx">A-01 · 12 个分组 · 输出到 2026-01</span>
+    <div class="shell__bar-right">
+      <button class="btn" id="themeBtn">界面主题：深色</button>
+    </div>
+  </div>
+
+  <div class="shell__body" data-layout="narrow-right">
+
+    <!-- 左：分组清单（导出页的核心操作是「选哪些」，选择必须一眼可见） -->
+    <div class="shell__pane">
+      <div class="shell__pane-head">
+        <div class="v5__list-head" style="flex:1">
+          <input type="checkbox" id="checkAll" checked aria-label="全选">
+          <span>要导出的分组</span>
+          <span class="v5__list-count">已选 8 / 12</span>
+        </div>
+      </div>
+      <div class="shell__scroll data-table">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:32px"></th>
+              <th>分组</th>
+              <th style="width:72px" data-align="right" data-type="num">天数</th>
+              <th style="width:88px" data-align="right" data-type="num">预计大小</th>
+              <th style="width:96px">状态</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            <tr class="sel">
+              <td><span class="chk on"></span></td>
+              <td>A-01_2026-01</td>
+              <td data-align="right" data-type="num">31</td>
+              <td data-align="right" data-type="num">171 KB</td>
+              <td><span class="v5__overwrite">将被覆盖</span></td>
+            </tr>
+            <tr class="sel">
+              <td><span class="chk on"></span></td>
+              <td>A-01_2026-02</td>
+              <td data-align="right" data-type="num">28</td>
+              <td data-align="right" data-type="num">168 KB</td>
+              <td><span style="color:var(--text-muted)">新建</span></td>
+            </tr>
+            <tr class="sel">
+              <td><span class="chk on"></span></td>
+              <td>A-02_2026-01</td>
+              <td data-align="right" data-type="num">31</td>
+              <td data-align="right" data-type="num">158 KB</td>
+              <td><span style="color:var(--text-muted)">新建</span></td>
+            </tr>
+            <tr class="sel">
+              <td><span class="chk on"></span></td>
+              <td>A-02_2026-02</td>
+              <td data-align="right" data-type="num">28</td>
+              <td data-align="right" data-type="num">155 KB</td>
+              <td><span style="color:var(--text-muted)">新建</span></td>
+            </tr>
+            <tr class="sel">
+              <td><span class="chk on"></span></td>
+              <td>B-07_2026-01</td>
+              <td data-align="right" data-type="num">31</td>
+              <td data-align="right" data-type="num">184 KB</td>
+              <td><span class="v5__overwrite">将被覆盖</span></td>
+            </tr>
+            <tr class="sel">
+              <td><span class="chk on"></span></td>
+              <td>D-11_2026-01</td>
+              <td data-align="right" data-type="num">31</td>
+              <td data-align="right" data-type="num">192 KB</td>
+              <td><span style="color:var(--text-muted)">新建</span></td>
+            </tr>
+            <tr class="sel">
+              <td><span class="chk on"></span></td>
+              <td>E-05_2026-01</td>
+              <td data-align="right" data-type="num">31</td>
+              <td data-align="right" data-type="num">176 KB</td>
+              <td><span style="color:var(--text-muted)">新建</span></td>
+            </tr>
+            <tr class="sel">
+              <td><span class="chk on"></span></td>
+              <td>H-04_2026-01</td>
+              <td data-align="right" data-type="num">31</td>
+              <td data-align="right" data-type="num">203 KB</td>
+              <td><span class="v5__overwrite">将被覆盖</span></td>
+            </tr>
+            <tr>
+              <td><span class="chk"></span></td>
+              <td>C-03_2026-01</td>
+              <td data-align="right" data-type="num">31</td>
+              <td data-align="right" data-type="num">—</td>
+              <td><span style="color:var(--danger)">解析失败</span></td>
+            </tr>
+            <tr>
+              <td><span class="chk"></span></td>
+              <td>F-02_2026-01</td>
+              <td data-align="right" data-type="num">31</td>
+              <td data-align="right" data-type="num">148 KB</td>
+              <td><span style="color:var(--text-faint)">未选</span></td>
+            </tr>
+            <tr>
+              <td><span class="chk"></span></td>
+              <td>J-03_2026-01</td>
+              <td data-align="right" data-type="num">31</td>
+              <td data-align="right" data-type="num">167 KB</td>
+              <td><span style="color:var(--text-faint)">未选</span></td>
+            </tr>
+            <tr data-disabled="true">
+              <td><span class="chk"></span></td>
+              <td>老厂区_2026-01</td>
+              <td data-align="right" data-type="num">31</td>
+              <td data-align="right" data-type="num">—</td>
+              <td><span style="color:var(--danger)">解析失败</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 右：导出设置 -->
+    <div class="shell__panel" data-side="right">
+
+      <div class="shell__sec">输出位置 <span class="shell__sec-note">必填</span></div>
+      <div class="v5__dir">
+        <div class="v5__dir-row">
+          <span class="v5__dir-path">D:\输出\2026-01</span>
+        </div>
+        <div class="v5__dir-row">
+          <button class="btn" style="flex:1">浏览</button>
+          <button class="btn" style="flex:1">新建文件夹</button>
+        </div>
+      </div>
+
+      <div class="shell__sec">文件名模板 <span class="shell__sec-note">实时预览</span></div>
+      <div class="v5__tpl">
+        <input class="field__input v5__tpl-input" id="tplName" value="{table_no}_{year_month}_负荷曲线">
+        <div class="v5__tpl-preview" id="tplNameOut">A-01_2026-01_负荷曲线.png</div>
+        <div class="v5__tpl-placeholders">{table_no} · {year_month} · {asset} · {sheet}</div>
+      </div>
+
+      <div class="shell__sec">图表标题模板</div>
+      <div class="v5__tpl">
+        <input class="field__input v5__tpl-input" id="tplTitle" value="{table_no} {year_month} 负荷曲线">
+        <div class="v5__tpl-preview" id="tplTitleOut">A-01 2026-01 负荷曲线</div>
+      </div>
+
+      <div class="shell__sec">图表配色 <span class="shell__sec-note">仅影响导出图</span></div>
+      <div class="form">
+        <div class="v5__color">
+          <i class="v5__swatch" style="background:#4EA8DE"></i>
+          <span>工作日</span>
+          <span class="v5__color-val">#4EA8DE</span>
+        </div>
+        <div class="v5__color">
+          <i class="v5__swatch" style="background:#7FAAD0"></i>
+          <span>周末</span>
+          <span class="v5__color-val">#7FAAD0</span>
+        </div>
+        <div class="v5__color">
+          <i class="v5__swatch" style="background:#D96C6C"></i>
+          <span>节假日</span>
+          <span class="v5__color-val">#D96C6C</span>
+        </div>
+      </div>
+
+      <div class="shell__sec">其他</div>
+      <div class="form">
+        <div class="field">
+          <span class="field__label">时区</span>
+          <div class="field__control">
+            <select class="field__select"><option>系统本地（UTC+8）</option><option>UTC</option></select>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field__label">DPI</span>
+          <div class="field__control">
+            <input class="field__input" data-kind="num" value="150">
+            <span class="field__unit">dpi</span>
+          </div>
+          <div class="field__hint">150 适合屏幕与打印，300 为印刷级</div>
+        </div>
+        <div class="field">
+          <span class="field__label">同步报告</span>
+          <div class="field__control" style="background:none;border:0;padding-left:var(--sp-2)">
+            <label class="switch"><input type="checkbox" checked><span class="switch__track"></span>导出后生成 HTML 报告</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="shell__foot">
+    <div class="v5__estimate">
+      <span>已选</span><b>8</b><span>个分组</span>
+    </div>
+    <span style="color:var(--text-faint)">·</span>
+    <div class="v5__estimate">
+      <span>预计</span><b>1.4</b><span>MB</span>
+    </div>
+    <span style="color:var(--text-faint)">·</span>
+    <div class="v5__estimate" data-kind="warn">
+      <span>其中</span><b>3</b><span>个将被覆盖</span>
+    </div>
+    <div class="shell__actions">
+      <button class="btn">取消</button>
+      <button class="btn btn--primary">开始导出 8 张</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const root = document.documentElement;
+const tbtn = document.getElementById('themeBtn');
+function syncTheme() {
+  tbtn.textContent = '界面主题：' + (root.dataset.theme === 'dark' ? '深色' : '浅色');
+}
+tbtn.addEventListener('click', () => {
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  syncTheme();
+});
+syncTheme();
+
+// 模板实时展开：用示例数据把占位符换掉，让用户在点导出前就看到文件名。
+// 未知占位符原样保留 —— 与 plotting.naming.parse_title_template 的行为一致，
+// 那边也是 replace 而不是 format，所以 {foo} 不会报错。
+const SAMPLE = {
+  table_no: 'A-01',
+  year_month: '2026-01',
+  asset: 'A栋负荷2026',
+  sheet: 'Sheet1'
+};
+
+function expand(tpl) {
+  let out = tpl;
+  Object.keys(SAMPLE).forEach(k => {
+    out = out.split('{' + k + '}').join(SAMPLE[k]);
+  });
+  return out;
+}
+
+function bindTpl(inputId, outId, suffix) {
+  const input = document.getElementById(inputId);
+  const out = document.getElementById(outId);
+  const run = () => {
+    const v = expand(input.value);
+    out.textContent = v + (suffix || '');
+    // 空模板或整条都是未替换占位符，视为无效
+    out.dataset.invalid = (input.value.trim() === '' || /^\{[a-z_]+\}$/.test(input.value.trim())) ? 'true' : 'false';
+  };
+  input.addEventListener('input', run);
+  run();
+}
+
+bindTpl('tplName', 'tplNameOut', '.png');
+bindTpl('tplTitle', 'tplTitleOut', '');
+
+// 全选
+document.getElementById('checkAll').addEventListener('change', (e) => {
+  document.querySelectorAll('#rows .chk').forEach(c => {
+    if (c.closest('tr').dataset.disabled) return;
+    c.classList.toggle('on', e.target.checked);
+  });
+});
+</script>
+</body>
+</html>
