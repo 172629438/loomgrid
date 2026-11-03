@@ -264,7 +264,7 @@
 
       <div class="shell__pane">
         <div class="shell__pane-head">
-          列名 <span class="shell__sec-note">98 列 &nbsp;·&nbsp; 映射 2 / 4 已定</span>
+          列名 <span class="shell__sec-note" id="colNote">98 列 &nbsp;·&nbsp; 映射 2 / 4 已定</span>
         </div>
         <div class="shell__scroll data-table">
           <table>
@@ -482,7 +482,7 @@ function renderInspect(filename, data) {
   colRows.innerHTML = html;
 
   // 列数读数
-  const note = document.querySelector('.shell__pane-note');
+  const note = document.getElementById('colNote');
   if (note) {
     const matched = [dateCol, timeCol, assetCol].filter(Boolean).length + (loadCols.length ? 1 : 0);
     note.textContent = cols.length + ' 列 · 映射 ' + Math.min(matched, 4) + ' / 4 已定';

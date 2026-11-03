@@ -520,10 +520,10 @@
   <div class="shell__foot">
     <span class="shell__foot-note">报告已生成 · 可查看逐项明细</span>
     <div class="shell__actions">
-      <button class="btn">返回工作台</button>
-      <button class="btn">导出失败清单 CSV</button>
-      <button class="btn">查看报告</button>
-      <button class="btn btn--primary">仅重试失败项</button>
+      <button class="btn" id="btnBack">返回工作台</button>
+      <button class="btn" id="btnCsv">导出失败清单 CSV</button>
+      <button class="btn" id="btnReport">查看报告</button>
+      <button class="btn btn--primary" id="btnRetry">仅重试失败项</button>
     </div>
   </div>
 </div>
@@ -685,6 +685,31 @@ function render(res) {
 
   // 阶段耗时：status 里没有分段耗时 —— 整块隐藏
   if (stagesEl) stagesEl.style.display = 'none';
+
+  // 空态：0 失败时，「重试失败项」与「导出失败清单」都无对象可操作。
+  // 主按钮改成「返回工作台」——空状态下的主按钮该指向下一步，
+  // 不是指向一件不存在的事（那会让用户以为有东西要重试）。
+  const btnCsv = document.getElementById('btnCsv');
+  const btnRetry = document.getElementById('btnRetry');
+  const btnBack = document.getElementById('btnBack');
+  if (!failed.length) {
+    if (btnCsv) { btnCsv.disabled = true; btnCsv.style.opacity = '0.4'; }
+    if (btnRetry) { btnRetry.hidden = true; }
+    if (btnBack) {
+      btnBack.className = 'btn btn--primary';
+      btnBack.textContent = '返回工作台';
+    }
+  }
+  if (btnBack) btnBack.addEventListener('click', () => {
+    location.href = 'v1-workbench.html';
+  });
+  if (btnReport) {
+    const btnReport = document.getElementById('btnReport');
+    btnReport.addEventListener('click', () => {
+      const t = (res.task_id || TASK);
+      window.open(API_BASE + '/api/export/report?task_id=' + encodeURIComponent(t), '_blank');
+    });
+  }
 }
 
 // 失败组展开/收起：默认全展开（失败项少时要一眼看完），
