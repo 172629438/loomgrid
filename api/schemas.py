@@ -146,6 +146,15 @@ class CapacityData(BaseModel):
 
 
 class CapacityRequest(BaseModel):
+    """⚠️ 已废弃：没有任何路由使用它。
+
+    真正被 /api/calc/capacity 使用的是 routes_calc.py 里的 CapacityCalcRequest
+    （session_id / group / segments / mode / rated_power / ignore_negative /
+    basis / target_days / dod_percent）。
+
+    保留只为避免外部引用断裂；新代码不要用它 ——
+    按这里的 daily_charge / daily_discharge 构造请求会得到 422。
+    """
     daily_charge: list[float]
     daily_discharge: list[float]
     basis: Literal["min_feasible", "full_load"] = "min_feasible"
