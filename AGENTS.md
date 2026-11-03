@@ -114,9 +114,18 @@ python tools/pack_release.py ultra 3.2.9
 产出 `dist/LoomGrid-Fusion-vX.Y.Z-win64.zip`（约 135 MB / 解压 308 MB），
 脚本末尾自带冒烟闸门（真启动 20s + 存活检查）。
 
-> 2026-11-02 补注：本节曾写「用 `tools/build_fusion_only.py`」，但该文件从未提交到仓库
-> （疑似只存在于某一台机器本地）。本次实测 `pack_release.py` 在本机 Python 3.12.9 下
-> 打包正常、窗口标题正确，故以它为准。
+> **两台环境不同，两条打包路径都可用，按机器选：**
+>
+> | 环境 | 工具 | 实测 |
+> |---|---|---|
+> | Python 3.12.13 + cx_Freeze | `tools/build_fusion_only.py` | 286 MB / zip 114 MB |
+> | Python 3.12.9 + PyInstaller | `tools/pack_release.py` | 308 MB / zip 135 MB |
+>
+> 两条路径都以「产物能过窗口验证」为准，不规定必须用哪个。
+>
+> 2026-11-03 更正：上一版这里曾写「build_fusion_only.py 从未提交到仓库」，
+> 那是搜错了——`git ls-tree origin/main tools/` 能看到该文件，
+> `git log --diff-filter=D` 也没有任何删除记录。当时只搜了本地工作区，没先 pull。
 
 ### 打包后用窗口标题验证，不要只看进程存活
 
@@ -124,8 +133,13 @@ python tools/pack_release.py ultra 3.2.9
 python tools/verify_exe_window.py "build_release/<tag>/dist/<tag>/<tag>.exe" --expect "LoomGrid Fusion"
 ```
 
-判据：**只有 1 个可见窗口，标题形如 `欢迎 — LoomGrid Fusion vX.Y.Z`**。
-出现 2 个窗口、或标题含 error/错误/fatal 即不通过。
+判据：**无窗口、标题不含 `LoomGrid`、或标题含 error / 错误 / Fatal 才算失败。**
+
+**不要用窗口数量判断。** Fusion 正常启动是 1 个窗口（`欢迎 — LoomGrid Fusion vX.Y.Z`），
+但 Ultra 的正常序列就是 3 个：splash + 主窗 + 模态框——按窗口数算会把 Ultra 误判成失败。
+
+真正要防的是「卡在错误对话框里，进程还活着」。那个特征在标题上：
+`cx_Freeze: Python error in main script` / `Fatal error`。
 
 > 2026-11-02：这条判据第一次真正跑起来就抓到了两个问题——主窗口标题停在 v2.3.1、
 > 欢迎弹窗写着 Ultra 的 v3.2。以前「进程存活 + 读日志」两项都是绿的。

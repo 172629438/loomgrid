@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.6（2026-11-02 口径落地：无法识别时刻不再静默丢弃、编码兜底留痕、CSV 坏行跳过、全零段列不占位、清理 85 行死代码）
+发布版本：LoomGrid Fusion v2.3.7（2026-11-03 修复：日明细表仍用旧口径，段名列重复、日最小值恒为 0）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -7859,7 +7859,37 @@ class ProfessionalWindow(QMainWindow):
         d_segs = self.discharge_segments_dict.get(month, [])
 
         cap_val = getattr(self, '_current_cap', 0)
-        col_labels = ['日期'] + self.charge_labels + self.discharge_labels + ['日最小值(kWh)']
+        # v2.3.6fix: 日明细表沿用月表的「一段一列」口径。
+        # 原写法 ['日期'] + charge_labels + discharge_labels 会把每个段名印两遍，
+        # 且 vals 里混入充段的放电值（恒为 0），导致 min(vals) 永远是 0。
+        # 同名的全零段（平段）与月表一样不显示，两张表列结构保持一致。
+        _n = len(self.charge_labels)
+        _nz = [False] * _n
+        for _m in sorted(self._get_work_data().keys()):
+            _c = self.charge_segments_dict.get(_m, [])
+            _d = self.discharge_segments_dict.get(_m, [])
+            for _i in range(_n):
+                if _nz[_i]:
+                    continue
+                _cv = float(np.sum(np.nan_to_num(_c[_i], nan=0.0))) if _i < len(_c) else 0.0
+                _dv = float(np.sum(np.nan_to_num(_d[_i], nan=0.0))) if _i < len(_d) else 0.0
+                if (_cv + _dv) != 0.0:
+                    _nz[_i] = True
+        _keep = [i for i in range(_n) if _nz[i]]
+
+        _cnt = {}
+        for lab in self.charge_labels:
+            _cnt[lab] = _cnt.get(lab, 0) + 1
+        _seen = {}
+        _uniq = []
+        for lab in self.charge_labels:
+            if _cnt.get(lab, 0) > 1:
+                _seen[lab] = _seen.get(lab, 0) + 1
+                _uniq.append(f"{lab}{_seen[lab]}")
+            else:
+                _uniq.append(lab)
+
+        col_labels = ['日期'] + [_uniq[i] for i in _keep] + ['日最小值(kWh)']
         self.daily_table.setColumnCount(len(col_labels))
         self.daily_table.setHorizontalHeaderLabels(col_labels)
         n_days = len(dates)
@@ -7869,14 +7899,11 @@ class ProfessionalWindow(QMainWindow):
             self.daily_table.setItem(d, 0, QTableWidgetItem(str(dates[d])))
             vals = []
             col = 1
-            # v2.30fix: 按标签索引填充, 月份段数少于标签数时填0
-            for i in range(len(self.charge_labels)):
-                val = c_segs[i][d] if i < len(c_segs) and d < len(c_segs[i]) else 0.0
-                vals.append(val)
-                self.daily_table.setItem(d, col, QTableWidgetItem(f"{val:.3f}"))
-                col += 1
-            for i in range(len(self.discharge_labels)):
-                val = d_segs[i][d] if i < len(d_segs) and d < len(d_segs[i]) else 0.0
+            # 同一索引 i 在 c_segs / d_segs 里是同一个段，一克一放互斥，相加即该段空间。
+            for i in _keep:
+                c_val = c_segs[i][d] if i < len(c_segs) and d < len(c_segs[i]) else 0.0
+                d_val = d_segs[i][d] if i < len(d_segs) and d < len(d_segs[i]) else 0.0
+                val = c_val + d_val
                 vals.append(val)
                 self.daily_table.setItem(d, col, QTableWidgetItem(f"{val:.3f}"))
                 col += 1
