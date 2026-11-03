@@ -75,6 +75,10 @@ loomgrid_*_main.py
 
 !assets/versions/*.png
 
+# 前端源码与设计原型必须入库，不受上面 *.html 全局排除影响
+# （那个 *.html 是为了挡生成的报告，不是挡源码）
+!web/**/*.html
+
 # 打包产物目录（本机 release 构建残留，不入库）
 build_release/
 
