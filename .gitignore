@@ -78,3 +78,7 @@ loomgrid_*_main.py
 # 打包产物目录（本机 release 构建残留，不入库）
 build_release/
 
+# 落地页演示数据与截图（由 tools/demo_anim 生成，可重建，不入库）
+assets/demo.png
+tools/demo_anim/demo_data.js
+
