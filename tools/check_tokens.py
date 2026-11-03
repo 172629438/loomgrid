@@ -48,7 +48,7 @@ LIMITS = {
 PATTERNS = {
     "字号": r"--fs-[\w-]+\s*:\s*([^;]+);",
     "间距": r"--sp-[\w-]+\s*:\s*([^;]+);",
-    "颜色": r"--(?:bg|text|border|accent|ok|warn|danger)[\w-]*\s*:\s*([^;]+);",
+    "颜色": r"--(?:bg|text|border|accent|ref|ok|warn|danger)[\w-]*\s*:\s*([^;]+);",
     "圆角": r"--r-[\w-]+\s*:\s*([^;]+);",
     "动效": r"--t-[\w-]+\s*:\s*([^;]+);",
 }

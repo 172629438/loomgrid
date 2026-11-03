@@ -2,244 +2,140 @@
 <html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<title>LoomGrid 三屏草图 · 精密仪器面板</title>
+<title>LoomGrid 三屏草图 · 精密仪器面板 v2</title>
 <style>
-/* ══════════════════════════════════════════════
-   设计令牌 —— 双主题共用一套语义名，只换值
-   可数判据：字号 6 档 / 间距 6 档 / 圆角 2 档 / 动效 2 档 / 颜色 14 个语义变量
-   ══════════════════════════════════════════════ */
+/* 令牌：字号 7 / 间距 6 / 颜色 15 名·30 值 / 圆角 2 / 动效 2 */
 :root {
-  /* 字号 6 档 */
-  --fs-xs: 11px; --fs-2xs: 9px; --fs-sm: 12px; --fs-md: 13px;
+  --fs-2xs: 9px; --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px;
   --fs-lg: 15px; --fs-xl: 18px; --fs-2xl: 24px;
-  /* 间距 6 档（4 的倍数） */
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px;
   --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
-  /* 圆角 2 档 */
   --r-1: 2px; --r-2: 4px;
-  /* 动效 2 档 */
   --t-fast: 120ms; --t-base: 200ms;
-  /* 字体 */
   --font-ui: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
   --font-num: "JetBrains Mono", "Consolas", "Cascadia Mono", monospace;
 }
 [data-theme="dark"] {
-  --bg-canvas: #0E1116;
-  --bg-surface: #151A21;
-  --bg-raised: #1B222B;
-  --border-subtle: #232A33;
-  --border-strong: #323C48;
-  --text-primary: #D8DEE6;
-  --text-muted: #7C8794;
-  --text-faint: #55606D;
-  --accent: #4EA8DE;
-  --accent-dim: #2B6C93;
-  --ok: #4CAF7D;
-  --warn: #D9A441;
-  --danger: #D96C6C;
+  --bg-canvas: #0E1116; --bg-surface: #151A21; --bg-raised: #1B222B;
+  --border-subtle: #232A33; --border-strong: #323C48;
+  --text-primary: #D8DEE6; --text-muted: #7C8794; --text-faint: #55606D;
+  --accent: #4EA8DE; --accent-dim: #2B6C93;
+  --ref-line: #D2A24C;   /* 参考线；与错误红分开，红只留给错误 */
+  --ok: #4CAF7D; --warn: #D9A441; --danger: #D96C6C;
 }
 [data-theme="light"] {
-  --bg-canvas: #F7F8FA;
-  --bg-surface: #FFFFFF;
-  --bg-raised: #FBFCFD;
-  --border-subtle: #E1E5EA;
-  --border-strong: #C8CFD8;
-  --text-primary: #1A1F26;
-  --text-muted: #5C6672;
-  --text-faint: #8B95A1;
-  --accent: #1F6FB2;
-  --accent-dim: #7FAAD0;
-  --ok: #2E8B57;
-  --warn: #A8741A;
-  --danger: #B3403F;
+  --bg-canvas: #F7F8FA; --bg-surface: #FFFFFF; --bg-raised: #FBFCFD;
+  --border-subtle: #E1E5EA; --border-strong: #C8CFD8;
+  --text-primary: #1A1F26; --text-muted: #5C6672; --text-faint: #8B95A1;
+  --accent: #1F6FB2; --accent-dim: #7FAAD0;
+  --ref-line: #9A6B12;
+  --ok: #2E8B57; --warn: #A8741A; --danger: #B3403F;
 }
-
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { background: var(--bg-canvas); }
-body {
-  font-family: var(--font-ui);
-  font-size: var(--fs-md);
-  color: var(--text-primary);
-  -webkit-font-smoothing: antialiased;
-}
+body { font-family: var(--font-ui); font-size: var(--fs-md); color: var(--text-primary); -webkit-font-smoothing: antialiased; }
 
-/* ── 顶部控制条（草图用，不是产品 UI）───────────────── */
-.hud {
-  display: flex; align-items: center; gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
-  position: sticky; top: 0; z-index: 10;
-}
+.hud { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle); position: sticky; top: 0; z-index: 10; }
 .hud .sep { width: 1px; height: 16px; background: var(--border-subtle); margin: 0 var(--sp-2); }
-.hud button {
-  font: inherit; font-size: var(--fs-sm);
-  color: var(--text-muted); background: transparent;
-  border: 1px solid var(--border-subtle); border-radius: var(--r-1);
-  padding: 3px 10px; cursor: pointer;
-  transition: color var(--t-fast), border-color var(--t-fast);
-}
+.hud button { font: inherit; font-size: var(--fs-sm); color: var(--text-muted); background: transparent;
+  border: 1px solid var(--border-subtle); border-radius: var(--r-1); padding: 3px 10px; cursor: pointer;
+  transition: color var(--t-fast), border-color var(--t-fast); }
 .hud button:hover { color: var(--text-primary); border-color: var(--border-strong); }
 .hud button.on { color: var(--accent); border-color: var(--accent-dim); }
 .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
-/* ── 视图容器 ────────────────────────────── */
 .view { display: none; height: calc(100vh - 41px); }
 .view.on { display: flex; flex-direction: column; }
 
-/* ── 工具条 ─────────────────────────────── */
-.bar {
-  display: flex; align-items: center; gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-}
-.btn {
-  font: inherit; font-size: var(--fs-sm);
-  padding: 5px 12px; border-radius: var(--r-1); cursor: pointer;
-  border: 1px solid var(--border-strong); background: var(--bg-raised);
-  color: var(--text-primary);
-  transition: background var(--t-fast), border-color var(--t-fast);
-}
+.bar { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); flex: none; }
+.btn { font: inherit; font-size: var(--fs-sm); padding: 5px 12px; border-radius: var(--r-1); cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--bg-raised); color: var(--text-primary);
+  transition: background var(--t-fast), border-color var(--t-fast); }
 .btn:hover { border-color: var(--accent-dim); }
-.btn.primary {
-  background: var(--accent); border-color: var(--accent); color: #fff;
-}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 [data-theme="dark"] .btn.primary { color: #06121A; }
 .btn.ghost { background: transparent; border-color: var(--border-subtle); color: var(--text-muted); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .spacer { flex: 1; }
 
-/* ── 表格：高密度，无斑马纹，靠线分隔 ────────────── */
-.tbl-wrap { flex: 1; overflow: auto; }
+.tbl-wrap { flex: 1; overflow: auto; min-height: 0; }
 table.grid { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
-table.grid th {
-  position: sticky; top: 0;
-  text-align: left; font-weight: 500; font-size: var(--fs-xs);
-  color: var(--text-muted); letter-spacing: .02em;
-  background: var(--bg-surface);
-  padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--border-strong);
-  white-space: nowrap;
-}
-table.grid td {
-  padding: 6px var(--sp-3);
-  border-bottom: 1px solid var(--border-subtle);
-  white-space: nowrap;
-}
+table.grid th { position: sticky; top: 0; text-align: left; font-weight: 500; font-size: var(--fs-xs);
+  color: var(--text-muted); background: var(--bg-surface); padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border-strong); white-space: nowrap; z-index: 1; }
+table.grid td { padding: 5px var(--sp-3); border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
 table.grid tbody tr:hover td { background: var(--bg-raised); }
 table.grid td.r, table.grid th.r { text-align: right; }
+table.grid tbody tr.sel td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+table.grid tbody tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 .mono { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
-/* 状态徽章 */
-.badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: var(--fs-xs); padding: 1px 7px;
-  border-radius: var(--r-1); border: 1px solid;
-}
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs);
+  padding: 1px 7px; border-radius: var(--r-1); border: 1px solid; }
 .badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .badge.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
 .badge.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
 .badge.err { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
 .badge.run { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
-.badge.idle { color: var(--text-faint); border-color: var(--border-subtle); }
 
-/* 状态栏 */
-.statusbar {
-  display: flex; align-items: center; gap: var(--sp-4);
-  padding: var(--sp-1) var(--sp-3);
-  border-top: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  font-size: var(--fs-xs); color: var(--text-muted);
-}
+.statusbar { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-1) var(--sp-3);
+  border-top: 1px solid var(--border-subtle); background: var(--bg-surface);
+  font-size: var(--fs-xs); color: var(--text-muted); flex: none; }
 
-/* ── V3 三栏 ─────────────────────────────── */
-.split { flex: 1; display: grid; grid-template-columns: 216px 1fr 268px; min-height: 0; }
+.split { flex: 1; display: grid; grid-template-columns: 216px 1fr 280px; min-height: 0; }
 .pane { min-height: 0; overflow: auto; }
 .pane + .pane { border-left: 1px solid var(--border-subtle); }
-.pane-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: var(--fs-xs); color: var(--text-muted);
-}
-/* 分组树 */
+.pane-head { display: flex; align-items: center; justify-content: space-between;
+  padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--fs-xs); color: var(--text-muted); flex: none; }
+
 .tree { padding: var(--sp-1) 0; }
-.tree-item {
-  display: flex; align-items: center; gap: var(--sp-2);
-  padding: 5px var(--sp-3); font-size: var(--fs-sm); cursor: pointer;
-  border-left: 2px solid transparent;
-}
+.tree-item { display: flex; align-items: center; gap: var(--sp-2); padding: 5px var(--sp-3);
+  font-size: var(--fs-sm); cursor: pointer; border-left: 2px solid transparent; }
 .tree-item:hover { background: var(--bg-raised); }
 .tree-item.on { background: var(--bg-raised); border-left-color: var(--accent); }
-.tree-item .tw { width: 10px; color: var(--text-faint); font-size: var(--fs-2xs); }
-.tree-item.sub { padding-left: var(--sp-5); }
-.chk {
-  width: 12px; height: 12px; border: 1px solid var(--border-strong);
-  border-radius: var(--r-1); flex: none;
-}
+.tree-item .tw { width: 10px; color: var(--text-faint); font-size: var(--fs-2xs); flex: none; }
+.tree-children { margin-left: calc(var(--sp-3) + 5px); padding-left: var(--sp-2);
+  border-left: 1px solid var(--border-subtle); }
+.tree-children .tree-item { padding-left: var(--sp-2); }
+.chk { width: 12px; height: 12px; border: 1px solid var(--border-strong);
+  border-radius: var(--r-1); flex: none; }
 .chk.on { background: var(--accent); border-color: var(--accent); }
 
-/* 曲线区 */
-.plot-area {
-  flex: 1; padding: var(--sp-4);
-  display: flex; flex-direction: column; gap: var(--sp-2);
-  min-height: 0;
-}
-.plot-frame {
-  flex: 1; border: 1px solid var(--border-subtle);
-  border-radius: var(--r-2); background: var(--bg-surface);
-  position: relative; overflow: hidden; min-height: 220px;
-}
-.plot-legend {
-  position: absolute; top: var(--sp-2); right: var(--sp-3);
-  display: flex; gap: var(--sp-3); font-size: var(--fs-xs); color: var(--text-muted);
-}
-.plot-legend i { display: inline-block; width: 12px; height: 2px; margin-right: 5px; vertical-align: middle; }
-.plot-note { font-size: var(--fs-xs); color: var(--text-faint); }
+.plot-area { flex: 1; padding: var(--sp-3) var(--sp-4); display: flex;
+  flex-direction: column; gap: var(--sp-2); min-height: 0; }
+.plot-frame { flex: 1; border: 1px solid var(--border-subtle); border-radius: var(--r-2);
+  background: var(--bg-surface); position: relative; overflow: hidden; min-height: 260px; }
+.plot-legend { position: absolute; top: var(--sp-2); right: var(--sp-3); display: flex;
+  gap: var(--sp-3); font-size: var(--fs-xs); color: var(--text-muted); z-index: 2; }
+.plot-legend i { display: inline-block; width: 14px; height: 2px; margin-right: 5px; vertical-align: middle; }
+.plot-note { font-size: var(--fs-xs); color: var(--text-faint); flex: none; }
+.axis-text { font-family: var(--font-num); font-size: var(--fs-2xs); fill: var(--text-faint); }
 
-/* 参数表单 */
 .form { padding: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-3); }
 .field { display: flex; flex-direction: column; gap: 3px; }
 .field label { font-size: var(--fs-xs); color: var(--text-muted); }
 .field .ctx { display: flex; gap: var(--sp-1); }
-.field input, .field select {
-  font: inherit; font-size: var(--fs-sm);
-  padding: 5px var(--sp-2); width: 100%;
-  color: var(--text-primary); background: var(--bg-canvas);
-  border: 1px solid var(--border-subtle); border-radius: var(--r-1);
-}
-.field input:focus, .field select:focus {
-  outline: none; border-color: var(--accent);
-}
-.field .unit {
-  font-size: var(--fs-xs); color: var(--text-faint);
-  padding: 5px var(--sp-2); border: 1px solid var(--border-subtle);
-  border-radius: var(--r-1); background: var(--bg-surface);
-}
+.field input, .field select { font: inherit; font-size: var(--fs-sm); padding: 5px var(--sp-2);
+  width: 100%; color: var(--text-primary); background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle); border-radius: var(--r-1); }
+.field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+.field .unit { font-size: var(--fs-xs); color: var(--text-faint); padding: 5px var(--sp-2);
+  border: 1px solid var(--border-subtle); border-radius: var(--r-1); background: var(--bg-surface); }
 .field .hint { font-size: var(--fs-xs); color: var(--text-faint); }
 .field .hint.err { color: var(--danger); }
 
-/* ── V5 导出 ─────────────────────────────── */
-.export-foot {
-  border-top: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  padding: var(--sp-3);
-  display: flex; flex-direction: column; gap: var(--sp-3);
-}
+.export-foot { border-top: 1px solid var(--border-subtle); background: var(--bg-surface);
+  padding: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); flex: none; }
 .row { display: flex; align-items: center; gap: var(--sp-2); }
 .row label { font-size: var(--fs-xs); color: var(--text-muted); width: 68px; flex: none; }
-.row input {
-  font: inherit; font-size: var(--fs-sm); padding: 5px var(--sp-2);
+.row input { font: inherit; font-size: var(--fs-sm); padding: 5px var(--sp-2);
   color: var(--text-primary); background: var(--bg-canvas);
-  border: 1px solid var(--border-subtle); border-radius: var(--r-1);
-  flex: 1; min-width: 0;
-}
-.tpl {
-  font-family: var(--font-num); font-size: var(--fs-sm);
-  color: var(--accent);
-}
-.actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }
+  border: 1px solid var(--border-subtle); border-radius: var(--r-1); flex: 1; min-width: 0; }
+.tpl { font-family: var(--font-num); color: var(--accent); }
+.actions { display: flex; gap: var(--sp-2); justify-content: flex-end; align-items: center; }
 .muted { color: var(--text-muted); }
 .faint { color: var(--text-faint); }
 </style>
@@ -254,7 +150,7 @@ table.grid td.r, table.grid th.r { text-align: right; }
   <button data-theme="dark" class="on">深色</button>
   <button data-theme="light">浅色</button>
   <span class="spacer"></span>
-  <span class="faint" style="font-size:var(--fs-xs)">草图 · 精密仪器面板 · 非最终实现</span>
+  <span class="faint" style="font-size:var(--fs-xs)">草图 v2 · 精密仪器面板</span>
 </div>
 
 <!-- ══════════ V1 工作台 ══════════ -->
@@ -263,55 +159,23 @@ table.grid td.r, table.grid th.r { text-align: right; }
     <button class="btn primary">添加文件</button>
     <button class="btn">移除选中</button>
     <button class="btn ghost">清空</button>
-    <span class="sep" style="width:1px;height:16px;background:var(--border-subtle);margin:0 4px"></span>
     <button class="btn" disabled>开始处理</button>
     <span class="spacer"></span>
     <span class="faint num" style="font-size:var(--fs-xs)">扫描并发 4 · 出图进程 4</span>
   </div>
-
   <div class="tbl-wrap">
     <table class="grid">
       <thead>
-        <tr>
-          <th style="width:28px"></th>
-          <th>源文件</th><th>表号</th><th>月份</th>
+        <tr><th style="width:28px"></th><th>源文件</th><th>表号</th><th>月份</th>
           <th class="r">天数</th><th class="r">时刻点</th>
           <th class="r">最小负荷</th><th class="r">最大负荷</th>
-          <th>表型</th><th>状态</th>
-        </tr>
+          <th>表型</th><th>状态</th></tr>
       </thead>
-      <tbody>
-        <tr><td><span class="chk on"></span></td>
-          <td>A栋负荷2026.xlsx</td><td class="mono">A-01</td><td class="mono">2026-01</td>
-          <td class="r mono">31</td><td class="r mono">96</td>
-          <td class="r mono">312.4</td><td class="r mono">1048.2</td>
-          <td>宽表</td><td><span class="badge ok">就绪</span></td></tr>
-        <tr><td><span class="chk on"></span></td>
-          <td>A栋负荷2026.xlsx</td><td class="mono">A-01</td><td class="mono">2026-02</td>
-          <td class="r mono">28</td><td class="r mono">96</td>
-          <td class="r mono">298.7</td><td class="r mono">1012.5</td>
-          <td>宽表</td><td><span class="badge ok">就绪</span></td></tr>
-        <tr><td><span class="chk on"></span></td>
-          <td>B&amp;C楼&lt;综合&gt;.xlsx</td><td class="mono">B-07</td><td class="mono">2026-01</td>
-          <td class="r mono">31</td><td class="r mono">96</td>
-          <td class="r mono">88.1</td><td class="r mono">642.9</td>
-          <td>转置</td><td><span class="badge warn">需确认</span></td></tr>
-        <tr><td><span class="chk"></span></td>
-          <td>光伏倒送_2026Q1.csv</td><td class="mono">PV-02</td><td class="mono">2026-01</td>
-          <td class="r mono">31</td><td class="r mono">96</td>
-          <td class="r mono">-186.3</td><td class="r mono">421.0</td>
-          <td>长表</td><td><span class="badge ok">就绪</span></td></tr>
-        <tr><td><span class="chk"></span></td>
-          <td>老厂区示数表.xls</td><td class="mono">C-03</td><td class="mono">2026-01</td>
-          <td class="r mono">31</td><td class="r mono">96</td>
-          <td class="r mono">204.0</td><td class="r mono">886.4</td>
-          <td>示数</td><td><span class="badge err">解析失败</span></td></tr>
-      </tbody>
+      <tbody id="v1-body"></tbody>
     </table>
   </div>
-
   <div class="statusbar">
-    <span>5 个文件 · 147 个分组 · 3.2 MB</span>
+    <span>20 个文件 · 147 个分组 · 12.8 MB</span>
     <span class="faint">|</span>
     <span>最近扫描 0.8 s</span>
     <span class="spacer"></span>
@@ -326,16 +190,21 @@ table.grid td.r, table.grid th.r { text-align: right; }
       <div class="pane-head"><span>分组</span><span class="faint">12</span></div>
       <div class="tree">
         <div class="tree-item on"><span class="tw">▾</span><span class="chk on"></span>A-01</div>
-        <div class="tree-item sub"><span class="chk on"></span><span>2026-01</span></div>
-        <div class="tree-item sub"><span class="chk on"></span><span>2026-02</span></div>
+        <div class="tree-children">
+          <div class="tree-item"><span class="chk on"></span><span>2026-01</span></div>
+          <div class="tree-item"><span class="chk on"></span><span>2026-02</span></div>
+          <div class="tree-item"><span class="chk"></span><span>2026-03</span></div>
+        </div>
         <div class="tree-item"><span class="tw">▾</span><span class="chk on"></span>B-07</div>
-        <div class="tree-item sub"><span class="chk"></span><span>2026-01</span></div>
+        <div class="tree-children">
+          <div class="tree-item"><span class="chk"></span><span>2026-01</span></div>
+        </div>
         <div class="tree-item"><span class="tw">▸</span><span class="chk"></span>PV-02</div>
         <div class="tree-item"><span class="tw">▸</span><span class="chk"></span>C-03</div>
       </div>
     </div>
 
-    <div class="pane" style="display:flex;flex-direction:column">
+    <div class="pane" style="display:flex;flex-direction:column;overflow:hidden">
       <div class="pane-head">
         <span>A-01 · 2026-01 · 31 天 · 96 点</span>
         <span class="faint">拖动平移 · 滚轮缩放</span>
@@ -345,21 +214,48 @@ table.grid td.r, table.grid th.r { text-align: right; }
           <div class="plot-legend">
             <span><i style="background:var(--accent)"></i>日曲线</span>
             <span><i style="background:var(--text-faint)"></i>平均</span>
-            <span><i style="background:var(--danger)"></i>容量线 500</span>
+            <span><i style="background:var(--ref-line)"></i>容量线 500</span>
           </div>
-          <svg width="100%" height="100%" viewBox="0 0 800 260" preserveAspectRatio="none">
-            <g stroke="var(--border-subtle)" stroke-width="1">
-              <line x1="0" y1="65" x2="800" y2="65"/><line x1="0" y1="130" x2="800" y2="130"/>
-              <line x1="0" y1="195" x2="800" y2="195"/>
+          <svg width="100%" height="100%" viewBox="0 0 820 284" preserveAspectRatio="none" style="display:block">
+            <g stroke="color-mix(in srgb, var(--border-subtle) 55%, transparent)" stroke-width="1">
+              <line x1="52" y1="250" x2="800" y2="250"/>
+              <line x1="52" y1="211" x2="800" y2="211"/>
+              <line x1="52" y1="172" x2="800" y2="172"/>
+              <line x1="52" y1="133" x2="800" y2="133"/>
+              <line x1="52" y1="94"  x2="800" y2="94"/>
+              <line x1="52" y1="55"  x2="800" y2="55"/>
+              <line x1="52" y1="16"  x2="800" y2="16"/>
             </g>
-            <line x1="0" y1="90" x2="800" y2="90" stroke="var(--danger)" stroke-width="1" stroke-dasharray="4 3"/>
-            <path d="M0,200 C80,190 120,150 170,95 C210,55 250,70 300,130 C350,190 420,205 480,150 C540,95 600,80 660,140 C710,190 760,205 800,195"
-                  fill="none" stroke="var(--accent)" stroke-width="1.5"/>
-            <path d="M0,215 C80,205 130,175 180,125 C225,85 265,95 310,150 C360,205 425,220 485,170 C545,120 605,105 665,160 C715,205 760,218 800,210"
+            <g class="axis-text" text-anchor="end">
+              <text x="46" y="253">0</text>
+              <text x="46" y="214">200</text>
+              <text x="46" y="175">400</text>
+              <text x="46" y="136">600</text>
+              <text x="46" y="97">800</text>
+              <text x="46" y="58">1000</text>
+              <text x="46" y="19">1200</text>
+            </g>
+            <text class="axis-text" x="8" y="14">kW</text>
+            <line x1="52" y1="152.5" x2="800" y2="152.5"
+                  stroke="var(--ref-line)" stroke-width="1" stroke-dasharray="5 4"/>
+            <path d="M52,196 C125,188 168,152 218,104 C258,66 298,80 348,138 C398,196 465,210 525,158
+                     C585,106 645,92 705,148 C755,194 780,208 800,200"
                   fill="none" stroke="var(--text-faint)" stroke-width="1" stroke-dasharray="3 3"/>
+            <path d="M52,186 C125,176 168,140 218,92 C258,54 298,68 348,126 C398,184 465,198 525,146
+                     C585,94 645,80 705,136 C755,182 780,196 800,188"
+                  fill="none" stroke="var(--accent)" stroke-width="1.6"/>
+            <g class="axis-text" text-anchor="middle">
+              <text x="52" y="268">00:00</text>
+              <text x="239" y="268">06:00</text>
+              <text x="426" y="268">12:00</text>
+              <text x="613" y="268">18:00</text>
+              <text x="800" y="268">24:00</text>
+            </g>
+            <circle cx="298" cy="68" r="2.5" fill="var(--accent)"/>
+            <text class="axis-text" x="304" y="64">986 kW @ 09:15</text>
           </svg>
         </div>
-        <div class="plot-note">图例位置、标注、拟合类型都在右侧参数里改，改完全图重绘</div>
+        <div class="plot-note">刻度 0–1200 kW · 200 kW 一档 · 峰值与时刻直接标在图上</div>
       </div>
     </div>
 
@@ -380,8 +276,9 @@ table.grid td.r, table.grid th.r { text-align: right; }
           <select><option>浙江 · 两充两放</option><option>江苏 · 一充一放</option></select>
         </div>
         <div class="field">
-          <label>主题</label>
+          <label>图表主题（仅影响导出的图，不改本界面）</label>
           <select><option>深色</option><option>浅色</option></select>
+          <span class="hint">界面主题在右上角切</span>
         </div>
         <div class="field">
           <label>日期范围</label>
@@ -409,43 +306,17 @@ table.grid td.r, table.grid th.r { text-align: right; }
     <button class="btn ghost">全选</button>
     <button class="btn ghost">反选</button>
     <span class="spacer"></span>
-    <span class="faint">已选 8 / 12</span>
+    <span class="faint num" style="font-size:var(--fs-xs)" id="v5-count">已选 0 / 0</span>
   </div>
   <div class="tbl-wrap">
     <table class="grid">
       <thead>
-        <tr>
-          <th style="width:28px"></th>
-          <th>文件名预览</th><th>表号</th><th>月份</th>
-          <th class="r">倍率</th><th class="r">容量线</th>
-          <th>策略</th><th>自定义</th>
-        </tr>
+        <tr><th style="width:28px"></th><th>文件名预览</th><th>表号</th><th>月份</th>
+          <th class="r">倍率</th><th class="r">容量线</th><th>策略</th><th>自定义</th></tr>
       </thead>
-      <tbody>
-        <tr><td><span class="chk on"></span></td>
-          <td class="mono">A-01_2026-01_负荷曲线.png</td><td class="mono">A-01</td><td class="mono">2026-01</td>
-          <td class="r mono">1.00</td><td class="r mono">500.0</td><td>浙江</td>
-          <td><span class="faint">—</span></td></tr>
-        <tr><td><span class="chk on"></span></td>
-          <td class="mono">A-01_2026-02_负荷曲线.png</td><td class="mono">A-01</td><td class="mono">2026-02</td>
-          <td class="r mono">1.00</td><td class="r mono">500.0</td><td>浙江</td>
-          <td><span class="faint">—</span></td></tr>
-        <tr><td><span class="chk on"></span></td>
-          <td class="mono">B-07_2026-01_负荷曲线.png</td><td class="mono">B-07</td><td class="mono">2026-01</td>
-          <td class="r mono" style="color:var(--warn)">0.72</td><td class="r mono">420.0</td><td>江苏</td>
-          <td><span style="color:var(--accent);font-size:var(--fs-xs)">已改</span></td></tr>
-        <tr><td><span class="chk"></span></td>
-          <td class="mono">PV-02_2026-01_负荷曲线.png</td><td class="mono">PV-02</td><td class="mono">2026-01</td>
-          <td class="r mono">1.00</td><td class="r mono">—</td><td>浙江</td>
-          <td><span class="faint">—</span></td></tr>
-        <tr><td><span class="chk on"></span></td>
-          <td class="mono">C-03_2026-01_负荷曲线.png</td><td class="mono">C-03</td><td class="mono">2026-01</td>
-          <td class="r mono">1.00</td><td class="r mono">500.0</td><td>浙江</td>
-          <td><span class="faint">—</span></td></tr>
-      </tbody>
+      <tbody id="v5-body"></tbody>
     </table>
   </div>
-
   <div class="export-foot">
     <div class="row">
       <label>输出目录</label>
@@ -462,7 +333,7 @@ table.grid td.r, table.grid th.r { text-align: right; }
       <button class="btn ghost" style="flex:none">重置</button>
     </div>
     <div class="actions">
-      <span class="faint" style="margin-right:auto;font-size:var(--fs-xs)">预计 8 张图 · 约 3.4 MB</span>
+      <span class="faint" style="margin-right:auto;font-size:var(--fs-xs)" id="v5-est">预计 0 张图</span>
       <button class="btn ghost">取消</button>
       <button class="btn primary">开始导出</button>
     </div>
@@ -470,6 +341,59 @@ table.grid td.r, table.grid th.r { text-align: right; }
 </section>
 
 <script>
+const SRC = [
+  ["A栋负荷2026.xlsx","A-01","2026-01",31,96,"312.4","1048.2","宽表","ok","就绪"],
+  ["A栋负荷2026.xlsx","A-01","2026-02",28,96,"298.7","1012.5","宽表","ok","就绪"],
+  ["A栋负荷2026.xlsx","A-01","2026-03",31,96,"341.2","1093.8","宽表","ok","就绪"],
+  ["B&C楼<综合>.xlsx","B-07","2026-01",31,96,"88.1","642.9","转置","warn","需确认"],
+  ["B&C楼<综合>.xlsx","B-07","2026-02",28,96,"91.4","658.3","转置","warn","需确认"],
+  ["光伏倒送_2026Q1.csv","PV-02","2026-01",31,96,"-186.3","421.0","长表","ok","就绪"],
+  ["光伏倒送_2026Q1.csv","PV-02","2026-02",28,96,"-204.8","398.6","长表","ok","就绪"],
+  ["老厂区示数表.xls","C-03","2026-01",31,96,"204.0","886.4","示数","err","解析失败"],
+  ["D区冷库.xlsx","D-11","2026-01",31,96,"512.8","1204.6","宽表","ok","就绪"],
+  ["D区冷库.xlsx","D-11","2026-02",28,96,"508.3","1187.9","宽表","ok","就绪"],
+  ["E厂注塑线.xlsx","E-05","2026-01",31,96,"426.7","972.1","宽表","ok","就绪"],
+  ["E厂注塑线.xlsx","E-05","2026-02",28,96,"419.9","958.4","宽表","ok","就绪"],
+  ["F仓储中心.xlsx","F-02","2026-01",31,96,"96.3","288.5","宽表","ok","就绪"],
+  ["F仓储中心.xlsx","F-02","2026-02",28,96,"92.1","276.2","宽表","ok","就绪"],
+  ["G化工园区.xlsx","G-09","2026-01",31,96,"724.5","1421.3","宽表","run","处理中"],
+  ["H数据中心.xlsx","H-04","2026-01",31,24,"882.0","936.7","宽表","ok","就绪"],
+  ["H数据中心.xlsx","H-04","2026-02",28,24,"879.4","931.2","宽表","ok","就绪"],
+  ["I物流园.csv","I-06","2026-01",31,96,"142.8","398.2","长表","ok","就绪"],
+  ["J食品加工.xlsx","J-03","2026-01",31,96,"368.9","815.4","宽表","ok","就绪"],
+  ["J食品加工.xlsx","J-03","2026-02",28,96,"361.2","802.7","宽表","ok","就绪"],
+];
+const SEL1 = new Set([0,1,2,3,4,5,6,8,9,10,11,12,13,15,16,17,18,19]);
+document.getElementById('v1-body').innerHTML = SRC.map((r,i)=>{
+  const [f,t,m,d,tp,mn,mx,ft,st,stt] = r;
+  return `<tr class="${SEL1.has(i)?'sel':''}">
+    <td><span class="chk ${SEL1.has(i)?'on':''}"></span></td>
+    <td>${f}</td><td class="mono">${t}</td><td class="mono">${m}</td>
+    <td class="r mono">${d}</td><td class="r mono">${tp}</td>
+    <td class="r mono">${mn}</td><td class="r mono">${mx}</td>
+    <td>${ft}</td><td><span class="badge ${st}">${stt}</span></td></tr>`;
+}).join('');
+
+const SEL5 = new Set([0,1,2,3,5,8,9,10]);
+document.getElementById('v5-body').innerHTML = SRC.map((r,i)=>{
+  const [f,t,m] = r;
+  const on = SEL5.has(i);
+  const custom = (i === 2);
+  const mult = custom ? '0.72' : '1.00';
+  const cap  = custom ? '420.0' : '500.0';
+  const multStyle = custom ? 'style="color:var(--warn)"' : '';
+  return `<tr class="${on?'sel':''}">
+    <td><span class="chk ${on?'on':''}"></span></td>
+    <td class="mono">${t}_${m}_负荷曲线.png</td><td class="mono">${t}</td><td class="mono">${m}</td>
+    <td class="r mono" ${multStyle}>${mult}</td>
+    <td class="r mono">${cap}</td>
+    <td>浙江</td>
+    <td>${custom?'<span style="color:var(--accent);font-size:var(--fs-xs)">已改</span>':'<span class="faint">—</span>'}</td></tr>`;
+}).join('');
+document.getElementById('v5-count').textContent = `已选 ${SEL5.size} / ${SRC.length}`;
+document.getElementById('v5-est').textContent =
+  `预计 ${SEL5.size} 张图 · 约 ${(SEL5.size * 0.41).toFixed(1)} MB`;
+
 document.querySelectorAll('.hud [data-view]').forEach(b => {
   b.onclick = () => {
     document.querySelectorAll('.hud [data-view]').forEach(x => x.classList.remove('on'));
