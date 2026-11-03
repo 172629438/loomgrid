@@ -17,8 +17,9 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-2);
   padding: var(--sp-3) var(--sp-4);
-  min-height: 0;
   outline: none;
+  /* 容器查询：窄容器下标题行优先丢低优先级读数 */
+  container-type: inline-size;
 }
 .curve-viewer:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring);
@@ -31,6 +32,7 @@
   display: flex;
   align-items: baseline;
   gap: var(--sp-4);
+  flex-wrap: wrap;
   flex: none;
 }
 .curve-viewer__title {
@@ -52,13 +54,19 @@
   margin-left: var(--sp-1);
 }
 
-/* ── 绘图区 ──────────────────────────────────── */
+/* 窄容器降级：先丢「天数 / 点数」这类背景信息，峰值与均值必须留下 */
+@container (max-width: 520px) {
+  .curve-viewer__stat[data-priority="low"] { display: none; }
+}
+
+/* ── 绘图区 ──────────────────────────────────── 
+   高度跟着画面比例走（JS 写入 aspect-ratio，与 viewBox 同源），
+   不用 flex:1 填满 —— 填满会让 preserveAspectRatio="meet" 把画面缩成中间一条。 */
 .curve-viewer__plot {
-  flex: 1;
-  min-height: 0;
   position: relative;
   display: block;
   width: 100%;
+  aspect-ratio: 820 / 284;
 }
 .curve-viewer__plot svg { display: block; width: 100%; height: 100%; }
 

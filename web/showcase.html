@@ -51,7 +51,6 @@ body { padding: 0 0 var(--sp-6); }
   margin-bottom: var(--sp-1);
 }
 .demo-state__name b { color: var(--text-muted); font-weight: 500; }
-.demo-mini { height: 190px; }
 .demo-table-h { height: 260px; }
 </style>
 </head>
@@ -84,9 +83,11 @@ function profile(scale) {
 const MAIN = profile(1);
 const AVG = profile(0.88).map(v => Math.round(v * 0.97));
 const STATS = [
-  { label: '峰值', value: Math.max(...MAIN) + ' kW' },
-  { label: '均值', value: Math.round(MAIN.reduce((a,b)=>a+b,0)/N) + ' kW' },
-  { label: '容量线', value: '500 kW' },
+  { label: '峰值', value: Math.max(...MAIN) + ' kW', priority: 'high' },
+  { label: '均值', value: Math.round(MAIN.reduce((a,b)=>a+b,0)/N) + ' kW', priority: 'high' },
+  { label: '容量线', value: '500 kW', priority: 'high' },
+  { label: '天数', value: '31', priority: 'low' },
+  { label: '点数', value: '96', priority: 'low' },
 ];
 function curveData() {
   return {
@@ -181,7 +182,7 @@ function blockCurve() {
     const items = STATES.map(([st, name]) =>
       '<div class="demo-state">' +
         '<div class="demo-state__name"><b>' + name + '</b> · state=' + st + '</div>' +
-        '<div class="curve-viewer demo-mini" data-state="' + st + '" data-cv="' + theme + '-' + st + '"></div>' +
+        '<div class="curve-viewer" data-state="' + st + '" data-cv="' + theme + '-' + st + '"></div>' +
       '</div>').join('');
     return '<div class="demo-pane" data-theme="' + theme + '">' +
       '<div class="demo-pane__label">' + theme + '</div>' +
@@ -189,7 +190,20 @@ function blockCurve() {
   }).join('');
   return '<section class="demo-block">' +
     '<div class="demo-block__title">曲线查看器 <span>V3 中间 · 替代 PreviewDialog 的绘图区</span></div>' +
-    '<p class="demo-block__desc">核心画面。判据是「能读数」：刻度必须有、数值等宽、峰值与时刻直接标在图上。悬停出准线与读数气泡；加载与错误态保留坐标框架，让人知道这里本来有图。</p>' +
+    '<p class="demo-block__desc">核心画面。判据是「能读数」：刻度必须有、数值等宽、峰值与时刻直接标在图上。悬停出准线与读数气泡；加载与错误态保留坐标框架，让人知道这里本来有图。' +
+    '<br>迷你展示用宽扁比例（820:120），不是把标准画面压扁——组件接受「我的画面是宽扁的」这个事实。刻度质量与曲线形态请看下一块的真实尺寸。</p>' +
+    '<div class="demo-pair">' + panes + '</div></section>';
+}
+
+function blockCurveReal() {
+  const panes = ['dark','light'].map(theme =>
+    '<div class="demo-pane" data-theme="' + theme + '">' +
+      '<div class="demo-pane__label">' + theme + ' · 真实尺寸 820×500</div>' +
+      '<div class="curve-viewer" id="cv-real-' + theme + '"></div>' +
+    '</div>').join('');
+  return '<section class="demo-block">' +
+    '<div class="demo-block__title">曲线查看器 · 真实尺寸 <span>小图看不出刻度质量</span></div>' +
+    '<p class="demo-block__desc">V3 里曲线区约 820×500。这个尺寸下要看三件事：七档刻度会不会挤、曲线形态能不能看出双峰与谷、峰值标注会不会遮住曲线。</p>' +
     '<div class="demo-pair">' + panes + '</div></section>';
 }
 
@@ -210,13 +224,18 @@ function blockTable() {
     '<div class="demo-pair">' + panes + '</div></section>';
 }
 
-document.getElementById('root').innerHTML = blockCurve() + blockTable();
+document.getElementById('root').innerHTML = blockCurve() + blockCurveReal() + blockTable();
 
-/* 渲染所有曲线实例 */
+/* 迷你块：宽扁比例（820:120），不是把标准画面压扁 */
 document.querySelectorAll('[data-cv]').forEach(host => {
   const state = host.dataset.state;
-  CurveViewer.render(host, curveData());
+  CurveViewer.render(host, curveData(), { aspect: 820 / 120 });
   CurveViewer.setState(host, state);
+});
+
+/* 真实尺寸块：标准比例 */
+['dark','light'].forEach(theme => {
+  CurveViewer.render(document.getElementById('cv-real-' + theme), curveData());
 });
 
 /* 令牌统计（页面自证） */

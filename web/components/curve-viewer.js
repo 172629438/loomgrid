@@ -23,7 +23,8 @@
   'use strict';
 
   const NS = 'http://www.w3.org/2000/svg';
-  const VB_W = 820, VB_H = 284;
+  const VB_W = 820;
+  const DEFAULT_ASPECT = 820 / 284;
   const PAD = { l: 52, r: 20, t: 16, b: 34 };
 
   function el(tag, attrs, children) {
@@ -49,7 +50,7 @@
     return step * mag;
   }
 
-  function build(data) {
+  function build(data, VB_H) {
     const times = data.times || [];
     const n = times.length;
     const series = data.series || [];
@@ -133,7 +134,14 @@
     return { node: g, sx, sy, x0, x1, y0, y1, n, times, series, PAD, xStepPx: (x1 - x0) / Math.max(1, n - 1) };
   }
 
-  function render(root, data) {
+  function render(root, data, opts) {
+    opts = opts || {};
+    // 宽高比由调用方决定，不再写死 820×284：
+    // 迷你展示、窄面板、真实 V3 三种容器比例差很多，
+    // 写死 viewBox 会让 preserveAspectRatio="meet" 把内容缩成中间一条（实测 708×89 容器下内容只占 34%）。
+    const aspect = opts.aspect || DEFAULT_ASPECT;
+    const VB_H = Math.round(VB_W / aspect);
+
     root.classList.add('curve-viewer');
     root.setAttribute('tabindex', '0');
     root.setAttribute('role', 'img');
@@ -147,14 +155,18 @@
     head.innerHTML =
       '<span class="curve-viewer__title">' + (data.title || '') + '</span>' +
       '<span class="curve-viewer__stats">' +
-      stats.map(s => '<span>' + s.label + '<b>' + s.value + '</b></span>').join('') +
+      stats.map(s => '<span class="curve-viewer__stat" data-priority="' +
+        (s.priority || 'high') + '">' + s.label + '<b>' + s.value + '</b></span>').join('') +
       '</span>';
     root.appendChild(head);
 
     const plot = document.createElement('div');
     plot.className = 'curve-viewer__plot';
+    // aspect-ratio 跟 viewBox 同步，保证容器高度始终配合画面比例，
+    // 不再出现「容器宽扁、画面缩成一条」。
+    plot.style.aspectRatio = String(aspect);
     const svg = el('svg', { viewBox: '0 0 ' + VB_W + ' ' + VB_H, preserveAspectRatio: 'xMidYMid meet' });
-    const ctx = build(data);
+    const ctx = build(data, VB_H);
     svg.appendChild(ctx.node);
     plot.appendChild(svg);
     root.appendChild(plot);
@@ -186,23 +198,24 @@
       root.appendChild(foot);
     }
 
-    // 骨架 / 错误 / 空
+    // 骨架 / 错误 / 空 —— 覆盖**绘图区**，不覆盖标题与图例，
+    // 这样「这里本来有图」的信息清楚，而标题读数不会被蒙住
     const sk = document.createElement('div');
     sk.className = 'curve-viewer__skeleton';
     sk.innerHTML = '<span></span>';
-    root.appendChild(sk);
+    plot.appendChild(sk);
 
     const err = document.createElement('div');
     err.className = 'curve-viewer__error';
     err.innerHTML = '<div class="curve-viewer__error-title">' + (data.errorTitle || '数据不可用') + '</div>' +
       '<div class="curve-viewer__error-desc">' + (data.errorDesc || '') + '</div>';
-    root.appendChild(err);
+    plot.appendChild(err);
 
     const emp = document.createElement('div');
     emp.className = 'curve-viewer__empty empty';
     emp.innerHTML = '<div class="empty__title">没有数据</div>' +
       '<div class="empty__desc">' + (data.emptyDesc || '调整日期范围或重新导入文件') + '</div>';
-    root.appendChild(emp);
+    plot.appendChild(emp);
 
     // hover：准线 + 气泡
     const cross = svg.querySelector('.cv-crosshair');
