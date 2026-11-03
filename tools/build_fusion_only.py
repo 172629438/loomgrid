@@ -5,6 +5,7 @@
 这里只收集 Fusion 实际需要的依赖，产物对齐历史 release（约 300 MB 解压）。
 """
 import os
+import re
 import shutil
 import sys
 
@@ -13,13 +14,30 @@ from cx_Freeze import setup, Executable
 ROOT = r"C:\Users\Administrator\.hanako\repos\172629438__loomgrid"
 os.chdir(ROOT)
 
-VER = "2.3.2"
+SRC_REAL = "负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
+# 版本号从程序真正使用的那个常量读，不从 docstring 读。
+# docstring 是给人看的说明，FUSION_VERSION 是程序标题/弹窗实际引用的值；
+# 两者分开写就会不同步——2026-11-03 就出过一次：docstring 写了 v2.3.7，
+# 常量还停在 2.3.6，打出来的 exe 窗口标题写着旧版本。
+_src_text = open(SRC_REAL, encoding="utf-8").read()
+_m = re.search(r'^FUSION_VERSION\s*=\s*["\']([\d.]+)["\']', _src_text, re.M)
+if not _m:
+    raise SystemExit(f"没能从 {SRC_REAL} 读到 FUSION_VERSION 常量")
+VER = _m.group(1)
+
+# 顺带校验 docstring 是否跟上了，不一致只警告不阻断
+_doc = re.search(r"LoomGrid Fusion v([\d.]+)", _src_text[:4000])
+if _doc and _doc.group(1) != VER:
+    print(f"[build] 警告: docstring 写的是 v{_doc.group(1)}，"
+          f"但 FUSION_VERSION = {VER}，建议改成一致", flush=True)
+print(f"[build] 从 FUSION_VERSION 读到版本号: v{VER}", flush=True)
+
 SRC = "loomgrid_fusion_main.py"
 TARGET_EXE = f"LoomGrid-Fusion-v{VER}"
 OUT = f"dist/{TARGET_EXE}"
 
 # cx_Freeze 对中文源文件名不稳，先复制一份英文名
-shutil.copyfile("负荷曲线批量生成工具 Pro 融合版 (v2.3).py", SRC)
+shutil.copyfile(SRC_REAL, SRC)
 
 if os.path.exists(OUT):
     shutil.rmtree(OUT)
