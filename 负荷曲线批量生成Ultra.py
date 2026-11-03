@@ -16487,7 +16487,28 @@ class ProfessionalWindow(QMainWindow):
         tokens = DesignTokens.current_tokens()
         charge_bg = QColor(tokens['ACCENT_LIGHT'])
         discharge_bg = QColor(tokens['ACCENT_WARM']); discharge_bg.setAlpha(40)
-        col_labels = ['日期'] + self.charge_labels + self.discharge_labels + ['日最小值(kWh)']
+        # v3.2.9fix(C4b): 与 Fusion v2.3.7 的日表对齐。
+        # 原写法 ['日期'] + charge_labels + discharge_labels 会把每个段名印两遍
+        # （两个标签列表内容相同），且 vals 里混入充电段的放电值（恒为 0），
+        # 导致 min_val 永远是 0。改用 _visible_seg_indices 筛列、同索引相加。
+        _dck, _ddk = self._visible_seg_indices(sorted(self._get_work_data().keys()))
+        # 同名段加序号，规则与月表一致
+        _dcnt = {}
+        for lab in self.charge_labels:
+            _dcnt[lab] = _dcnt.get(lab, 0) + 1
+        _dseen = {}
+        _duniq = []
+        for lab in self.charge_labels:
+            if _dcnt.get(lab, 0) > 1:
+                _dseen[lab] = _dseen.get(lab, 0) + 1
+                _duniq.append(f"{lab}{_dseen[lab]}")
+            else:
+                _duniq.append(lab)
+
+        col_labels = (['日期']
+                      + [_duniq[i] for i in _dck]
+                      + [self.discharge_labels[i] for i in _ddk]
+                      + ['日最小值(kWh)'])
         self.daily_table.setColumnCount(len(col_labels))
         self.daily_table.setHorizontalHeaderLabels(col_labels)
         n_days = len(dates)
@@ -16496,16 +16517,20 @@ class ProfessionalWindow(QMainWindow):
             self.daily_table.setItem(d, 0, QTableWidgetItem(str(dates[d])))
             vals = []
             col = 1
-            # v2.30fix: 按标签索引填充, 段数不足时填0
-            for i in range(len(self.charge_labels)):
-                val = c_segs[i][d] if i < len(c_segs) and d < len(c_segs[i]) else 0.0
+            # 同一索引 i 在 c_segs / d_segs 里是同一个段，一充一放互斥，相加即该段空间
+            for i in _dck:
+                c_val = c_segs[i][d] if i < len(c_segs) and d < len(c_segs[i]) else 0.0
+                d_val = d_segs[i][d] if i < len(d_segs) and d < len(d_segs[i]) else 0.0
+                val = c_val + d_val
                 vals.append(val)
                 item = QTableWidgetItem(f"{val:.3f}")
                 item.setBackground(charge_bg)
                 self.daily_table.setItem(d, col, item)
                 col += 1
-            for i in range(len(self.discharge_labels)):
-                val = d_segs[i][d] if i < len(d_segs) and d < len(d_segs[i]) else 0.0
+            for i in _ddk:
+                c_val = c_segs[i][d] if i < len(c_segs) and d < len(c_segs[i]) else 0.0
+                d_val = d_segs[i][d] if i < len(d_segs) and d < len(d_segs[i]) else 0.0
+                val = c_val + d_val
                 vals.append(val)
                 item = QTableWidgetItem(f"{val:.3f}")
                 item.setBackground(discharge_bg)
@@ -17915,7 +17940,16 @@ class ProfessionalWindow(QMainWindow):
                     data = work_data[month]
                     dates = data.get('date_labels', [])
                     writer.writerow([f"--- {month} ---"])
-                    day_headers = ["日期"] + [f"充电({lbl})" for lbl in self.charge_labels] + [f"放电({lbl})" for lbl in self.discharge_labels] + ["日最小值(kWh)"]
+                    # v3.2.9fix(C4b): 与界面同判据——全零段列不导出
+                    _hck, _hdk = self._visible_seg_indices(months)
+                    _hc = [self.charge_labels[i] for i in _hck]
+                    _hd = [self.discharge_labels[i] for i in _hdk]
+                    if not _hc and not _hd:
+                        _hc = self.charge_labels
+                        _hd = self.discharge_labels
+                        _hck = list(range(len(_hc)))
+                        _hdk = list(range(len(_hd)))
+                    day_headers = ["日期"] + [f"充电({lbl})" for lbl in _hc] + [f"放电({lbl})" for lbl in _hd] + ["日最小值(kWh)"]
                     writer.writerow(day_headers)
                     c_segs = c_segs_all.get(month, [])
                     d_segs = d_segs_all.get(month, [])

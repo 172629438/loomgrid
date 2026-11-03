@@ -11,7 +11,9 @@ import sys
 
 from cx_Freeze import setup, Executable
 
-ROOT = r"C:\Users\Administrator\.hanako\repos\172629438__loomgrid"
+# 仓库根目录：本文件在 tools/ 下，上跳一层。
+# 原来写死 C:\Users\Administrator\...，换一台机器直接跑不了。
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
 
 SRC_REAL = "负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
@@ -43,6 +45,10 @@ if os.path.exists(OUT):
     shutil.rmtree(OUT)
 
 EXCLUDES = [
+    # ⚠ unittest 这一项换了打包器就要重新验。
+    # PyInstaller 路径下排掉它会崩：matplotlib -> pyparsing ->
+    # pyparsing.testing 在模块级 import unittest，取不到就双击即退。
+    # cx_Freeze 的依赖分析方式不同，本机实测可用，故保持现状不改。
     "tkinter", "unittest", "pydoc", "doctest",
     "IPython", "jedi", "nbformat", "notebook",
     "torch", "tensorflow", "sklearn", "numba",

@@ -105,7 +105,7 @@ py -V:Astral/CPython3.12.13 -m venv <临时目录>
 **Fusion / Ultra 单版本打包用 `tools/pack_release.py`：**
 
 ```bash
-python tools/pack_release.py fusion 2.3.6
+python tools/pack_release.py fusion 2.3.7
 python tools/pack_release.py ultra 3.2.9
 ```
 
@@ -143,16 +143,6 @@ python tools/verify_exe_window.py "build_release/<tag>/dist/<tag>/<tag>.exe" --e
 > 2026-11-02：这条判据第一次真正跑起来就抓到了两个问题——主窗口标题停在 v2.3.1、
 > 欢迎弹窗写着 Ultra 的 v3.2。以前「进程存活 + 读日志」两项都是绿的。
 
-### 打包后必须验证
-
-**进程存活不算通过**——卡在错误对话框里的进程同样"存活"。
-
-```python
-# 正确判据：读窗口标题
-# 正常 = 只有 1 个窗口「欢迎 — LoomGrid-Fusion-vX.Y.Z」
-# 异常 = 出现 2 个窗口，其中一个是「cx_Freeze: Python error in main script」
-```
-
 ---
 
 ## 五、Release 发布
@@ -181,7 +171,11 @@ gh release create fusion-vX.Y.Z "<zip路径>" \
    任一月非零仍显示。Ultra 侧顺带消除了重复列——它的 charge_labels 与
    discharge_labels 内容完全相同（三个分支都向两列表同步 append），
    而表头是两者相加，每个段原本出现两次。
-   连带效果：「月最小段总和」原本被占位零列压住恒等于 0，现在等于真实最小段值；
+   **2026-11-03 补修**：C4 当时只改了月汇总表 `_populate_space_table`，
+   日明细表 `_fill_daily_table` 漏了（v2.3.7）。日表同样把两个标签列表相加，
+   而且 `vals` 里混入充电段的放电值（恒为 0）——导致「日最小值」永远是 0。
+   现在两张表的列结构一致。
+   连带效果：「月/日最小值」原本被占位零列压住恒等于 0，现在等于真实最小段值；
    但第 1 条那个取 min 的方式本身仍未动。
 
 ---

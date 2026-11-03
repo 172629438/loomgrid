@@ -105,6 +105,49 @@ UTF-8 / GBK 靠 fallback 循环能兜住，掩盖了问题；**Big5、Shift-JIS 
 
 ---
 
+## v3.2.9 补丁 — 2026-11-03（Ultra）
+
+### 日明细表同样是旧的重复列口径
+
+Fusion 在 v2.3.7 修了 `_fill_daily_table`，Ultra 侧没跟上——**又是双实现的老问题**。
+
+Ultra 的日表：
+
+```python
+col_labels = ['日期'] + self.charge_labels + self.discharge_labels + ['日最小值(kWh)']
+```
+
+两个标签列表内容完全相同，每个段名印两遍；`vals` 里混入充电段的放电值（恒为 0），
+`min(vals)` **永远是 0**。
+
+**Ultra 比 Fusion 多一层分叉**：`daily_need` 有两条路径——
+
+- 「满载」路径用 `min(c_segs[i][d], d_segs[i][d])` 再取 max，平段两边都是 0，
+  `max` 不受影响，**这条本来是对的，没动**；
+- 「最小可行容量」路径直接用 `min_val` —— **恒为 0**，是真正出问题的那条。
+
+修法：用已有的 `_visible_seg_indices()` 筛列、同索引充+放相加（互斥，只有一个非零）、
+同名段加序号。CSV 导出的日表头同步改。
+
+### 文档修正
+
+- `AGENTS.md`：删掉与新版判据矛盾的旧段「打包后必须验证」（旧的按窗口数、新的按标题，
+  两段并存会让人以为要数窗口）；`pack_release.py` 示例版本号 2.3.6 → 2.3.7；
+  第六节补上 C4 在日表的漏改。
+- `CHANGELOG.md` v2.3.6 条目里「Ultra 侧未同步，需人工对齐」已过时——Ultra v3.2.9
+  早同步了 C1，标注更新。
+
+### tools/build_fusion_only.py
+
+`ROOT` 原写死 `C:\Users\Administrator\.hanako\repos\172629438__loomgrid`，
+换一台机器直接跑不了。改为 `os.path.dirname(os.path.dirname(os.path.abspath(__file__)))`。
+
+顺带在 `EXCLUDES` 的 `unittest` 上加了注释：PyInstaller 路径下排掉它会崩
+（matplotlib → pyparsing → pyparsing.testing 在模块级 import unittest），
+cx_Freeze 实测可用，所以保持现状不改，但换打包器时先验这一项。
+
+---
+
 ## v2.3.7 — 2026-11-03（Fusion）
 
 ### 修复：日明细表漏改，段名列重复且「日最小值」恒为 0
@@ -153,7 +196,12 @@ col_labels = ['日期'] + self.charge_labels + self.discharge_labels + ['日最�
 `load_array` 同步剔除。若全部时刻都无效，记 error 并返回空结果。
 
 ⚠️ **双实现提醒**：该函数注释写明「Pro(95行) 与 Ultra(200行) 独立实现，
-修改任一侧需同步更新」。本次只改 Fusion，**Ultra 侧未同步**，需人工对齐。
+修改任一侧需同步更新」。
+
+> 2026-11-03 更新：**已在 Ultra v3.2.9 同步**（修改 `compute_segmented_spaces` 同名位置，
+> 入口同样检出 `> 24.0`、计数、`log.warning`、同步剔除）。
+> 两侧返回风格各自保留：Fusion 全无效时返回 `[empty], [empty], [], []`，
+> Ultra 返回 `[], [], [], []`。
 
 ### C2 删除 compute_daily_spaces（85 行死代码）
 
