@@ -94,7 +94,20 @@ def _to_internal_segments(req: SpacesRequest):
     return []
 
 
-@router.post("/spaces", response_model=Envelope)
+@router.post("/spaces", response_model=Envelope,
+    description=(
+        "按段算逐日充放电空间。\n\n"
+        "**segments[].start / end 是 float 小时**（0.0 / 8.0），不是 '00:00' 字符串。\n\n"
+        "**mode 决定充电空间怎么算**：\n"
+        "· A（需量模式）充电 = Σ max(billing.value − 负荷, 0) × dt —— 与负值无关，缺 billing.value 则为 0\n"
+        "· B / C（功率模式）充电 = Σ min(rated_power, max(−负荷,0)) × dt × η —— 只吃负负荷，缺 rated_power 则为 0\n\n"
+        "**缺对应参数时该方向的空间为 0，不报错** —— 这是最容易误判的地方：\n"
+        "看起来像「算对了结果就是 0」，实际是参数没给。\n\n"
+        "ignore_negative=True 会把负负荷清零，于是 B/C 的充电空间归 0。\n\n"
+        "seg_dt 用梯形权重：N 个采样点的时段总时长 = (N-2)×0.25 + 2×0.125，\n"
+        "即「3 小时时段」实际 2.875 小时 —— 手算核对必须用这个值。"
+    ),
+             )
 def spaces(req: SpacesRequest):
     """按段算逐日充放电空间。
 
@@ -158,7 +171,12 @@ class CapacityCalcRequest(BaseModel):
                  "**量纲警告**：返回两个不同量纲的量，不可互换、不可比较。\n\n"
                  "· `daily_demand.value_kwh` —— 单位 kWh，回答「电池该装多大」\n"
                  "· `daily_throughput_kwh_per_day` —— 单位 kWh/天，回答「一天能搬多少能量」\n\n"
-                 "单段配置（只有充或缺放）时吞吐量按 0 计算，属正常，会带 hints 说明。"
+                 "单段配置（只有充或缺放）时吞吐量按 0 计算，属正常，会带 hints 说明。\n\n"
+                 "**入参与 /spaces 同构**：session_id / group / segments / mode / rated_power / ignore_negative，\n"
+                 "额外多 basis（min_feasible | full_load）、target_days、dod_percent。\n\n"
+                 "**segments[].start / end 是 float 小时**（0.0 / 8.0），不是 '00:00' 字符串。\n"
+                 "**mode A 要 billing.value、B / C 要 rated_power** ——\n"
+                 "缺参数时该方向的空间为 0 而不报错，容易让人误以为「算对了结果就是 0」。"
              ))
 def capacity(req: CapacityCalcRequest):
     segs = _to_internal_segments(SpacesRequest(**req.model_dump()))

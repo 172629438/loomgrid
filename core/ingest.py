@@ -118,6 +118,25 @@ def _ym_valid_ratio(series, sample_n: int = 20) -> float:
     return hit / max(len(vals), 1)
 
 
+def _looks_yearless(raw) -> bool:
+    """这个日期字符串是不是「没有年份」的形式（会被补成今年）。
+
+    只认明确无年份的两段式：M月D日 / M月 / M-D / M/D。
+    带年份的（2026-01-15、1/15/2026）不算 —— 它们不会被补年份。
+    """
+    t = str(raw).strip()
+    if not t:
+        return False
+    if re.fullmatch(r"\d{1,2}\s*月(?:\s*\d{1,2}\s*日?)?", t):
+        return True
+    m = re.fullmatch(r"(\d{1,2})[-/](\d{1,2})", t)
+    if m:
+        try:
+            return 1 <= int(m.group(1)) <= 12 and 1 <= int(m.group(2)) <= 31
+        except Exception:
+            return False
+    return False
+
 def _extract_ym(d):
     """从任意日期表示里取 YYYY-MM。
 
@@ -985,7 +1004,15 @@ def _scan_wide_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
         key = (ym, asset_val)
         monthly_stats.setdefault(key, {'date_count': 0, 'min_val': np.inf,
                                        'max_val': -np.inf, 'time_set': set(),
-                                       'dates': set()})
+                                       'dates': set(), 'yearless': []})
+        # 记下前几个「无年份」的原始值 —— 前端要把它们摆给用户看，
+        # 否则「有 3 个日期没年份」这句话没法落地（用户还得自己翻表）
+        if len(monthly_stats[key]['yearless']) < 5:
+            _raw = date_values.get(idx, '')
+            if _looks_yearless(_raw):
+                _sv = str(_raw).strip()
+                if _sv not in monthly_stats[key]['yearless']:
+                    monthly_stats[key]['yearless'].append(_sv)
         monthly_stats[key]['date_count'] += 1
         # v2.3.12: 记下具体日期，用于前后端判断「哪几天缺数据」。
         # 原来只存 count，界面上只能显示「31 天里缺 1 天」却说不出是哪天。
@@ -1146,6 +1173,7 @@ def _scan_file_worker(args):
                 'min_val': stats['min_val'],
                 'max_val': stats['max_val'],
                 'dates': sorted(stats.get('dates') or []),
+                'yearless_samples': stats.get('yearless') or [],
                 'mapping': normative
             })
         return summaries

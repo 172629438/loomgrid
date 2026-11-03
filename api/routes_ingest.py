@@ -151,7 +151,16 @@ def _path_allowed(path: str) -> bool:
             return True
     return False
 
-@router.post("/inspect", response_model=Envelope)
+@router.post("/inspect", response_model=Envelope,
+             description=(
+                 "给文件路径，返回每个工作表的列清单与建议映射。\n\n"
+                 "**path 必须落在允许的根内**：\n"
+                 "· 本进程通过 /api/ingest/upload 创建的临时目录（正常路径都走这里）\n"
+                 "· 或环境变量 LGM_ALLOW_ROOTS 声明的目录（默认空）\n\n"
+                 "不满足时返回 **HTTP 200 + error.code = INGEST_PATH_FORBIDDEN** ——\n"
+                 "本 API 的错误统一走 200 + error.code，安全拒绝也不破例。\n"
+                 "**调用方必须以 error.code 判断，不能只看 HTTP 状态码。**"
+             ))
 def inspect(payload: dict):
     """给文件路径，返回每个工作表的列清单与建议映射。"""
     path = (payload or {}).get("path")
@@ -256,7 +265,8 @@ def apply_mapping(req: MappingRequest):
                         date_count=int(g.get("date_count", 0)),
                         time_points=int(g.get("time_points", 0)),
                         min_val=g.get("min_val"), max_val=g.get("max_val"),
-                        dates=_build_days(g.get("month_str", ""), g.get("dates") or []))
+                        dates=_build_days(g.get("month_str", ""), g.get("dates") or []),
+                        yearless_samples=g.get("yearless_samples") or [])
               for g in res]
 
     sid = uuid.uuid4().hex
@@ -265,9 +275,39 @@ def apply_mapping(req: MappingRequest):
                           "mapping": res[0].get("mapping", mapping), "groups": res}
     log.info(f"session {sid} 建立：{len(groups)} 个分组，来源 {os.path.basename(req.path)}")
 
-    return Envelope(ok=True,
-                    data=InspectMappingData(groups=groups, session_id=sid).model_dump()).model_dump()
+    _yl = []
+    for g in groups:
+        for v in (getattr(g, "yearless_samples", None) or []):
+            if v not in _yl:
+                _yl.append(v)
+    hints = {}
+    if _yl:
+        hints["guessed_year"] = {
+            "value": __import__("datetime").date.today().year,
+            "count": len(_yl),
+            "samples": _yl[:5],
+            "message": "有 %d 个日期没有年份，已按 %d 年处理。如数据属于往年，请手动指定年份。"
+                       % (len(_yl), __import__("datetime").date.today().year),
+        }
 
+    return Envelope(ok=True,
+                    data={**InspectMappingData(groups=groups, session_id=sid).model_dump(),
+                          "hints": hints}).model_dump()
+
+
+def _hints_from_groups(groups) -> dict:
+    yl = []
+    for g in groups:
+        for v in (getattr(g, "yearless_samples", None) or []):
+            if v not in yl:
+                yl.append(v)
+    if not yl:
+        return {}
+    import datetime as _dt
+    y = _dt.date.today().year
+    return {"guessed_year": {"value": y, "count": len(yl), "samples": yl[:5],
+                             "message": "有 %d 个日期没有年份，已按 %d 年处理。"
+                                        "如数据属于往年，请手动指定年份。" % (len(yl), y)}}
 
 @router.get("/groups", response_model=Envelope)
 def list_groups(session_id: str):
@@ -290,6 +330,7 @@ def list_groups(session_id: str):
         "session_id": session_id,
         "path": os.path.basename(sess.get("path") or ""),
         "groups": [g.model_dump() for g in out],
+        "hints": _hints_from_groups(out),
     })
 
 

@@ -216,6 +216,12 @@
         <span>检测到多列时间点负荷（宽表格式），时刻将从列名自动识别</span>
       </div>
 
+      <!-- C8 提示：日期没有年份，工具替你补了今年。必须让用户看见并能找到那几行。 -->
+      <div class="v2__hint" id="c8Hint" data-kind="warn" hidden>
+        <span class="v2__fmt-mark" style="border-color:var(--warn);background:var(--warn);margin-top:2px"></span>
+        <span id="c8Text"></span>
+      </div>
+
       <div class="shell__sec">
         映射设置
         <span class="v2__dots">
@@ -454,6 +460,22 @@ function renderInspect(filename, data) {
     hint.querySelector('span:last-child').textContent =
       '识别为 ' + fmt + '（置信 ' + Math.round(conf.score * 100) + '%）' + (reasons ? ' · ' + reasons : '');
     hint.dataset.kind = conf.score >= 0.9 ? '' : (conf.score >= 0.6 ? 'muted' : 'warn');
+  }
+
+  // C8：日期没有年份 → 已按今年处理。这是工具替用户做的决定，
+  // 必须摆在界面上，而且要把样例给出来（否则他得自己翻整张表）。
+  const c8 = (data.hints && data.hints.guessed_year) || null;
+  const c8Box = document.getElementById('c8Hint');
+  const c8Text = document.getElementById('c8Text');
+  if (c8Box && c8Text) {
+    if (c8) {
+      const samples = (c8.samples || []).join('、');
+      c8Text.textContent = (c8.message || ('有 ' + c8.count + ' 个日期没有年份，已按 ' + c8.value + ' 年处理。'))
+        + (samples ? ' 例如：' + samples : '');
+      c8Box.hidden = false;
+    } else {
+      c8Box.hidden = true;
+    }
   }
 
   // 列名表重建

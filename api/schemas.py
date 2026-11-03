@@ -100,6 +100,7 @@ class GroupInfo(BaseModel):
     min_val: float | None = None
     max_val: float | None = None
     dates: list[DayInfo] = []
+    yearless_samples: list[str] = []
 
 
 class InspectMappingData(BaseModel):
