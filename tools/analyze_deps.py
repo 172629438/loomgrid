@@ -99,6 +99,16 @@ class Program:
                     mod = (n.module or "").split(".")[0] if isinstance(n, ast.ImportFrom) else a.name.split(".")[0]
                     self.imports[local] = mod
 
+        # 条件导入：try/except ImportError、if TYPE_CHECKING 里的 import 也要收。
+        # 实测教训：fontManager 写在模块级 try 里，旧版只扫顶层 body 就漏了它，
+        # 搬到 plotting/fonts.py 后 _find_cjk_font 直接 NameError。
+        for n in ast.walk(self.tree):
+            if isinstance(n, (ast.Import, ast.ImportFrom)):
+                for a in n.names:
+                    local = a.asname or a.name.split(".")[0]
+                    mod = (n.module or "").split(".")[0] if isinstance(n, ast.ImportFrom) else a.name.split(".")[0]
+                    self.imports.setdefault(local, mod)
+
     def line_count(self, name: str) -> int:
         n = self.nodes.get(name)
         if n is None:
@@ -106,8 +116,15 @@ class Program:
         return getattr(n, "end_lineno", n.lineno) - n.lineno + 1
 
     def free_names(self, node) -> list[str]:
-        """节点里引用但未在本地绑定的名字。"""
+        """节点里引用但未在本地绑定的名字。
+
+        `global` 声明的名字必须算依赖，不能当成局部赋值：它读写的虽是模块级状态，
+        但把函数搬走时那段状态也得跟着走，否则一运行就 NameError。
+        实测教训：_FONT_NAME 就是被旧版当成局部变量漏掉的，搬到 plotting/fonts.py
+        后 _get_cached_font 直接报 NameError。
+        """
         assigned = set()
+        gnames = set()
         for sub in ast.walk(node):
             if isinstance(sub, ast.arg):
                 assigned.add(sub.arg)
@@ -118,12 +135,12 @@ class Program:
             elif isinstance(sub, ast.ExceptHandler) and sub.name:
                 assigned.add(sub.name)
             elif isinstance(sub, ast.Global):
-                assigned.update(sub.names)
+                gnames.update(sub.names)
         used = set()
         for sub in ast.walk(node):
             if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
                 used.add(sub.id)
-        return sorted(used - assigned)
+        return sorted((used - assigned) | gnames)
 
     def closure(self, roots: list[str]) -> tuple[set[str], set[str]]:
         """递归求依赖闭包。返回（单文件内符号, 外部名字）。"""

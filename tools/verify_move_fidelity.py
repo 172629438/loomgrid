@@ -62,13 +62,17 @@ def norm_ast(node) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="核验 core/ 搬移的忠实度")
-    ap.add_argument("module", help="core 下的模块名，如 timegrid")
+    ap = argparse.ArgumentParser(description="核验模块搬移的忠实度")
+    ap.add_argument("module", help="模块名，如 timegrid / fonts")
+    ap.add_argument("--layer", default="core", help="所在层目录，默认 core；plotting 模块传 --layer plotting")
     ap.add_argument("--ref", default="HEAD~1", help="对比的基准提交（默认上一个提交）")
     ap.add_argument("--detail", action="store_true", help="打印文本差异行")
     a = ap.parse_args()
 
-    new_src = load_source(os.path.join(ROOT, "core", f"{a.module}.py"))
+    target = os.path.join(ROOT, a.layer, f"{a.module}.py")
+    if not os.path.exists(target):
+        raise SystemExit(f"找不到 {a.layer}/{a.module}.py")
+    new_src = load_source(target)
     old_src = git_show(a.ref)
     new_syms, _ = collect(new_src)
     old_syms, _ = collect(old_src)
