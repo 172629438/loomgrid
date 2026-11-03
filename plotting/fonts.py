@@ -9,11 +9,12 @@
 """
 from __future__ import annotations
 
+import logging
 import re
 import threading
 
 import matplotlib.pyplot as plt
-from loguru import logger as log
+log = logging.getLogger(__name__)
 
 # 字体管理器。原主程序在模块级用 try-import 引入，形如：
 #     try: from matplotlib.font_manager import fontManager

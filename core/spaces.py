@@ -18,8 +18,9 @@
 """
 from __future__ import annotations
 
+import logging
 import numpy as np
-from loguru import logger as log
+log = logging.getLogger(__name__)
 
 from core.models import PeriodType
 from core.timegrid import _normalize_time_column_name, _parse_min

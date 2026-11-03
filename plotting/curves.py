@@ -10,6 +10,7 @@ _draw_curves_core 208 行，2026-10 审查确认过以下边界，搬移勿动�
 """
 from __future__ import annotations
 
+import logging
 import gc
 import os
 import re
@@ -19,7 +20,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from loguru import logger as log
+log = logging.getLogger(__name__)
 from matplotlib import patches as mpatches
 
 from core.models import (

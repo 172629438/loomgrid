@@ -10,15 +10,17 @@
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 
 import pandas as pd
-from loguru import logger as log
+log = logging.getLogger(__name__)
 
 from core.timegrid import _CLEAN_RE, _clean_plot
+from core.timegrid import _clean_series  # noqa: F401  （已归位到 core，此处保留兼容旧引用）
 
-__all__ = ["_sanitize_name", "_clean_series", "generate_filename",
+__all__ = ["_sanitize_name", "generate_filename",
            "generate_default_title", "parse_title_template"]
 
 
@@ -54,16 +56,6 @@ def _sanitize_name(s, max_len=MAX_FILENAME_LEN):
     if base.upper() in _WINDOWS_RESERVED_NAMES:
         s = base + '_' + ext
     return s[:max_len-3]+"..." if len(s) > max_len else s
-
-
-def _clean_series(s):
-    """清理 pandas Series 中的控制字符"""
-    if isinstance(s, pd.DataFrame):
-        if s.shape[1] > 0:
-            s = s.iloc[:, 0]
-        else:
-            return pd.Series(dtype=str)
-    return s.astype(str).str.replace(_CLEAN_RE, '', regex=True).str.strip()
 
 
 def generate_filename(template, ctx, ext='.png'):

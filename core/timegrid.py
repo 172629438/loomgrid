@@ -20,10 +20,11 @@
 
 铁律：core/ 不得 import 任何 UI 框架 / 绘图库 / Web 框架
 （用 tools/check_layering.py 校验，那是 AST 级检查，不会误伤文档）。
-本模块只用标准库 + pandas + loguru + chinese_calendar（可选）。
+本模块只用标准库 + pandas + chinese_calendar（可选），日志走 logging。
 """
 from __future__ import annotations
 
+import logging
 import re
 import threading
 from collections import OrderedDict
@@ -31,7 +32,7 @@ from datetime import date, datetime, time as dt_time
 from functools import lru_cache
 
 import pandas as pd
-from loguru import logger as log
+log = logging.getLogger(__name__)
 
 __all__ = [
     "INVALID_MINUTES",
@@ -54,6 +55,7 @@ __all__ = [
     "_normalize_time_column_name",
     "_normalize_fullwidth_chars",
     "_clean_plot",
+    "_clean_series",
     "invalidate_day_type_cache",
 ]
 
@@ -99,6 +101,21 @@ _TIME_T_SLOT_RE = re.compile(r'[TtPp](\d{1,2})')
 def _clean_plot(s):
     """清理字符串中的控制字符，用于图表标签"""
     return _CLEAN_RE.sub('', str(s)) if isinstance(s, str) else str(s)
+
+
+def _clean_series(s):
+    """清理 pandas Series 中的控制字符
+
+    原住在 plotting/naming.py，但 ingest 需要它——若它留在 plotting，
+    core.ingest 就会反向依赖 plotting（而 plotting 允许 matplotlib），
+    破坏分层单向性。它只用到 pandas + _CLEAN_RE，与绘图无关，归 core 才对。
+    """
+    if isinstance(s, pd.DataFrame):
+        if s.shape[1] > 0:
+            s = s.iloc[:, 0]
+        else:
+            return pd.Series(dtype=str)
+    return s.astype(str).str.replace(_CLEAN_RE, '', regex=True).str.strip()
 
 
 def _normalize_fullwidth_chars(s: str) -> str:
