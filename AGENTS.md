@@ -225,14 +225,41 @@ gh release upload <tag> <zip> --clobber
 
 ---
 
-## 八、当前状态（每次接手时核对）
+## 八、会话与机器分工
+
+### 两台机器
+
+| 机器 | Python | 打包工具 | 备注 |
+|---|---|---|---|
+| 本机（LENOVO） | 3.12.9 | PyInstaller `--onedir` | 走 `tools/pack_release.py` |
+| 公司（SZ635581） | 3.12.13 | cx_Freeze | 走 `tools/build_fusion_only.py` |
+
+**两条路径都可用，按机器选，不规定必须用哪个。** 都以「产物能过窗口验证」为准。
+
+### 同一台机器上跑多个会话时
+
+两个会话共用同一个工作区，**都改 `.py` 就会互相覆盖**。2026-11-03 撞过一次：
+一边修报告 bug、一边修转置 bug，两份改动同时躺在工作区，幸好位置不同没覆盖。
+
+| 角色 | 管什么 | 不管什么 |
+|---|---|---|
+| **主程序会话**（重构/开发） | `.py` 主程序、`core/`、`baseline/`、`tests/` | Release 发布、CHANGELOG 发版条目、AGENTS.md |
+| **统筹会话**（发布/文档） | Release、CHANGELOG、AGENTS.md、报告 | **不改主程序代码** |
+
+**铁律**：改主程序前先 `git fetch` + `git log --oneline HEAD..origin/main`，
+改完**立刻提交，不攒着**。工作区里躺着未提交的改动时，别人一保存就没了。
+
+---
+
+## 九、当前状态（每次接手时核对）
 
 | 项 | 值 |
 |---|---|
 | 最新 Commit | 见 `git log -1` |
-| Fusion 版本 | v2.3.2 |
-| Ultra 版本 | v3.2.2 |
+| Fusion 版本 | v2.3.9 |
+| Ultra 版本 | v3.2.9 |
 | Release 资产 SHA-256 | 见对应 Release 说明 |
-| 待办 | 「月最小段总和」算法待确认；平段列去留待定 |
+| 进行中 | Fusion 彻底重构（方案 D：Qt → Web），阶段 0 基线已完成 |
+| 待办 | C3「月最小段总和」取 min 方式待确认；C7 `24h_belongs_current_month` 是个不生效的开关；C8 日期无年份默认今年 |
 
-> 最后更新：2026-11-02
+> 最后更新：2026-11-03
