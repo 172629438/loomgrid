@@ -10,6 +10,8 @@
 <link rel="stylesheet" href="components/toast.css">
 <link rel="stylesheet" href="components/progress.css">
 <link rel="stylesheet" href="components/capacity-card.css">
+<link rel="stylesheet" href="components/dropzone.css">
+<link rel="stylesheet" href="components/period-editor.css">
 <style>
 /* 展示页自身的排版，不属于组件库 */
 body { padding: 0 0 var(--sp-6); }
@@ -324,7 +326,93 @@ function blockCapacity() {
     '<div class="demo-pair">' + panes + '</div></section>';
 }
 
-document.getElementById('root').innerHTML = blockCurve() + blockCurveReal() + blockTable() + blockToast() + blockProgress() + blockCapacity();
+function blockDropzone() {
+  const mk = (state) => {
+    const titles = { idle: '拖入负荷数据文件', hover: '松开即添加', reject: '不支持这类文件', compact: '已添加 5 个文件' };
+    const descs = {
+      idle: '支持宽表、长表、转置表与示数表，自动识别列',
+      hover: '会先扫描列名与表型，再让你确认映射',
+      reject: '只接受 .xlsx / .xlsm / .xls / .csv / .xlsb',
+      compact: ''
+    };
+    return '<div class="dropzone" data-state="' + state + '">' +
+      '<div class="dropzone__title">' + titles[state] + '</div>' +
+      (descs[state] ? '<div class="dropzone__desc">' + descs[state] + '</div>' : '') +
+      (state === 'reject' ? '<div class="dropzone__reject-reason">拖入的是「说明文档.pdf」</div>' : '') +
+      (state === 'idle' || state === 'hover' ? '<div class="dropzone__formats">.xlsx · .xlsm · .xls · .csv · .xlsb</div>' : '') +
+      (state === 'idle' ? '<div class="dropzone__actions"><button class="btn btn--primary">选择文件</button>' +
+        '<span class="faint" style="font-size:var(--fs-xs)">或整窗拖入</span></div>' : '') +
+      '</div>';
+  };
+  const panes = ['dark','light'].map(theme =>
+    '<div class="demo-pane" data-theme="' + theme + '"><div class="demo-pane__label">' + theme + '</div>' +
+    '<div class="demo-states">' +
+    [['idle','空闲（V1 空状态）'],['hover','拖入悬停'],['reject','拒绝'],['compact','有文件（收起）']]
+      .map(([st,nm]) => '<div class="demo-state"><div class="demo-state__name"><b>' + nm + '</b></div>' +
+        mk(st) + '</div>').join('') +
+    '</div></div>').join('');
+  return '<section class="demo-block">' +
+    '<div class="demo-block__title">文件拖放区 <span>V1 工作台空状态</span></div>' +
+    '<p class="demo-block__desc">新用户打开程序看到的第一个东西。四态必须各自可辨：空闲 / 拖入悬停 / <b>拒绝</b> / 有文件收起。拒绝不是「什么都不发生」，要说清为什么拒（扩展名 / 体积 / 加密），否则用户以为程序没反应。</p>' +
+    '<div class="demo-pair">' + panes + '</div></section>';
+}
+
+function blockPeriod() {
+  const bars = (list) => list.map(([type, from, to, label, extra]) => {
+    const l = from / 24 * 100, w = (to - from) / 24 * 100;
+    return '<div class="period-bar" data-type="' + type + '" style="left:' + l + '%;width:' + w + '%"' +
+      (extra || '') + '>' + (label || '') +
+      '<span class="period-bar__handle" data-side="start"></span>' +
+      '<span class="period-bar__handle" data-side="end"></span></div>';
+  }).join('');
+  const axis = [0,6,12,18,24].map(h =>
+    '<span class="period-editor__tick" style="left:' + (h/24*100) + '%"' +
+    (h===0?' data-edge="start"':'') + (h===24?' data-edge="end"':'') + '>' + h + ':00</span>').join('');
+
+  const normal = bars([
+    ['charge', 0, 8, '充电1'], ['discharge', 8, 11, '放电1'],
+    ['charge', 11, 14, '充电2'], ['discharge', 14, 20, '放电2'],
+    ['flat', 20, 24, '平']
+  ]);
+  const conflict = bars([
+    ['charge', 0, 9, '充电1'], ['discharge', 8, 11, '放电1', ' data-conflict="true"'],
+    ['charge', 11, 14, '充电2'], ['discharge', 14, 20, '放电2']
+  ]);
+  const selected = bars([
+    ['charge', 0, 8, '充电1', ' data-selected="true"'], ['discharge', 8, 11, '放电1'],
+    ['charge', 11, 14, '充电2'], ['discharge', 14, 20, '放电2']
+  ]);
+
+  const block = (label, inner, foot) =>
+    '<div class="demo-state"><div class="demo-state__name"><b>' + label + '</b></div>' +
+    '<div class="period-editor"><div class="period-editor__axis">' + axis + '</div>' +
+    '<div class="period-editor__track"><div class="period-editor__grid"></div>' + inner + '</div>' +
+    foot + '</div></div>';
+
+  const legend = '<div class="period-editor__foot">' +
+    '<span class="period-editor__legend"><i class="period-editor__swatch" data-type="charge"></i>充电</span>' +
+    '<span class="period-editor__legend"><i class="period-editor__swatch" data-type="discharge"></i>放电</span>' +
+    '<span class="period-editor__legend"><i class="period-editor__swatch" data-type="flat"></i>平段</span>' +
+    '<span class="period-editor__sum">共 24.0 h</span></div>';
+  const legendErr = '<div class="period-editor__foot">' +
+    '<span class="period-editor__error">时段重叠：0-9 与 8-11</span>' +
+    '<span class="period-editor__sum">共 25.0 h</span></div>';
+
+  const panes = ['dark','light'].map(theme =>
+    '<div class="demo-pane" data-theme="' + theme + '"><div class="demo-pane__label">' + theme + '</div>' +
+    '<div class="demo-states">' +
+    block('标准四段', normal, legend) +
+    block('选中充电1', selected, legend) +
+    block('时段重叠', conflict, legendErr) +
+    '</div></div>').join('');
+
+  return '<section class="demo-block">' +
+    '<div class="demo-block__title">时段配置器 <span>V3 右侧策略区</span></div>' +
+    '<p class="demo-block__desc">把一天切成充/放/平段。这是整个界面里最独特的一块 —— 没有通用 UI 库有这个东西。判据：一眼分出充放平、边界可拖且拖动时显示精确时刻、<b>重叠立刻可见</b>（业务上不允许，_valid_periods 会拒）。重叠用红色斜纹而不是整块变红，保留时段类型本身的信息。</p>' +
+    '<div class="demo-pair">' + panes + '</div></section>';
+}
+
+document.getElementById('root').innerHTML = blockCurve() + blockCurveReal() + blockTable() + blockToast() + blockProgress() + blockCapacity() + blockDropzone() + blockPeriod();
 
 /* 迷你块：宽扁比例（820:120），不是把标准画面压扁 */
 document.querySelectorAll('[data-cv]').forEach(host => {

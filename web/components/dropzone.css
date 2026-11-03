@@ -1,0 +1,126 @@
+/* ═══════════════════════════════════════════════════════════
+   文件拖放区
+   ───────────────────────────────────────────────────────────
+   出现场景：V1 工作台的空状态。新用户打开程序看到的第一个东西。
+
+   判据：四种交互态必须各自可辨 —— 空闲 / 拖入悬停 / 拒绝 / 有文件。
+   「拒绝」不只是不变色，还要说清为什么拒（扩展名不支持 / 太大 / 加密）。
+   ═══════════════════════════════════════════════════════════ */
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-6) var(--sp-4);
+  min-height: 180px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-2);
+  background: var(--bg-surface);
+  text-align: center;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.dropzone__title {
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+}
+.dropzone__desc {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  max-width: 48ch;
+}
+/* 支持的类型用等宽，和全站「类型/标识走等宽」一致 */
+.dropzone__formats {
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  margin-top: var(--sp-1);
+}
+.dropzone__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+/* ── 拖入悬停 ───────────────────────────────────
+   整块变色 + 边框变实线。变色很克制（10%），
+   因为「悬停」是瞬时态，太亮会闪。 */
+.dropzone[data-state="hover"] {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-weak);
+}
+.dropzone[data-state="hover"] .dropzone__title { color: var(--accent); }
+
+/* ── 拒绝 ───────────────────────────────────────
+   红边 + 红字 + 明确原因。不是「什么都不发生」，
+   否则用户会以为程序没反应。 */
+.dropzone[data-state="reject"] {
+  border-style: solid;
+  border-color: var(--danger);
+  background: var(--danger-weak);
+}
+.dropzone[data-state="reject"] .dropzone__title { color: var(--danger); }
+.dropzone__reject-reason {
+  font-size: var(--fs-xs);
+  color: var(--danger);
+  display: none;
+}
+.dropzone[data-state="reject"] .dropzone__reject-reason { display: block; }
+
+/* ── 禁用 ───────────────────────────────────────── */
+.dropzone[data-state="disabled"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.dropzone[data-state="disabled"] .dropzone__actions { pointer-events: none; }
+
+/* ── 有文件时收起 ───────────────────────────────
+   拖放区退化为一条细条，把空间让给表格。
+   保留它是因为用户还要继续添加。 */
+.dropzone[data-state="compact"] {
+  flex-direction: row;
+  min-height: 0;
+  padding: var(--sp-2) var(--sp-3);
+  gap: var(--sp-3);
+  border-style: dashed;
+  text-align: left;
+}
+.dropzone[data-state="compact"] .dropzone__desc,
+.dropzone[data-state="compact"] .dropzone__formats,
+.dropzone[data-state="compact"] .dropzone__actions { display: none; }
+.dropzone[data-state="compact"] .dropzone__title {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.dropzone[data-state="compact"]::after {
+  content: "拖入更多文件，或点这里选择";
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  margin-left: auto;
+}
+
+/* ── 覆盖层：整窗拖入 ────────────────────────────
+   文件拖到窗口任意位置时的全屏提示，
+   避免「必须拖到那个框里」的狭窄目标。 */
+.dropzone-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg-canvas) 88%, transparent);
+  border: 2px dashed var(--accent);
+  margin: var(--sp-4);
+  border-radius: var(--r-2);
+  pointer-events: none;
+}
+.dropzone-overlay[data-visible="true"] { display: flex; }
+.dropzone-overlay__text {
+  font-size: var(--fs-lg);
+  color: var(--accent);
+}
