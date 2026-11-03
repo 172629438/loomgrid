@@ -23,6 +23,14 @@ import threading
 import time
 import webbrowser
 
+# 控制台编码未必是 utf-8（Windows 默认 GBK，打包后甚至可能是 ascii），
+# 中文输出会变成一串问号。两条一起做：横幅用英文，其余中文靠这里兜住。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 
 def _base_dir() -> str:
     """打包后资源在 sys._MEIPASS，源码运行时在脚本所在目录。"""
@@ -96,7 +104,7 @@ def main() -> int:
     url = "http://127.0.0.1:%d/views/v1-workbench.html" % port
     # flush=True 必须有：打印到管道时 stdout 默认块缓冲，
     # 外部进程（含打包后的启动验证脚本）会卡在 readline 上等不到这一行。
-    print("LoomGrid Fusion 已启动：%s" % url, flush=True)
+    print("LoomGrid Fusion ready at %s" % url, flush=True)
     try:
         webbrowser.open(url)
     except Exception:
