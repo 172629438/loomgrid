@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.7（2026-11-03 修复：日明细表仍用旧口径，段名列重复、日最小值恒为 0）
+发布版本：LoomGrid Fusion v2.3.8（2026-11-03 修复：报告 HTML 未转义、报告失败仍返回路径、分块列清洗无日志）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -159,7 +159,7 @@ MAX_FILENAME_LEN = 50
 # v2.3.6fix(K5): 版本号只能有一个来源。
 # 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
 # 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
-FUSION_VERSION = "2.3.7"
+FUSION_VERSION = "2.3.8"
 FUSION_APP_NAME = "LoomGrid Fusion"
 DEFAULT_ENCODING_LIST = ['utf-8-sig', 'utf-8', 'gb18030', 'gbk', 'gb2312', 'latin1']
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')

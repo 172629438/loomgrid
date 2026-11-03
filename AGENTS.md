@@ -154,6 +154,8 @@ gh release create fusion-vX.Y.Z "<zip路径>" \
 ```
 
 - 资产名固定：`LoomGrid-Fusion-vX.Y.Z-win64.zip`
+- **只传 zip，不附 CHANGELOG.md**（2026-11-03 用户定）：优化和更新直接写在 Release 正文里。
+  旧 Release 里那些 `CHANGELOG.md` 资产是历史遗留，不必回删，但新发的不要再加。
 - 重新打包后覆盖：`gh release upload fusion-vX.Y.Z <zip> --clobber`
 - **每次覆盖都要更新说明里的 SHA-256**，否则下载者没法校验
 - `--latest` 只给 Fusion 的正式修复版；Ultra 的 Lite 标记要手动清
