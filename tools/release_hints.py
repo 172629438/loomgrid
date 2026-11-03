@@ -47,8 +47,9 @@ MARK_DL = "<!-- dl-hint -->"
 MARK_VER = "<!-- ver-guide -->"
 
 # 当前生产版本：改版时只改这里
-PROD_FUSION = "fusion-v2.3.1"
-PROD_ULTRA = "ultra-v3.2.2"
+# 2026-11-03：Fusion 推至 v2.3.7（公司那台发的）、Ultra 推至 v3.2.9。
+PROD_FUSION = "fusion-v2.3.7"
+PROD_ULTRA = "ultra-v3.2.9"
 
 
 def download_hint(zip_name: str, zip_mb: float) -> str:
