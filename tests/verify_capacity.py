@@ -30,8 +30,8 @@ import numpy as np  # noqa: E402
 from core.models import PeriodType  # noqa: E402
 from core.spaces import compute_segmented_spaces  # noqa: E402
 from services.capacity import (  # noqa: E402
-    DemandBasis, daily_demand_series, daily_throughput_kwh_per_day,
-    daily_throughput_series, relevant_segments, summarize_daily_demand,
+    DemandBasis, daily_demand_series, daily_throughput_series,
+    relevant_segments, summarize_daily_demand, throughput_breakdown,
 )
 
 VERBOSE = "-v" in sys.argv
@@ -97,31 +97,41 @@ check("A4 summarize 的 daily 长度 = 天数", len(s["daily"]) == 2, f"{len(s['
 # ── B. 日吞吐量 ────────────────────────────────────────────
 print("B 日吞吐量")
 tp = daily_throughput_series(ch, dis)
-manual = np.zeros(2)
-for i in range(n_pairs):
-    c = np.asarray(ch[i], dtype=float) if i < len(ch) else np.zeros(2)
-    d = np.asarray(dis[i], dtype=float) if i < len(dis) else np.zeros(2)
-    manual += np.minimum(c, d)
-check("B1 吞吐量 = sum(min(charge_i, discharge_i))",
+total_c = np.zeros(2)
+total_d = np.zeros(2)
+for a in ch:
+    total_c += np.asarray(a, dtype=float)
+for a in dis:
+    total_d += np.asarray(a, dtype=float)
+manual = np.minimum(total_c, total_d)
+check("B1 吞吐量 = min(当日总充, 当日总放)",
       np.allclose(tp, manual, atol=1e-9), f"{tp} vs {manual}")
 
-# 四段里充电段与放电段是交替的，配对上 min 全为 0（充段放电侧是占位 0）
-check("B2 交替配置下吞吐量为 0（配对无交集）", abs(float(np.sum(tp))) < 1e-9,
-      f"合计 {float(np.sum(tp)):.3f}")
+# 旧版用「逐段 min 再求和」，充放通常在不同时段 → 恒为 0；现在应该非零
+check("B2 充放分段时吞吐量非零（旧公式这里恒为 0）",
+      float(np.sum(tp)) > 0, f"合计 {float(np.sum(tp)):.1f}")
 
-typ = daily_throughput_kwh_per_day(ch, dis)
-check("B3 典型值 = 逐日均值", abs(typ - float(np.mean(tp))) < 1e-9, f"{typ:.3f}")
+# 瓶颈方向
+tb = throughput_breakdown(ch, dis)
+check("B3 min_side 指出瓶颈侧",
+      tb["min_side"] in ("charge", "discharge", "balanced"),
+      f"min_side={tb['min_side']}  充 {tb['total_charge_kwh']:.1f} / 放 {tb['total_discharge_kwh']:.1f}")
+check("B4 典型值 = 逐日均值",
+      abs(tb["value_kwh_per_day"] - float(np.mean(tp))) < 1e-6,
+      f"{tb['value_kwh_per_day']:.3f}")
+check("B5 逐日序列长度 = 天数", len(tb["per_day"]) == 2, f"{len(tb['per_day'])}")
 
-# ── C. 单段配置 ────────────────────────────────────────────
-print("C 单段配置")
+# ── C. 单侧为 0 ────────────────────────────────────────────
+print("C 单侧为 0")
 only_c = [seg(0, 8, "c1")]
 ch2, dis2, _, _ = compute_segmented_spaces(load, LABELS, only_c,
                                            billing={"value": 500.0}, mode="A")
 tp2 = daily_throughput_series(ch2, dis2)
-check("C1 只有充电段时吞吐量为 0", abs(float(np.sum(tp2))) < 1e-9,
+check("C1 只有充电段时吞吐量为 0（确实搬不动）", abs(float(np.sum(tp2))) < 1e-9,
       f"合计 {float(np.sum(tp2)):.3f}")
-check("C2 但日需求不为 0", float(np.max(daily_demand_series(ch2, dis2, DemandBasis.full_load))) == 0.0,
-      "full_load 也可能为 0（无配对），这是定义使然")
+check("C2 min_side 标为 discharge（缺放这一侧）",
+      throughput_breakdown(ch2, dis2)["min_side"] == "discharge",
+      throughput_breakdown(ch2, dis2)["min_side"])
 
 # ── D. 段选择 ──────────────────────────────────────────────
 print("D 段选择")

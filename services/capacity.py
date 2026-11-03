@@ -52,6 +52,7 @@ __all__ = [
     "daily_demand_series",
     "daily_throughput_series",
     "daily_throughput_kwh_per_day",
+    "throughput_breakdown",
     "summarize_daily_demand",
 ]
 
@@ -167,22 +168,29 @@ def summarize_daily_demand(charge_segs, discharge_segs,
 
 
 def daily_throughput_series(charge_segs, discharge_segs) -> np.ndarray:
-    """逐日的吞吐量（kWh/天）= 各段 min(充电空间, 放电空间) 之和。
+    """逐日的吞吐量（kWh/天）= min(当日总充, 当日总放)。
 
-    这是「一天能搬多少能量」，不是「电池该装多大」。
-    单段配置（只有充电段或只有放电段）恒为 0——没有充放配对就不构成循环，
-    这不是 bug，调用方需要据此给提示。
+    为什么不是「逐段 min 再求和」
+    ----------------------------
+    原定义照搬了 C3 那句「各段 min(充电空间, 放电空间) 之和」，但按段索引配对时
+    几乎恒为 0：现实中充电段和放电段是**不同时段**，同一个段的另一侧永远是占位零。
+    而「一天能搬多少能量」的物理含义是：充进去的与能放出的，取瓶颈那侧。
+    所以是「总量配总量」，不是「段配段」。
+
+    单位是 kWh/天，因为它是**当天**的两个总量取小；多天场景请用
+    daily_throughput_kwh_per_day() 取典型值，或自己按日读本函数的返回值。
     """
     n = _n_days(charge_segs, discharge_segs)
     out = np.zeros(n, dtype=float)
     if n == 0:
         return out
-    n_pairs = max(len(charge_segs), len(discharge_segs))
-    for i in range(n_pairs):
-        c = np.asarray(charge_segs[i], dtype=float) if i < len(charge_segs) else np.zeros(n)
-        d = np.asarray(discharge_segs[i], dtype=float) if i < len(discharge_segs) else np.zeros(n)
-        out += np.minimum(c, d)
-    return out
+    total_c = np.zeros(n, dtype=float)
+    total_d = np.zeros(n, dtype=float)
+    for a in charge_segs:
+        total_c += np.nan_to_num(np.asarray(a, dtype=float), nan=0.0)
+    for a in discharge_segs:
+        total_d += np.nan_to_num(np.asarray(a, dtype=float), nan=0.0)
+    return np.minimum(total_c, total_d)
 
 
 def daily_throughput_kwh_per_day(charge_segs, discharge_segs) -> float:
@@ -191,3 +199,46 @@ def daily_throughput_kwh_per_day(charge_segs, discharge_segs) -> float:
     if series.size == 0:
         return 0.0
     return round(float(np.mean(series)), 6)
+
+
+def throughput_breakdown(charge_segs, discharge_segs) -> dict:
+    """吞吐量的完整拆解：总量、逐日、瓶颈在哪侧。
+
+    比一个裸数字有用：用户能看出自己是「充电不够」还是「放电不够」。
+    """
+    n = _n_days(charge_segs, discharge_segs)
+    if n == 0:
+        return {"total_charge_kwh": 0.0, "total_discharge_kwh": 0.0,
+                "days": 0, "value_kwh_per_day": 0.0, "min_side": "none",
+                "per_day": []}
+    total_c = np.zeros(n, dtype=float)
+    total_d = np.zeros(n, dtype=float)
+    for a in charge_segs:
+        total_c += np.nan_to_num(np.asarray(a, dtype=float), nan=0.0)
+    for a in discharge_segs:
+        total_d += np.nan_to_num(np.asarray(a, dtype=float), nan=0.0)
+    per_day = np.minimum(total_c, total_d)
+
+    sum_c = float(np.sum(total_c))
+    sum_d = float(np.sum(total_d))
+    if sum_c <= 0 and sum_d <= 0:
+        min_side = "none"
+    elif sum_c <= 0:
+        min_side = "charge"      # 一整天没充进去，搬不动
+    elif sum_d <= 0:
+        min_side = "discharge"    # 一整天放不出，也搬不动
+    elif sum_c < sum_d:
+        min_side = "charge"       # 充电是瓶颈
+    elif sum_d < sum_c:
+        min_side = "discharge"    # 放电是瓶颈
+    else:
+        min_side = "balanced"
+
+    return {
+        "total_charge_kwh": round(sum_c, 6),
+        "total_discharge_kwh": round(sum_d, 6),
+        "days": int(n),
+        "value_kwh_per_day": round(float(np.mean(per_day)), 6),
+        "min_side": min_side,
+        "per_day": [round(float(x), 6) for x in per_day],
+    }

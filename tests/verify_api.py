@@ -244,15 +244,20 @@ try:
                     continue
                 d = body["data"]
                 v = d["daily_demand"]["value_kwh"]
-                tp = d["daily_throughput_kwh_per_day"]
+                tpobj = d["daily_throughput"]
+                tp = tpobj["value_kwh_per_day"]
                 check(f"25) {basis} 日需求非零（占位零已过滤）", v > 0, f"{v:.2f}")
                 check(f"26) {basis} 吞吐量与需求是两个独立字段",
-                      "daily_throughput_kwh_per_day" in d
-                      and "daily_demand" in d and "value_kwh" in d["daily_demand"],
+                      "daily_throughput" in d and "value_kwh" in d["daily_demand"],
                       f"需求 {v:.2f} kWh / 吞吐 {tp:.2f} kWh/天")
-                check(f"27) {basis} 两个量纲数值不同",
-                      abs(v - tp) > 1e-9 or (v == 0 and tp == 0),
-                      f"{v:.2f} vs {tp:.2f}")
+                check(f"27) {basis} 吞吐量非零（旧公式这里恒为 0）",
+                      tp > 0, f"{tp:.2f} kWh/天")
+                check(f"28) {basis} 吞吐量 ≤ min(总充, 总放) 且带瓶颈方向",
+                      abs(tp - min(tpobj["total_charge_kwh"], tpobj["total_discharge_kwh"])
+                          / max(tpobj["days"], 1)) < 1e-3
+                      and tpobj["min_side"] in ("charge", "discharge", "balanced"),
+                      f"total 充 {tpobj['total_charge_kwh']:.1f} / 放 "
+                      f"{tpobj['total_discharge_kwh']:.1f} → 瓶颈 {tpobj['min_side']}")
 
 finally:
     proc.terminate()

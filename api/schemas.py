@@ -106,7 +106,6 @@ class SegmentDemand(BaseModel):
     label: str
     charge_kwh: float
     discharge_kwh: float
-    min_kwh: float
 
 
 class DailyDemand(BaseModel):
@@ -116,12 +115,24 @@ class DailyDemand(BaseModel):
     by_segment: list[SegmentDemand] = Field(default_factory=list)
 
 
+class DailyThroughput(BaseModel):
+    """单位 kWh/天 —— 回答「一天能搬多少能量」。
+
+    算法：逐日 min(当日总充, 当日总放)，再取多日均值。
+    （不是「逐段 min 再求和」——充放通常在不同时段，那样算恒为 0。）
+    """
+    total_charge_kwh: float = Field(description="全期总充电空间")
+    total_discharge_kwh: float = Field(description="全期总放电空间")
+    days: int
+    value_kwh_per_day: float = Field(description="逐日吞吐的均值，受瓶颈侧限制")
+    min_side: Literal["charge", "discharge", "balanced", "none"] = Field(
+        description="瓶颈在哪一侧：charge=充电不够，discharge=放电不够")
+    per_day: list[float] = Field(default_factory=list, description="逐日吞吐量")
+
+
 class CapacityData(BaseModel):
     daily_demand: DailyDemand
-    daily_throughput_kwh_per_day: float = Field(
-        description="单位 kWh/天 —— 回答「一天能搬多少能量」。"
-                    "与 daily_demand 不可互换、不可比较。"
-                    "单段配置（缺充或缺放）时为 0，属正常。")
+    daily_throughput: DailyThroughput
     capacity_suggestion_installed_kwh: float | None = None
     hints: list[str] = Field(default_factory=list)
 

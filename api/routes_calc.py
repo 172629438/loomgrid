@@ -21,13 +21,14 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from api.routes_ingest import get_session
-from api.schemas import CapacityData, DailyDemand, Envelope, SegmentDemand
+from api.schemas import (
+    CapacityData, DailyDemand, DailyThroughput, Envelope, SegmentDemand,
+)
 from core.models import GroupSummary, PeriodType
 from core.periods import _segment_periods
 from core.spaces import compute_segmented_spaces
 from services.capacity import (
-    DemandBasis, daily_demand_series, daily_throughput_kwh_per_day,
-    summarize_daily_demand,
+    DemandBasis, daily_demand_series, summarize_daily_demand, throughput_breakdown,
 )
 from services.provider import DataProvider
 
@@ -206,13 +207,20 @@ def capacity(req: CapacityCalcRequest):
         c_sum = float(np.sum(np.asarray(ch[i], dtype=float)))
         d_sum = float(np.sum(np.asarray(dis[i], dtype=float)))
         by_segment.append(SegmentDemand(label=lab, charge_kwh=round(c_sum, 6),
-                                        discharge_kwh=round(d_sum, 6),
-                                        min_kwh=round(min(c_sum, d_sum), 6)))
+                                        discharge_kwh=round(d_sum, 6)))
 
-    throughput = daily_throughput_kwh_per_day(ch, dis)
+    # 吞吐量：逐日 min(当日总充, 当日总放)。
+    # 旧版用「逐段 min 再求和」——充放通常在不同时段，那样算恒为 0，已改掉。
+    tp = throughput_breakdown(ch, dis)
     hints: list[str] = []
-    if throughput == 0:
-        hints.append("当前时段配置没有同时包含充电段与放电段，日吞吐量按 0 计算")
+    if tp["min_side"] == "charge" and tp["total_charge_kwh"] <= 0:
+        hints.append("所有充电段的空间都是 0，一整天充不进去——请检查容量线（billing.value）")
+    elif tp["min_side"] == "discharge" and tp["total_discharge_kwh"] <= 0:
+        hints.append("所有放电段的空间都是 0，一整天放不出来——请检查负载与容量线")
+    elif tp["min_side"] == "charge":
+        hints.append("充电是瓶颈：总充电空间小于总放电空间，日吞吐受充电侧限制")
+    elif tp["min_side"] == "discharge":
+        hints.append("放电是瓶颈：总放电空间小于总充电空间，日吞吐受放电侧限制")
     if value == 0:
         hints.append("日需求为 0，请检查容量线（billing.value）是否已设置；"
                      "Mode A 必须有容量线才有充电空间")
@@ -220,7 +228,7 @@ def capacity(req: CapacityCalcRequest):
     payload = CapacityData(
         daily_demand=DailyDemand(basis=basis.value, value_kwh=round(value, 6),
                                  by_segment=by_segment),
-        daily_throughput_kwh_per_day=throughput,
+        daily_throughput=DailyThroughput(**tp),
         capacity_suggestion_installed_kwh=round(installed, 6),
         hints=hints,
     )
