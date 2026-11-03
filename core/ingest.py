@@ -123,7 +123,6 @@ def _normalize_asset(val, fallback='未命名'):
         return fallback
     return s
 
-@lru_cache(maxsize=2048)
 def _detect_accumulated_pattern(df, load_col, date_col, time_col=None, sample_rows=200):
     try:
         sub = df.head(sample_rows).copy()

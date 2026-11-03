@@ -142,6 +142,34 @@ try:
           body.get("ok") is False and body["error"]["code"] == "INGEST_NO_DATE_COL",
           str(body.get("error", {}).get("code")))
 
+    # 13) 回归：无示数特征 + 有负荷列 → 曾因误加 @lru_cache 而 500
+    # 短路求值：accumulated_hint 为真时不会调到 _detect_accumulated_pattern；
+    # 基线的示数场景恰好都短路了，所以这个缺陷只在真正调到函数时暴露。
+    try:
+        import tempfile
+
+        import pandas as pd
+        tmp = tempfile.mkdtemp(prefix="lg_nohint_")
+        csv_path = os.path.join(tmp, "nohint.csv")
+        labels = [f"{(i * 15) // 60:02d}:{(i * 15) % 60:02d}" for i in range(96)]
+        recs = [{"日期": f"2026-01-{15 + d:02d}", "时间": lab, "正向有功功率": 400 + i}
+                for d in range(3) for i, lab in enumerate(labels)]
+        pd.DataFrame(recs).to_csv(csv_path, index=False, encoding="utf-8-sig")
+
+        code, body = req("POST", "/api/ingest/inspect", {"path": csv_path})
+        check("13) 无示数特征 + 有负荷列 → 200（不崩）",
+              code == 200 and body.get("ok") is True,
+              f"HTTP {code} {str(body.get('error'))[:80]}")
+        if body.get("ok"):
+            sh2 = body["data"]["sheets"][0]
+            check("14) 该场景应判为长表",
+                  sh2["suggest"]["format_type"] == "long",
+                  str(sh2["suggest"]["format_type"]))
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
+    except Exception as e:
+        check("13) 无示数特征 + 有负荷列 → 200（不崩）", False, repr(e))
+
 finally:
     proc.terminate()
     try:

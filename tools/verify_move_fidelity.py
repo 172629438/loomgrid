@@ -100,13 +100,33 @@ def main() -> int:
         print(f"\n结构有差异：{len(diff)} 个")
         for name in diff:
             print(f"  - {name}")
-            if a.detail:
+            # 先把装饰器差异单独列出来，再谈别的。
+            # 教训：本工具曾只报「结构不等价」，我把原因猜成「装饰器丢了」，
+            # 结果给一个本来没装饰器的函数加上了 @lru_cache，
+            # 导致它一被真调用就 TypeError（DataFrame 不可哈希）。
+            # 报「不一样」不等于报「谁少了什么」——后者必须回源文件对。
+            dec_old = [ast.unparse(d) for d in getattr(old_syms[name], "decorator_list", [])]
+            dec_new = [ast.unparse(d) for d in getattr(new_syms[name], "decorator_list", [])]
+            if dec_old != dec_new:
+                only_old = [d for d in dec_old if d not in dec_new]
+                only_new = [d for d in dec_new if d not in dec_old]
+                verdict = []
+                if only_old:
+                    verdict.append(f"原版有、新版没有 → {only_old}（装饰器丢了）")
+                if only_new:
+                    verdict.append(f"新版有、原版没有 → {only_new}（多加了不该有的）")
+                print(f"      装饰器：原版 {dec_old} / 新版 {dec_new}")
+                for v in verdict:
+                    print(f"      ⚠ {v}")
+            elif a.detail:
                 import difflib
                 a_txt = ast.unparse(old_syms[name]).splitlines()
                 b_txt = ast.unparse(new_syms[name]).splitlines()
-                for line in difflib.unified_diff(a_txt, b_txt, "原单文件", "core",
+                for line in difflib.unified_diff(a_txt, b_txt, "原" , "core",
                                                  lineterm="", n=2):
                     print("      " + line)
+            else:
+                print("      装饰器一致；加 --detail 看代码差异")
 
     # 只在新模块里的符号（新增的辅助，不应有除非说明）
     extra = [k for k in new_syms if k not in old_syms]
