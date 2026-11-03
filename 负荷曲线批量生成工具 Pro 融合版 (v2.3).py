@@ -48,6 +48,18 @@ if sys.stdout is None:
 if sys.stderr is None:
     sys.stderr = open(os.devnull, 'w', encoding='utf-8', errors='replace')
 
+# ── 阶段 1：core 层（纯 Python，零 Qt）──────────────────────────
+# 主程序可能被 spec_from_file_location / PyInstaller 以多种方式加载，
+# 不能假定仓库根已在 sys.path 里；这里主动补一次（幂等）。
+_PKG_ROOT = os.path.dirname(os.path.abspath(__file__))
+if _PKG_ROOT not in sys.path:
+    sys.path.insert(0, _PKG_ROOT)
+from core.models import (  # noqa: E402
+    DEFAULT_WEEKDAY_COLOR, DEFAULT_WEEKEND_COLOR, DEFAULT_HOLIDAY_COLOR,
+    DEFAULT_WEEKEND_LINE_WIDTH, DEFAULT_HOLIDAY_LINE_WIDTH,
+    PeriodType, CurveLabel, ColorConst, PlotOptions, GroupSummary,
+)
+
 # -------------------- PySide6 统一导入 --------------------
 from PySide6.QtCore import (
     QObject, Qt, Signal, Slot, QTimer, QThreadPool, QRunnable, QSemaphore, QByteArray,
@@ -188,12 +200,7 @@ HUGE_FILE_SIZE = 200 * 1024 * 1024  # 200 MB，提示并降低并行度
 # 内存保护阈值 (字节)
 MEMORY_LOW_THRESHOLD = 1 * 1024 * 1024 * 1024  # 1 GB
 
-# 图形/颜色常量（可被用户配置覆盖）
-DEFAULT_WEEKDAY_COLOR = '#1f77b4'
-DEFAULT_WEEKEND_COLOR = '#FF8C00'
-DEFAULT_HOLIDAY_COLOR = '#DC143C'
-DEFAULT_WEEKEND_LINE_WIDTH = 1.8
-DEFAULT_HOLIDAY_LINE_WIDTH = 2.0
+# 图形/颜色常量（DEFAULT_* 五个已搬到 core/models.py，这里只留仍在主程序用的）
 WEEKEND_BG_ALPHA = 0.08
 # v3.2fix: 充放电效率(单向93%),用于容量测算
 CHARGING_EFFICIENCY = 0.93
@@ -203,28 +210,7 @@ BESS_SOC_MIN = 0.05         # 最小SOC(5%保护)
 BESS_SOC_MAX = 0.95         # 最大SOC(95%)
 BESS_CYCLE_LIFE_DEFAULT = 6000  # v3.2fix: 默认循环寿命
 
-from enum import Enum
-
-class PeriodType(str, Enum):
-    CHARGE = 'charge'
-    DISCHARGE = 'discharge'
-    CHARGE_LABEL = '充电(低谷)'
-    DISCHARGE_LABEL = '放电(高峰)'
-
-class CurveLabel:
-    AVERAGE = '平均负荷'
-    MAX_DEMAND = '当月最大需量'
-    CAPACITY_LINE = '容量线'
-
-class ColorConst:
-    CHARGE_BG = '#90EE90'
-    DISCHARGE_BG = '#FFA07A'
-    CUSTOM_PARAM_BG = '#E3F2FD'
-    READY_BG = '#e0ffe0'
-    READY_FG = 'green'
-    DISCHARGE_BG_ITEM = '#ffe0d0'
-    DISCHARGE_FG = 'darkorange'
-    HIGHLIGHT_BG = '#FFF9C4'
+# PeriodType / CurveLabel / ColorConst 已搬到 core/models.py（阶段 1 · 第一块）
 
 def _default_scan_workers():
     return min(4, max(1, mp.cpu_count() - 1))
@@ -301,45 +287,8 @@ def _setup_font():
     plt.rcParams['axes.unicode_minus'] = False
     log.info(f"matplotlib 中文字体设置为: {font_name}")
 
-# ======================= 绘图选项数据类（唯一定义） =======================
-@dataclass
-class PlotOptions:
-    show_daily: bool = True
-    show_avg: bool = True
-    show_max_demand: bool = False
-    fit_types: List[str] = field(default_factory=list)
-    highlight_mode: str = 'none'
-    weekday_color: str = DEFAULT_WEEKDAY_COLOR
-    weekend_color: str = DEFAULT_WEEKEND_COLOR
-    holiday_color: str = DEFAULT_HOLIDAY_COLOR
-    weekend_line_width: float = DEFAULT_WEEKEND_LINE_WIDTH
-    holiday_line_width: float = DEFAULT_HOLIDAY_LINE_WIDTH
-    show_weekend_bg: bool = False
-    legend_position: str = 'right'
-    mark_anomalies: bool = False
-    dark_theme: bool = False
-
-    def to_dict(self):
-        return {
-            'show_daily': self.show_daily,
-            'show_avg': self.show_avg,
-            'show_max_demand': self.show_max_demand,
-            'fit_types': self.fit_types,
-            'highlight_mode': self.highlight_mode,
-            'weekday_color': self.weekday_color,
-            'weekend_color': self.weekend_color,
-            'holiday_color': self.holiday_color,
-            'weekend_line_width': self.weekend_line_width,
-            'holiday_line_width': self.holiday_line_width,
-            'show_weekend_bg': self.show_weekend_bg,
-            'legend_position': self.legend_position,
-            'mark_anomalies': self.mark_anomalies,
-            'dark_theme': self.dark_theme,
-        }
-
-    @classmethod
-    def from_dict(cls, d):
-        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+# ======================= 绘图选项数据类 =======================
+# PlotOptions 已搬到 core/models.py（阶段 1 · 第一块）
 
 # ======================= 缓存与工具函数 =======================
 class LRUCache:
@@ -2557,29 +2506,7 @@ class ThreadSafeCache:
             return list(self._dict.items())
 
 # ===================== GroupSummary 与 DataProvider =====================
-class GroupSummary:
-    __slots__ = ('file_path','sheet_name','asset_value','month_str','date_count','time_points','min_val','max_val','mapping')
-    def __init__(self, file_path, sheet_name, asset_value, month_str, date_count, time_points, min_val, max_val, mapping):
-        self.file_path = file_path
-        self.sheet_name = sheet_name
-        self.asset_value = asset_value
-        self.month_str = month_str
-        self.date_count = date_count
-        self.time_points = time_points
-        self.min_val = min_val
-        self.max_val = max_val
-        self.mapping = mapping
-
-    def __eq__(self, other):
-        if not isinstance(other, GroupSummary):
-            return NotImplemented
-        return (self.file_path == other.file_path and
-                self.sheet_name == other.sheet_name and
-                self.asset_value == other.asset_value and
-                self.month_str == other.month_str)
-
-    def __hash__(self):
-        return hash((self.file_path, self.sheet_name, self.asset_value, self.month_str))
+# GroupSummary 已搬到 core/models.py（阶段 1 · 第一块）
 
 class DataProvider:
     def __init__(self, enc='auto'):

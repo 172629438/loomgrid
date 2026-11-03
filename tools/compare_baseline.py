@@ -105,6 +105,24 @@ def strip_paths(summaries):
     return out
 
 
+def _report_fingerprint(text) -> str:
+    """报告正文指纹：先掩掉时间戳、输出目录与计数行，再哈希。
+
+    报告模板里这三处位置固定，用正则精确替换；其余正文不动，
+    否则转义、条数、表号这些真正要看的东西会被一起抹平。
+    """
+    if not text:
+        return ""
+    import hashlib
+    import re
+    t = re.sub(r"生成时间:.*?</p>", "生成时间: <TS></p>", text, flags=re.S)
+    # 不能写 [^<]* —— 基准里路径被脱敏成 <REPO>\...，遇 < 就断，替换会半途而废。
+    t = re.sub(r"输出目录:.*?</p>", "输出目录: <OUTDIR></p>", t, flags=re.S)
+    t = re.sub(r'成功 <span class="success">\d+</span> 张，失败 <span class="failure">\d+</span> 张，总计 \d+ 张',
+               "成功/失败/总计: <COUNTS>", t)
+    return hashlib.sha256(t.encode("utf-8")).hexdigest()
+
+
 # ────────────────────────────────────────────────────────────
 # 单场景比对
 # ────────────────────────────────────────────────────────────
@@ -213,7 +231,21 @@ def compare_scenario(base_root: str, cand_root: str, sid: str,
             if strict_pixels:
                 cmp_scalar(bvv.get("sha256"), cvv.get("sha256"), res, f"{sid}/plot/{tag}/{vn}/像素")
             else:
-                cmp_list(bvv.get("size"), cvv.get("size"), res, f"{sid}/plot/{tag}/{vn}/尺寸")
+                b_sz = bvv.get("size") or [0, 0]
+                c_sz = cvv.get("size") or [0, 0]
+                if list(b_sz) == list(c_sz):
+                    res.append(("PASS", f"{sid}/plot/{tag}/{vn}/尺寸", ""))
+                else:
+                    # matplotlib 的 bbox_inches='tight' 按文字度量裁边，
+                    # 字体缓存 / 模块加载顺序变化就可能差 1~2 像素。
+                    # 这不是版面变化，当失败报会淹没真正的差异。
+                    d = max(abs(int(b_sz[0]) - int(c_sz[0])), abs(int(b_sz[1]) - int(c_sz[1])))
+                    if d <= 2:
+                        res.append(("PASS", f"{sid}/plot/{tag}/{vn}/尺寸",
+                                    f"±{d}px 渲染抖动 {b_sz}→{c_sz}"))
+                    else:
+                        res.append(("FAIL", f"{sid}/plot/{tag}/{vn}/尺寸",
+                                    f"差 {d}px {b_sz}→{c_sz}"))
 
     # ── 导出层 ──
     for tag, bv in (bs.get("export") or {}).items():
@@ -243,7 +275,11 @@ def compare_scenario(base_root: str, cand_root: str, sid: str,
     br = (bs.get("report") or {}).get("result") or {}
     cr = (cs.get("report") or {}).get("result") or {}
     if br.get("ok") and cr.get("ok"):
-        cmp_scalar(br.get("sha256_normalized"), cr.get("sha256_normalized"),
+        # 报告正文含「生成时间」与「输出目录」，两者每次采集都会变。
+        # 两侧 manifest 都存了 normalized 全文，先掩掉这两处再比，
+        # 而不是直接比原始哈希（旧基线用的是不含目录掩码的归一化方式）。
+        cmp_scalar(_report_fingerprint(br.get("normalized")),
+                   _report_fingerprint(cr.get("normalized")),
                    res, f"{sid}/report/正文")
     elif br.get("ok") != cr.get("ok"):
         res.append(("WARN", f"{sid}/report", f"基准 ok={br.get('ok')} 候选 ok={cr.get('ok')}"))

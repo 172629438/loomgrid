@@ -328,10 +328,13 @@ def stage_report(mod, summaries, outdir: str, chart_paths: list[str]) -> dict:
         path = mod.MainWindow._generate_report(w, chart_paths, [])
         if path and os.path.exists(path):
             text = open(path, encoding="utf-8").read()
-            # 报告含「生成时间: <now>」，每次必不同 —— 哈希前先规范化，否则比对无意义。
+            # 报告含两类每次必变的内容，哈希前先归一化，否则比对无意义：
+            #   ① 生成时间戳；② 输出目录（采集到不同目录就会不同）。
             import re
             normalized = re.sub(r"生成时间:\s*[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8}",
                                 "生成时间: <TS>", text)
+            normalized = normalized.replace(str(outdir), "<OUTDIR>")
+            normalized = normalized.replace(str(outdir).replace("\\", "/"), "<OUTDIR>")
             return {
                 "ok": True,
                 "file": os.path.basename(path),
