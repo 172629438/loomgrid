@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoomGrid · V3 预览与策略</title>
+<link rel="stylesheet" href="../theme/tokens.css">
+<link rel="stylesheet" href="../components/base.css">
+<link rel="stylesheet" href="../components/app-shell.css">
+<link rel="stylesheet" href="../components/tree.css">
+<link rel="stylesheet" href="../components/param-form.css">
+<link rel="stylesheet" href="../components/curve-viewer.css">
+<link rel="stylesheet" href="../components/period-editor.css">
+<style>
+/* ═══════════════════════════════════════════════════════
+   V3 是六屏里控件最多的一屏（135 个）。三栏结构：
+     216 分组树 | 1fr 曲线 | 268 参数栏
+
+   最重要的一条纪律：**抽屉可以盖住右栏，不能盖住曲线**。
+
+   实现不用 position:absolute 覆盖，而是三栏 grid 的列宽切换：
+   抽屉打开时右栏 268 → 420，曲线区（1fr）自动收窄。
+   曲线变窄但仍完整可见，没有被遮挡。
+
+   这比「overlay + z-index」稳：overlay 一旦测量出错就压住曲线；
+   grid 只分配可用空间，不会盖。
+   ═══════════════════════════════════════════════════════ */
+
+.v3__body {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr) 268px;
+  flex: 1;
+  min-height: 0;
+  /* 不用 transition: grid-template-columns —— 该属性在部分 Chromium
+     版本不可动画，transition 会把整条声明卡在旧值上（实测切抽屉时
+     第三列一直停在 268）。瞬间切换比卡住好。 */
+}
+.v3__body[data-drawer="open"] {
+  grid-template-columns: 216px minmax(0, 1fr) 420px;
+}
+
+/* ── 左：分组树 ─────────────────────────────────── */
+.v3__tree {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--border-subtle);
+}
+.v3__tree-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex: none;
+}
+.v3__search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 2px var(--sp-2);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-1);
+}
+.v3__search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  font-size: var(--fs-xs);
+  font-family: inherit;
+}
+.v3__search input::placeholder { color: var(--text-faint); }
+.v3__sort {
+  display: flex;
+  gap: var(--sp-1);
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+}
+.v3__sort button {
+  padding: 0 var(--sp-1);
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
+  cursor: pointer;
+}
+.v3__sort button[data-on="true"] {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/* ── 中：曲线区（主角，必须占满剩余宽度）─────────── */
+.v3__center {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 信息行：七段读数。压在一行，窄时靠 container query 降级 */
+.v3__info {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  flex: none;
+  flex-wrap: wrap;
+}
+.v3__info-title { color: var(--text-primary); font-size: var(--fs-sm); }
+.v3__info-kv { display: inline-flex; align-items: baseline; gap: var(--sp-1); }
+.v3__info-kv b {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* 图区：flex:1 吃满剩余，viewBox 比例由组件按容器算 */
+.v3__chart {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  padding: var(--sp-2) var(--sp-3);
+  overflow: hidden;
+}
+
+/* 导航：上一个 / 下一个 */
+.v3__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  flex: none;
+}
+.v3__nav-pos { font-family: var(--font-num); }
+.v3__nav-actions { margin-left: auto; display: flex; gap: var(--sp-1); }
+
+/* ── 右：参数栏（可滚，抽屉展开时变宽）────────────── */
+.v3__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid var(--border-subtle);
+  background: var(--bg-canvas);
+}
+/* 抽屉变宽后，右栏内容从单列变两列 —— 多出的 152px 用来并排，
+   而不是留白。这是「抽屉」而不是「更宽的同一栏」。 */
+.v3__body[data-drawer="open"] .v3__drawer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+}
+
+.v3__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.v3__group:last-child { border-bottom: 0; padding-bottom: 0; }
+
+.v3__group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.v3__group-head .v3__group-note {
+  margin-left: auto;
+  font-family: var(--font-num);
+  color: var(--text-faint);
+}
+.v3__group-head button {
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* 日期面板：一排日期点，工作日/周末/节假日三色 */
+.v3__dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.v3__date {
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-num);
+  font-size: var(--fs-2xs);
+  border-radius: var(--r-1);
+  color: var(--text-muted);
+  background: var(--bg-raised);
+}
+.v3__date[data-kind="weekday"] { background: var(--bg-raised); }
+.v3__date[data-kind="weekend"] { background: color-mix(in srgb, var(--accent-dim) 35%, var(--bg-raised)); }
+.v3__date[data-kind="holiday"] { background: color-mix(in srgb, var(--ref-line) 40%, var(--bg-raised)); color: var(--text-primary); }
+.v3__date[data-kind="missing"] { background: transparent; border: 1px dashed var(--border-strong); color: var(--text-faint); }
+.v3__date[data-selected="true"] { box-shadow: inset 0 0 0 1px var(--text-primary); }
+
+/* 倍率 / 电价：数值 + 三档应用 */
+.v3__apply {
+  display: flex;
+  gap: var(--sp-1);
+}
+.v3__apply button {
+  flex: 1;
+  padding: 1px var(--sp-1);
+  font-size: var(--fs-2xs);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-1);
+  cursor: pointer;
+}
+.v3__apply button:hover { color: var(--text-primary); border-color: var(--accent); }
+
+/* 模板下拉 */
+.v3__tpl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.v3__tpl-preview {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  padding: 2px var(--sp-2);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-1);
+  font-family: var(--font-num);
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+  word-break: break-all;
+}
+.v3__tpl-preview::before { content: "→"; flex: none; }
+
+/* 底栏 */
+.v3__foot-note {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="shell__bar">
+    <button class="shell__back">← 返回工作台</button>
+    <span class="shell__title">预览与策略</span>
+    <span class="shell__ctx">A栋负荷2026.xlsx · A-01 · 2026-01</span>
+    <div class="shell__bar-right">
+      <button class="btn" id="drawerBtn">展开策略抽屉</button>
+      <button class="btn" id="themeBtn">界面主题：深色</button>
+    </div>
+  </div>
+
+  <div class="v3__body" data-drawer="closed" id="body">
+
+    <!-- 左：分组树 -->
+    <div class="v3__tree">
+      <div class="v3__tree-tools">
+        <div class="v3__search">
+          <input placeholder="搜索表号 / 月份" id="treeSearch">
+        </div>
+        <div class="v3__sort">
+          <span>排序</span>
+          <button data-on="true">表号</button>
+          <button data-on="false">月份</button>
+          <button data-on="false">峰值</button>
+        </div>
+      </div>
+      <div class="shell__scroll">
+        <div class="tree" id="tree">
+          <div class="tree__node" data-depth="0" data-expanded="true">
+            <span class="tree__check" data-state="on"></span>
+            <button class="tree__caret">▸</button>
+            <span class="tree__name">A栋负荷2026.xlsx</span>
+            <span class="tree__meta">12</span>
+          </div>
+          <div class="tree__node" data-depth="1" data-expanded="true">
+            <span class="tree__check" data-state="on"></span>
+            <button class="tree__caret">▸</button>
+            <span class="tree__name">A-01</span>
+            <span class="tree__meta">6</span>
+          </div>
+          <div class="tree__node" data-depth="2" data-selected="true">
+            <span class="tree__check" data-state="on"></span>
+            <button class="tree__caret" data-leaf="true">▸</button>
+            <span class="tree__name">2026-01</span>
+            <span class="tree__meta">31 天</span>
+          </div>
+          <div class="tree__node" data-depth="2">
+            <span class="tree__check" data-state="on"></span>
+            <button class="tree__caret" data-leaf="true">▸</button>
+            <span class="tree__name">2026-02</span>
+            <span class="tree__meta">28 天</span>
+          </div>
+          <div class="tree__node" data-depth="2" data-last="true">
+            <span class="tree__check" data-state="off"></span>
+            <button class="tree__caret" data-leaf="true">▸</button>
+            <span class="tree__name">2026-03</span>
+            <span class="tree__meta">31 天</span>
+          </div>
+          <div class="tree__node" data-depth="1" data-last="true">
+            <span class="tree__check" data-state="partial"></span>
+            <button class="tree__caret">▸</button>
+            <span class="tree__name">A-02</span>
+            <span class="tree__flag" data-kind="warn"></span>
+            <span class="tree__meta">6</span>
+          </div>
+          <div class="tree__node" data-depth="0" data-last="true">
+            <span class="tree__check" data-state="partial"></span>
+            <button class="tree__caret">▸</button>
+            <span class="tree__name">B&amp;C楼&lt;综合&gt;.xlsx</span>
+            <span class="tree__meta">8</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 中：曲线区 -->
+    <div class="v3__center">
+      <div class="v3__info">
+        <span class="v3__info-title">A-01 · 2026-01</span>
+        <span class="v3__info-kv">天数<b>31</b></span>
+        <span class="v3__info-kv">点数<b>96</b></span>
+        <span class="v3__info-kv">峰值<b>940</b>kW</span>
+        <span class="v3__info-kv">均值<b>522</b>kW</span>
+        <span class="v3__info-kv">容量线<b>500</b>kW</span>
+      </div>
+
+      <div class="v3__chart" id="chart"></div>
+
+      <div class="v3__nav">
+        <span class="v3__nav-pos">3 / 12</span>
+        <span>·</span>
+        <span>← → 键翻页</span>
+        <div class="v3__nav-actions">
+          <button class="btn" style="padding:1px 8px;font-size:var(--fs-xs)">← 上一个</button>
+          <button class="btn" style="padding:1px 8px;font-size:var(--fs-xs)">下一个 →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：参数栏 -->
+    <div class="v3__side">
+      <div class="v3__drawer-grid">
+
+        <div class="v3__group">
+          <div class="v3__group-head">
+            日期
+            <span class="v3__group-note">31 天</span>
+          </div>
+          <div class="v3__dates">
+            <span class="v3__date" data-kind="holiday">1</span>
+            <span class="v3__date" data-kind="weekday">2</span>
+            <span class="v3__date" data-kind="weekend">3</span>
+            <span class="v3__date" data-kind="weekend">4</span>
+            <span class="v3__date" data-kind="weekday">5</span>
+            <span class="v3__date" data-kind="weekday">6</span>
+            <span class="v3__date" data-kind="weekday">7</span>
+            <span class="v3__date" data-kind="weekday">8</span>
+            <span class="v3__date" data-kind="weekday">9</span>
+            <span class="v3__date" data-kind="weekend">10</span>
+            <span class="v3__date" data-kind="weekend">11</span>
+            <span class="v3__date" data-kind="weekday">12</span>
+            <span class="v3__date" data-kind="weekday">13</span>
+            <span class="v3__date" data-kind="weekday">14</span>
+            <span class="v3__date" data-kind="weekday">15</span>
+            <span class="v3__date" data-kind="weekday">16</span>
+            <span class="v3__date" data-kind="weekend">17</span>
+            <span class="v3__date" data-kind="weekend">18</span>
+            <span class="v3__date" data-kind="weekday">19</span>
+            <span class="v3__date" data-kind="weekday" data-selected="true">20</span>
+            <span class="v3__date" data-kind="weekday">21</span>
+            <span class="v3__date" data-kind="weekday">22</span>
+            <span class="v3__date" data-kind="weekday">23</span>
+            <span class="v3__date" data-kind="weekend">24</span>
+            <span class="v3__date" data-kind="weekend">25</span>
+            <span class="v3__date" data-kind="weekday">26</span>
+            <span class="v3__date" data-kind="weekday">27</span>
+            <span class="v3__date" data-kind="weekday">28</span>
+            <span class="v3__date" data-kind="weekday">29</span>
+            <span class="v3__date" data-kind="weekday">30</span>
+            <span class="v3__date" data-kind="weekend">31</span>
+          </div>
+        </div>
+
+        <div class="v3__group">
+          <div class="v3__group-head">
+            时段配置
+            <span class="v3__group-note">共 24.0 h</span>
+            <button>编辑</button>
+          </div>
+          <div class="period-editor" style="padding:var(--sp-2);gap:var(--sp-1)">
+            <div class="period-editor__axis">
+              <span class="period-editor__tick" data-edge="start" style="left:0">0</span>
+              <span class="period-editor__tick" style="left:25%">6</span>
+              <span class="period-editor__tick" style="left:50%">12</span>
+              <span class="period-editor__tick" style="left:75%">18</span>
+              <span class="period-editor__tick" data-edge="end" style="left:100%">24</span>
+            </div>
+            <div class="period-editor__track">
+              <div class="period-editor__grid"></div>
+              <div class="period-bar" data-type="charge" style="left:0%;width:33.3%">充</div>
+              <div class="period-bar" data-type="discharge" style="left:33.3%;width:12.5%">放</div>
+              <div class="period-bar" data-type="charge" style="left:45.8%;width:12.5%">充</div>
+              <div class="period-bar" data-type="discharge" style="left:58.3%;width:25%">放</div>
+              <div class="period-bar" data-type="flat" style="left:83.3%;width:16.7%">平</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="v3__group">
+          <div class="v3__group-head">倍率</div>
+          <div class="form">
+            <div class="field">
+              <span class="field__label">倍率</span>
+              <div class="field__control">
+                <input class="field__input" data-kind="num" value="1.00">
+                <span class="field__unit">×</span>
+              </div>
+            </div>
+          </div>
+          <div class="v3__apply">
+            <button>当前</button><button>选中</button><button>全部</button>
+          </div>
+        </div>
+
+        <div class="v3__group">
+          <div class="v3__group-head">电价</div>
+          <div class="form">
+            <div class="field">
+              <span class="field__label">启用</span>
+              <div class="field__control" style="background:none;border:0;padding-left:var(--sp-1)">
+                <label class="switch"><input type="checkbox"><span class="switch__track"></span></label>
+              </div>
+            </div>
+            <div class="field" data-state="disabled">
+              <span class="field__label">峰价</span>
+              <div class="field__control">
+                <input class="field__input" data-kind="num" value="1.20" disabled>
+                <span class="field__unit">元</span>
+              </div>
+            </div>
+          </div>
+          <div class="v3__apply">
+            <button>当前</button><button>选中</button><button>全部</button>
+          </div>
+        </div>
+
+        <div class="v3__group">
+          <div class="v3__group-head">显示</div>
+          <div class="form">
+            <div class="field">
+              <span class="field__label">高亮</span>
+              <div class="field__control">
+                <select class="field__select"><option>峰值区间</option><option>不显示</option></select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="v3__group">
+          <div class="v3__group-head">
+            图表主题
+            <span class="v3__group-note">仅影响导出图</span>
+          </div>
+          <div class="form">
+            <div class="field">
+              <span class="field__label">配色</span>
+              <div class="field__control">
+                <select class="field__select"><option>深色</option><option>浅色</option></select>
+              </div>
+            </div>
+          </div>
+          <div class="field__hint">界面主题在顶栏右侧切</div>
+        </div>
+
+        <div class="v3__group">
+          <div class="v3__group-head">模板</div>
+          <div class="v3__tpl">
+            <div class="field__control">
+              <select class="field__select"><option>默认模板</option><option>客户A 模板</option></select>
+            </div>
+            <div class="v3__tpl-preview">A-01_2026-01_负荷曲线.png</div>
+          </div>
+        </div>
+
+        <div class="v3__group">
+          <div class="v3__group-head">输出</div>
+          <div class="v3__tpl">
+            <div class="field__control">
+              <input class="field__input" style="font-family:var(--font-num);font-size:var(--fs-xs)" value="D:\输出\2026-01" readonly>
+            </div>
+            <div class="v3__apply">
+              <button>浏览</button><button>打开</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="shell__foot">
+    <span class="v3__foot-note">时间分辨率 15 分钟 · 欠 1 天（2026-01-13 无数据）</span>
+    <div class="shell__actions">
+      <button class="btn">导出中间宽表</button>
+      <button class="btn">专业模式</button>
+      <button class="btn btn--primary">导出</button>
+    </div>
+  </div>
+</div>
+
+<script src="../components/curve-viewer.js"></script>
+<script>
+const root = document.documentElement;
+const tbtn = document.getElementById('themeBtn');
+function syncTheme() {
+  tbtn.textContent = '界面主题：' + (root.dataset.theme === 'dark' ? '深色' : '浅色');
+}
+tbtn.addEventListener('click', () => {
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  syncTheme();
+});
+syncTheme();
+
+// 抽屉：不是 overlay，是第三栏变宽。
+// 曲线区（1fr）自动收窄但仍完整可见 —— 抽屉不遮挡主角。
+const body = document.getElementById('body');
+const drawerBtn = document.getElementById('drawerBtn');
+drawerBtn.addEventListener('click', () => {
+  const open = body.dataset.drawer === 'open';
+  body.dataset.drawer = open ? 'closed' : 'open';
+  drawerBtn.textContent = open ? '展开策略抽屉' : '收起策略抽屉';
+});
+
+// 曲线：96 个点，双峰（早高峰 09:30 / 晚高峰 18:30），午间与夜间回落
+const N = 96;
+const times = [];
+for (let i = 0; i < N; i++) {
+  const m = i * 15;
+  times.push(String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'));
+}
+const data = times.map((_, i) => {
+  const h = i * 0.25;
+  const morning = 620 * Math.exp(-Math.pow((h - 9.5) / 1.6, 2));
+  const evening = 480 * Math.exp(-Math.pow((h - 18.5) / 2.0, 2));
+  const base = 330 + 40 * Math.sin((h - 6) / 24 * Math.PI * 2);
+  return Math.round(base + morning + evening);
+});
+const avg = data.map(v => Math.round(v * 0.86));
+
+CurveViewer.render(document.getElementById('chart'), {
+  title: '',
+  unit: 'kW',
+  times: times,
+  series: [
+    { name: '日曲线', data: data, kind: 'line' },
+    { name: '平均负荷', data: avg, kind: 'avg' },
+    { name: '容量线 500', value: 500, kind: 'ref' }
+  ],
+  yMax: 1200,
+  yStep: 200
+});
+
+// 树排序按钮：视觉态
+document.querySelectorAll('.v3__sort button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.v3__sort button').forEach(o => o.dataset.on = 'false');
+    b.dataset.on = 'true';
+  });
+});
+</script>
+</body>
+</html>
