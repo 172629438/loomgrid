@@ -14,7 +14,7 @@
    一屏里同时看到「我选了什么」和「选出来是什么」，不用来回滚。 */
 
 /* 顶栏：全局导航 + 界面主题（全局唯一入口） */
-.v2__file {
+.shell__ctx {
   font-family: var(--font-num);
   font-size: var(--fs-xs);
   color: var(--text-muted);
@@ -95,6 +95,13 @@
 .v2__fmt[data-checked="true"] .v2__fmt-desc { color: var(--text-muted); }
 
 /* 右栏：列名表 + 样本表上下分 */
+
+/* 底栏选项：三个 checkbox 竖排，左侧说明、右侧动作 */
+.v2__opts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .v2__opt {
   display: flex;
   align-items: center;
@@ -131,7 +138,7 @@
   <div class="shell__bar">
     <button class="shell__back">← 返回工作台</button>
     <span class="shell__title">列映射</span>
-    <span class="v2__file">A栋负荷2026.xlsx · Sheet1 · 多工作表</span>
+    <span class="shell__ctx">A栋负荷2026.xlsx · Sheet1 · 多工作表</span>
     <div class="shell__bar-right">
       <span id="backendState" hidden style="font-size:var(--fs-xs);color:var(--text-muted)"></span>
       <button class="btn" id="pickBtn">选择文件…</button>
@@ -372,29 +379,55 @@ fileInput.addEventListener('change', async () => {
 async function runWithFile(file) {
   setBackendState('上传中…');
   try {
-    // 1) 上传：浏览器拿不到本地路径，必须先传字节
+    // 上传：浏览器拿不到本地路径，必须先传字节
     const fd = new FormData();
     fd.append('file', file, file.name);
     const up = await fetch(API_BASE + '/api/ingest/upload', { method: 'POST', body: fd }).then(r => r.json());
     if (!up.ok) throw new Error((up.error && up.error.message) || '上传失败');
-
-    // 2) inspect：拿表型、列清单、建议映射、confidence
-    setBackendState('识别中…');
-    const ins = await fetch(API_BASE + '/api/ingest/inspect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: up.data.path }),
-    }).then(r => r.json());
-    if (!ins.ok) throw new Error((ins.error && ins.error.message) || '识别失败');
-
-    renderInspect(file.name, ins.data);
-    setBackendState('');
-    toast('已识别：' + file.name, 'success');
+    await runWithPath(up.data.path, file.name);
   } catch (e) {
     setBackendState('');
     toast('未连上后端，展示演示数据（' + e.message + '）', 'warn');
   }
 }
+
+// 用已有 path 识别。V1 跳过来时走这条（跳过上传），
+// 也让 V2 能独立打开：?path=<服务器上的路径> 即可。
+async function runWithPath(path, filename) {
+  setBackendState('识别中…');
+  try {
+    const ins = await fetch(API_BASE + '/api/ingest/inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    }).then(r => r.json());
+    if (!ins.ok) throw new Error((ins.error && ins.error.message) || '识别失败');
+
+    renderInspect(filename || path.split(/[\\/]/).pop(), ins.data);
+    setBackendState('');
+    toast('已识别：' + (filename || '文件'), 'success');
+    // 记住 path，供「确认」时调 mapping 用
+    window.__currentPath = path;
+  } catch (e) {
+    setBackendState('');
+    toast('未连上后端，展示演示数据（' + e.message + '）', 'warn');
+  }
+}
+
+// 从 URL 读 path：这是 V1 与 V2 之间唯一的接口。
+// path 是「一个文件的身份证」，session 是「一批分组的身份证」，两者不混。
+(function autoFromQuery() {
+  const qs = new URLSearchParams(location.search);
+  const path = qs.get('path');
+  if (!path) return;
+  const name = qs.get('name') || '';
+  // 等 DOM 就绪
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => runWithPath(path, name));
+  } else {
+    runWithPath(path, name);
+  }
+})();
 
 function renderInspect(filename, data) {
   const sheets = (data && data.sheets) || [];
@@ -448,21 +481,21 @@ function renderInspect(filename, data) {
   colRows.innerHTML = html;
 
   // 列数读数
-  const note = document.querySelector('.v2__pane-note');
+  const note = document.querySelector('.shell__pane-note');
   if (note) {
     const matched = [dateCol, timeCol, assetCol].filter(Boolean).length + (loadCols.length ? 1 : 0);
     note.textContent = cols.length + ' 列 · 映射 ' + Math.min(matched, 4) + ' / 4 已定';
   }
 
   // 映射四列
-  const selects = document.querySelectorAll('.v2__left select.field__select');
+  const selects = document.querySelectorAll('.shell__panel[data-side="left"] select.field__select');
   if (selects.length >= 4) {
     // 日期列
     fillSelect(selects[0], cols, dateCol);
     fillSelect(selects[1], ['（不适用）'].concat(cols), timeCol || '（不适用）');
     fillSelect(selects[2], ['（未选择）'].concat(cols), assetCol || '（未选择）');
   }
-  const loadInput = document.querySelector('.v2__left input[readonly]');
+  const loadInput = document.querySelector('.shell__panel[data-side="left"] input[readonly]');
   if (loadInput) {
     loadInput.value = loadCols.length
       ? (loadCols.length + ' 列（' + loadCols[0] + ' – ' + loadCols[loadCols.length - 1] + '）')

@@ -99,6 +99,14 @@
 .shell__body[data-layout="full"] {
   grid-template-columns: minmax(0, 1fr);
 }
+/* 三栏：树 | 主区 | 参数栏。抽屉打开时第三列变宽，主区（1fr）自动收窄。
+   不用 overlay 覆盖 —— grid 只分配可用空间，做不出「盖住」这个动作。 */
+.shell__body[data-layout="three-column"] {
+  grid-template-columns: 216px minmax(0, 1fr) 268px;
+}
+.shell__body[data-layout="three-column"][data-drawer="open"] {
+  grid-template-columns: 216px minmax(0, 1fr) 420px;
+}
 
 /* 可滚栏：grid 子项默认 min-height:auto，内容超长时不会滚动，
    而是溢出到容器外被裁。必须显式归零 —— V4 左栏踩过。 */

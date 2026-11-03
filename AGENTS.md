@@ -71,6 +71,28 @@ git hash-object "负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
 
 ---
 
+### schema 是契约，写调用前必须先读
+
+**踩过三次，都是同一类错**：
+
+```
+阶段 2  协作方找 sheets[0].format_type，实际在 sheets[0].suggest.format_type
+阶段 4.5 我读 sheets[0].suggest.confidence，实际在 sheets[0].confidence
+阶段 4.5 我写 {path, sheets:[...]}，实际是 {path, sheet, mapping}；
+         字段名是 load_col 不是 load_cols
+```
+
+三次都不是实现错，是**凭印象写请求体 / 读响应体**。
+
+**规则**：
+- 调任何 API 前，先 `read` `api/schemas.py` 确认字段名与嵌套层级
+- 写测试时尤其容易犯——测试一旦读错层级，会把「响应正确」报成「功能缺失」
+- 前端接线同理：字段名写错不报错，只是拿到 `undefined` 然后静默渲染空
+
+**判据**：你说得出 `confidence` 挂在哪一层吗？说不出就是没读。
+
+---
+
 ## 三、版本号规则
 
 - 主程序 docstring 第 4 行有版本声明，改功能必改
@@ -78,6 +100,29 @@ git hash-object "负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
 - **改了计算逻辑**（影响测算结果）→ 末位 +1 并在 CHANGELOG 里单列
 - **只改显示/文案** → 也 +1，但要标注「显示层改动，不影响测算」
 - 版本号必须与 `CHANGELOG.md` 的条目、Release 的 tag 三者一致
+
+---
+
+## 三之二、打包前必须收紧的安全项
+
+当前 `api/app.py` 的 CORS 是 `allow_origins=["*"]`，**这是给开发期用的**。
+
+**风险不是理论上的**：这个 API 能读本机任意路径的文件、往任意目录写文件。
+桌面程序里后端跑在用户本机，全开放意味着**用户浏览器里打开的任何网页都能调它**——
+往 `C:\Windows\Temp\` 写文件、探测本机有哪些 Excel。
+
+**打包前两件必做**：
+
+```python
+# 1. 收紧 CORS：只允许自身前端来源，不用 "*"
+allow_origins=["http://127.0.0.1:<固定端口>", "http://localhost:<固定端口>"]
+
+# 2. 路径白名单：/api/ingest/inspect 与 /api/export/run 的 path
+#    必须落在允许的根目录内，拒绝系统路径
+```
+
+**验收判据**：从另一个源的页面 `fetch` 这个 API，应当被 CORS 拒；
+传 `C:\Windows\win.ini` 作为 path，应当返回结构化错误而不是列名。
 
 ---
 

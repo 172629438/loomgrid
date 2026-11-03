@@ -179,7 +179,8 @@
 
   <!-- 工具条 -->
   <div class="v1__tools">
-    <button class="btn btn--primary">添加文件</button>
+    <button class="btn btn--primary" id="addFiles">添加文件</button>
+    <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls,.csv,.xlsb" multiple hidden>
     <button class="btn" id="btnRemove">移除选中</button>
     <button class="btn" id="btnClear">清空</button>
     <div class="v1__tool-sep"></div>
@@ -428,7 +429,7 @@
         <div class="dropzone__desc">支持宽表、长表、转置表与示数表，自动识别列</div>
         <div class="dropzone__formats">.xlsx · .xlsm · .xls · .csv · .xlsb</div>
         <div class="dropzone__actions">
-          <button class="btn btn--primary">选择文件</button>
+          <button class="btn btn--primary" id="pickEmpty">选择文件</button>
           <span style="font-size:var(--fs-xs);color:var(--text-faint)">或整窗拖入</span>
         </div>
       </div>
@@ -481,6 +482,44 @@ tbtn.addEventListener('click', () => {
   syncTheme();
 });
 syncTheme();
+
+// ── 接线（阶段 4.5）─────────────────────────────────
+// V1 的职责只有一件：把文件传上去，拿到 path，带着它去 V2。
+// session 不在这里建 —— session 是「一批分组」的身份证，
+// 由 V2（列映射）产出，这样 V2 能独立打开、独立重做映射。
+const API_BASE = (location.protocol === 'file:' || location.port === '8899')
+  ? 'http://127.0.0.1:8000' : '';
+
+const addBtn = document.getElementById('addFiles');
+const pickEmpty = document.getElementById('pickEmpty');
+const fileInput = document.getElementById('fileInput');
+
+function openPicker() { fileInput.click(); }
+if (addBtn) addBtn.addEventListener('click', openPicker);
+if (pickEmpty) pickEmpty.addEventListener('click', openPicker);
+
+fileInput.addEventListener('change', async () => {
+  const files = Array.from(fileInput.files || []);
+  if (!files.length) return;
+  const f = files[0];  // 最短链路先只处理第一个
+
+  if (pickEmpty) pickEmpty.textContent = '上传中…';
+  try {
+    const fd = new FormData();
+    fd.append('file', f, f.name);
+    const up = await fetch(API_BASE + '/api/ingest/upload', { method: 'POST', body: fd })
+      .then(r => r.json());
+    if (!up.ok) throw new Error((up.error && up.error.message) || '上传失败');
+
+    // 带 path 去 V2。path 含中文与反斜杠，必须编码。
+    const q = '?path=' + encodeURIComponent(up.data.path)
+            + '&name=' + encodeURIComponent(f.name);
+    location.href = 'v2-mapping.html' + q;
+  } catch (e) {
+    if (pickEmpty) pickEmpty.textContent = '选择文件';
+    alert('未连上后端：' + e.message + '\n\n请先启动 API（python -m uvicorn api.app:app --port 8000）');
+  }
+});
 
 // 空态 / 满态切换：真实产品由「有没有文件」决定，
 // 这里给一个演示开关，因为两态的差别必须都看到。

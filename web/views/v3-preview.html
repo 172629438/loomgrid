@@ -26,18 +26,6 @@
    grid 只分配可用空间，不会盖。
    ═══════════════════════════════════════════════════════ */
 
-.v3__body {
-  display: grid;
-  grid-template-columns: 216px minmax(0, 1fr) 268px;
-  flex: 1;
-  min-height: 0;
-  /* 不用 transition: grid-template-columns —— 该属性在部分 Chromium
-     版本不可动画，transition 会把整条声明卡在旧值上（实测切抽屉时
-     第三列一直停在 268）。瞬间切换比卡住好。 */
-}
-.v3__body[data-drawer="open"] {
-  grid-template-columns: 216px minmax(0, 1fr) 420px;
-}
 
 /* ── 左：分组树 ─────────────────────────────────── */
 .v3__tree {
@@ -163,11 +151,6 @@
 }
 /* 抽屉变宽后，右栏内容从单列变两列 —— 多出的 152px 用来并排，
    而不是留白。这是「抽屉」而不是「更宽的同一栏」。 */
-.v3__body[data-drawer="open"] .v3__drawer-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--sp-2);
-}
 
 .v3__group {
   display: flex;
@@ -288,7 +271,7 @@
 .v3__tpl-preview::before { content: "→"; flex: none; }
 
 /* 底栏 */
-.v3__foot-note {
+.shell__foot-note {
   font-size: var(--fs-xs);
   color: var(--text-faint);
 }
@@ -307,7 +290,7 @@
     </div>
   </div>
 
-  <div class="v3__body" data-drawer="closed" id="body">
+  <div class="shell__body" data-layout="three-column" data-drawer="closed" id="body">
 
     <!-- 左：分组树 -->
     <div class="v3__tree">
@@ -563,7 +546,7 @@
   </div>
 
   <div class="shell__foot">
-    <span class="v3__foot-note">时间分辨率 15 分钟 · 欠 1 天（2026-01-13 无数据）</span>
+    <span class="shell__foot-note">时间分辨率 15 分钟 · 欠 1 天（2026-01-13 无数据）</span>
     <div class="shell__actions">
       <button class="btn">导出中间宽表</button>
       <button class="btn">专业模式</button>
