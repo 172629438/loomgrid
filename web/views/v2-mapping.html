@@ -322,7 +322,7 @@
     <div class="shell__actions">
       <button class="btn">跳过此文件</button>
       <button class="btn">取消全部</button>
-      <button class="btn btn--primary">确认</button>
+      <button class="btn btn--primary" id="btnConfirm">确认</button>
     </div>
   </div>
 </div>
@@ -406,8 +406,9 @@ async function runWithPath(path, filename) {
     renderInspect(filename || path.split(/[\\/]/).pop(), ins.data);
     setBackendState('');
     toast('已识别：' + (filename || '文件'), 'success');
-    // 记住 path，供「确认」时调 mapping 用
+    // 记住 path 与 suggest，供「确认」时调 mapping 用
     window.__currentPath = path;
+    window.__currentSuggest = (ins.data.sheets && ins.data.sheets[0]) || null;
   } catch (e) {
     setBackendState('');
     toast('未连上后端，展示演示数据（' + e.message + '）', 'warn');
@@ -510,6 +511,61 @@ function fillSelect(el, options, current) {
     opt.value = o; opt.textContent = o;
     if (o === current) opt.selected = true;
     el.appendChild(opt);
+  });
+}
+
+// ── 确认 → mapping → session（阶段 4.5 第二段）──────────
+// V2 的产出是 session_id：「一批分组」的身份证。
+// V1 传进来的是 path（一个文件的身份证），两者不混。
+const btnConfirm = document.getElementById('btnConfirm');
+if (btnConfirm) {
+  btnConfirm.addEventListener('click', async () => {
+    const path = window.__currentPath;
+    const sh = window.__currentSuggest;
+    if (!path || !sh) {
+      // 没有真实文件（纯演示态）：直接去 V5 看界面
+      location.href = 'v5-export.html';
+      return;
+    }
+
+    const sug = sh.suggest || {};
+    const body = {
+      path: path,
+      sheet: sh.name,
+      mapping: {
+        date_col: sug.date_col,
+        time_col: sug.time_col,
+        asset_col: sug.asset_col,
+        load_col: sug.load_col || [],
+        format_type: sug.format_type,
+        header_row: sug.header_row || 0,
+        transpose: sug.transpose || false,
+      },
+    };
+
+    const old = btnConfirm.textContent;
+    btnConfirm.textContent = '扫描中…';
+    btnConfirm.disabled = true;
+    try {
+      const r = await fetch(API_BASE + '/api/ingest/mapping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(x => x.json());
+      if (!r.ok) throw new Error((r.error && r.error.message) || '映射失败');
+
+      const data = r.data || {};
+      const sid = data.session_id;
+      const groups = (data.groups || []).length;
+      if (!sid) throw new Error('后端未返回 session_id');
+
+      location.href = 'v5-export.html?session=' + encodeURIComponent(sid)
+                    + '&groups=' + groups;
+    } catch (e) {
+      btnConfirm.textContent = old;
+      btnConfirm.disabled = false;
+      toast('映射失败：' + e.message, 'error');
+    }
   });
 }
 

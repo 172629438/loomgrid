@@ -145,7 +145,7 @@
   <div class="shell__bar">
     <button class="shell__back">← 返回预览</button>
     <span class="shell__title">导出</span>
-    <span class="shell__ctx">A-01 · 12 个分组 · 输出到 2026-01</span>
+    <span class="shell__ctx" id="ctx">A-01 · 12 个分组 · 输出到 2026-01</span>
     <div class="shell__bar-right">
       <button class="btn" id="themeBtn">界面主题：深色</button>
     </div>
@@ -269,7 +269,7 @@
       <div class="shell__sec">输出位置 <span class="shell__sec-note">必填</span></div>
       <div class="v5__dir">
         <div class="v5__dir-row">
-          <span class="v5__dir-path">D:\输出\2026-01</span>
+          <span class="v5__dir-path" id="outDir">D:\输出\2026-01</span>
         </div>
         <div class="v5__dir-row">
           <button class="btn" style="flex:1">浏览</button>
@@ -348,8 +348,9 @@
       <span>其中</span><b>3</b><span>个将被覆盖</span>
     </div>
     <div class="shell__actions">
-      <button class="btn">取消</button>
-      <button class="btn btn--primary">开始导出 8 张</button>
+      <span id="progressLine" hidden style="font-size:var(--fs-xs);color:var(--text-muted)"></span>
+      <button class="btn" id="btnCancel">取消</button>
+      <button class="btn btn--primary" id="btnExport">开始导出 8 张</button>
     </div>
   </div>
 </div>
@@ -399,6 +400,105 @@ function bindTpl(inputId, outId, suffix) {
 
 bindTpl('tplName', 'tplNameOut', '.png');
 bindTpl('tplTitle', 'tplTitleOut', '');
+
+// ── 接线（阶段 4.5 第三段）─────────────────────────────
+// export/run 是异步的：返回时 succeeded=0、files=[] 是正常的，
+// 图还在后台生成。进度走 WebSocket，八条事件，最后一条 done 带完整 result。
+const API_BASE = (location.protocol === 'file:' || location.port === '8899')
+  ? 'http://127.0.0.1:8000' : '';
+
+const QS = new URLSearchParams(location.search);
+const SESSION = QS.get('session') || '';
+const GROUP_COUNT = Number(QS.get('groups') || 0) || 8;
+
+const btnExport = document.getElementById('btnExport');
+const progressLine = document.getElementById('progressLine');
+const ctxEl = document.getElementById('ctx');
+
+if (SESSION) {
+  ctxEl.textContent = 'session ' + SESSION.slice(0, 8) + ' · ' + GROUP_COUNT + ' 个分组';
+  btnExport.textContent = '开始导出 ' + GROUP_COUNT + ' 张';
+}
+
+function setProgress(text) {
+  progressLine.hidden = false;
+  progressLine.textContent = text;
+}
+
+btnExport.addEventListener('click', async () => {
+  if (!SESSION) {
+    alert('没有 session。请从 V2 确认映射后进入本页，\n或确认后端已启动。');
+    return;
+  }
+  const outDir = document.getElementById('outDir').textContent.trim();
+  const tpl = document.getElementById('tplName').value;
+
+  btnExport.disabled = true;
+  setProgress('提交中…');
+  try {
+    const r = await fetch(API_BASE + '/api/export/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: SESSION,
+        output_dir: outDir,
+        filename_template: tpl,
+      }),
+    }).then(x => x.json());
+    if (!r.ok) throw new Error((r.error && r.error.message) || '提交失败');
+
+    const tid = r.data.task_id;
+    if (!tid) throw new Error('后端未返回 task_id');
+    setProgress('已提交 · 等待进度…');
+    watchProgress(tid, outDir);
+  } catch (e) {
+    btnExport.disabled = false;
+    setProgress('失败：' + e.message);
+  }
+});
+
+// WebSocket：四阶段 + progress + log + done
+function watchProgress(taskId, outDir) {
+  const wsBase = API_BASE.replace(/^http/, 'ws');
+  const ws = new WebSocket(wsBase + '/ws/progress?task_id=' + encodeURIComponent(taskId));
+  const stageName = { 'stage.parse': '解析', 'stage.scan': '扫描', 'stage.preload': '预加载', 'stage.generate': '生成图表' };
+
+  ws.onmessage = (ev) => {
+    let m;
+    try { m = JSON.parse(ev.data); } catch { return; }
+    const t = m.event || m.type || '';
+
+    if (stageName[t]) {
+      setProgress(stageName[t] + '…' + (m.data && m.data.total ? ' ' + m.data.total : ''));
+    } else if (t === 'progress') {
+      const d = m.data || {};
+      setProgress((d.stage ? stageName['stage.' + d.stage] || d.stage : '进行中')
+        + ' ' + (d.current || 0) + ' / ' + (d.total || '?'));
+    } else if (t === 'log') {
+      if (m.data && m.data.message) setProgress(m.data.message);
+    } else if (t === 'stage.error' || t === 'error') {
+      setProgress('出错：' + JSON.stringify((m.data && m.data.error) || m.data || {}));
+    } else if (t === 'done') {
+      const res = (m.data && m.data.result) || m.data || {};
+      const okN = res.succeeded != null ? res.succeeded : (res.files || []).length;
+      const failN = (res.failed || []).length;
+      setProgress('完成 ' + okN + ' 张' + (failN ? ' · 失败 ' + failN : ''));
+      btnExport.disabled = false;
+      btnExport.textContent = '重新导出';
+      ws.close();
+      // 有产出就去 V6 看结果
+      if (okN > 0) {
+        setTimeout(() => {
+          location.href = 'v6-result.html?task=' + encodeURIComponent(taskId)
+                        + '&ok=' + okN + '&fail=' + failN;
+        }, 600);
+      }
+    }
+  };
+
+  ws.onerror = () => setProgress('进度连接失败（导出可能仍在进行）');
+  ws.onclose = () => { if (btnExport.disabled) btnExport.disabled = false; };
+}
 
 // 全选
 document.getElementById('checkAll').addEventListener('change', (e) => {
