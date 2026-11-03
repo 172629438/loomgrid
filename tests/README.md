@@ -46,6 +46,7 @@ python tests/verify_pipeline.py
 | `verify_gui_smoke2.py` | 10 | 对话框冒烟 | PySide6 + 显示器 |
 | `verify_report.py` | 28 | 报告生成与导出 | PySide6（部分路径） |
 | `verify_provider.py` | 14 | DataProvider 缓存：注入路径、两层缓存隔离、clear 语义、错误隔离、内存淘汰 | pandas + openpyxl（无 Qt） |
+| `verify_capacity.py` | 18 | 容量口径：min_feasible / full_load 定义、日吞吐量、段选择、占位零影响 | 无（纯 numpy） |
 | `verify_e2e.py` | — | 真实 Excel 文件的读取链路 | 样例数据 |
 | `verify_ingest.py` | — | 数据摄入与分析引擎模式切换 | 样例数据 |
 | `verify_fixes_batch1.py` | 12 | 第一批缺陷修复的回归 | — |
