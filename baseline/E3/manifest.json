@@ -521,22 +521,22 @@
         "variants": {
           "light_default": {
             "ok": true,
-            "sha256": "7cb6e5f02b7a2d7e531a6c59994cd34af99764ffd74d6dba40e800f3837bf8bd",
+            "sha256": "c34904474181b59c74736391fc4453b5809b1a3334fe0cf0e5de5f609cacfdb6",
             "size": [
-              3184,
-              1579
+              3185,
+              1578
             ],
-            "bytes": 275015,
+            "bytes": 279941,
             "file": "plot_light_default.png"
           },
           "dark_default": {
             "ok": true,
-            "sha256": "c7bc033b4a544bba86e37ebef42ea410847fe255f832eb2d1b03e8ee7121fe6f",
+            "sha256": "ced13981cbddaf91564703b923f6e730da137a1285e808fbf365e87f9fc8f4f3",
             "size": [
-              3184,
-              1579
+              3185,
+              1578
             ],
-            "bytes": 254853,
+            "bytes": 259432,
             "file": "plot_dark_default.png"
           }
         }
@@ -549,7 +549,7 @@
           "excel": {
             "ok": true,
             "file": "midwide.xlsx",
-            "sha256_bytes": "56d0ede94d46a87b89d340c38563756dd84e8aa6ee9cde64b52de6afc189c54f",
+            "sha256_bytes": "416bc9a3d9a5ad8c70399070f691cfdacd1136794c30f4bf5eb1074b2d916674",
             "shape": [
               3,
               96
@@ -670,10 +670,16 @@
         "plot_light_default.png"
       ],
       "result": {
-        "ok": false,
-        "error": "未返回路径",
+        "ok": true,
+        "file": "生成报告.html",
+        "sha256": "24288b6257767d2a0a14ad5d83f731e1a6d684e695aa6368064ac063a26e5fd5",
+        "sha256_normalized": "b5328175f6dd9f380b3f2d6c013379b44dc0de723d24bcef0de1cf946e6c68d2",
+        "normalized": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: <TS></p>\n<p>输出目录: <REPO>\\baseline\\E3</p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
+        "chars": 963,
+        "has_amp_raw": false,
+        "text": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: 2026-11-03 22:35:21</p>\n<p>输出目录: <REPO>\\baseline\\E3</p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
         "log": [
-          "生成报告失败: cannot access local variable 'html' where it is not associated with a value"
+          "生成报告已保存至: <REPO>\\baseline\\E3\\生成报告.html"
         ]
       }
     },

@@ -1419,11 +1419,14 @@ def _detect_transposed_wide(df: pd.DataFrame, cols, max_sample=100):
             # 整表因此被判成转置宽表，输出 [95,1] 垃圾且不报错。
             # 真正的转置表时刻列有三个硬特征：数量足够、互不重复、覆盖一天。
             valid = time_vals[time_vals != INVALID_MINUTES]
-            if len(valid) < 8:
+            if len(valid) < 2:
                 continue
             _uniq_ratio = valid.nunique() / float(len(valid))
             _span = float(valid.max() - valid.min())
-            if _uniq_ratio < 0.8 or _span < 720:
+            # 下限 12 小时：时刻列要覆盖半天以上（真实转置表的 96 点跨 23.75 小时）
+            # 上限 24 小时：时刻不可能跨过一天；无上限时「跳天累计」的数值列
+            # （如 0 / 86400 / 172800）会被当成时刻序列。
+            if _uniq_ratio < 0.8 or _span < 720 or _span > 1440:
                 log.debug(f"转置判定跳过列 {time_col}: 唯一率={_uniq_ratio:.2f} 跨度={_span:.0f}分钟")
                 continue
             date_cols = []
