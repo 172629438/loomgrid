@@ -283,7 +283,7 @@
   <div class="shell__bar">
     <button class="shell__back">← 返回工作台</button>
     <span class="shell__title">预览与策略</span>
-    <span class="shell__ctx">A栋负荷2026.xlsx · A-01 · 2026-01</span>
+    <span class="shell__ctx" id="ctx">A栋负荷2026.xlsx · A-01 · 2026-01</span>
     <div class="shell__bar-right">
       <button class="btn" id="drawerBtn">展开策略抽屉</button>
       <button class="btn" id="themeBtn">界面主题：深色</button>
@@ -356,7 +356,7 @@
 
     <!-- 中：曲线区 -->
     <div class="v3__center">
-      <div class="v3__info">
+      <div class="v3__info" id="info">
         <span class="v3__info-title">A-01 · 2026-01</span>
         <span class="v3__info-kv">天数<b>31</b></span>
         <span class="v3__info-kv">点数<b>96</b></span>
@@ -368,7 +368,7 @@
       <div class="v3__chart" id="chart"></div>
 
       <div class="v3__nav">
-        <span class="v3__nav-pos">3 / 12</span>
+        <span class="v3__nav-pos" id="navPos">— / —</span>
         <span>·</span>
         <span>← → 键翻页</span>
         <div class="v3__nav-actions">
@@ -387,7 +387,7 @@
             日期
             <span class="v3__group-note">31 天</span>
           </div>
-          <div class="v3__dates">
+          <div class="v3__dates" id="datePanel">
             <span class="v3__date" data-kind="holiday">1</span>
             <span class="v3__date" data-kind="weekday">2</span>
             <span class="v3__date" data-kind="weekend">3</span>
@@ -546,7 +546,7 @@
   </div>
 
   <div class="shell__foot">
-    <span class="shell__foot-note">时间分辨率 15 分钟 · 欠 1 天（2026-01-13 无数据）</span>
+    <span class="shell__foot-note" id="footNote">时间分辨率 15 分钟</span>
     <div class="shell__actions">
       <button class="btn">导出中间宽表</button>
       <button class="btn">专业模式</button>
@@ -577,6 +577,210 @@ drawerBtn.addEventListener('click', () => {
   body.dataset.drawer = open ? 'closed' : 'open';
   drawerBtn.textContent = open ? '展开策略抽屉' : '收起策略抽屉';
 });
+
+// ── 接线：session → groups → preview → 曲线 + 日期面板 ─────────────
+const API_BASE = (location.protocol === 'file:' || location.port === '8899')
+  ? 'http://127.0.0.1:8000' : '';
+
+const QS = new URLSearchParams(location.search);
+const SESSION = QS.get('session') || '';
+const ctxEl = document.getElementById('ctx');
+
+let GROUPS = [];
+let CURRENT = 0;          // 当前分组索引
+let CUR_DATA = null;      // 当前 preview 数据
+let CUR_DAY = 0;          // 当前查看的日期索引（点日期面板切换）
+
+async function boot() {
+  if (!SESSION) {
+    ctxEl.textContent = '演示数据（未接 session）';
+    ctxEl.style.color = 'var(--warn)';
+    renderDemo();
+    return;
+  }
+  try {
+    const g = await fetch(API_BASE + '/api/ingest/groups?session_id=' + encodeURIComponent(SESSION))
+      .then(x => x.json());
+    if (!g.ok) throw new Error((g.error && g.error.message) || '取分组失败');
+    GROUPS = g.data.groups || [];
+    ctxEl.textContent = (g.data.path || '') + ' · ' + GROUPS.length + ' 个分组';
+    renderTree();
+    if (GROUPS.length) await loadGroup(0);
+  } catch (e) {
+    ctxEl.textContent = '接线失败：' + e.message;
+    ctxEl.style.color = 'var(--danger)';
+    renderDemo();
+  }
+}
+
+function renderTree() {
+  const tree = document.getElementById('tree');
+  if (!tree) return;
+  const path = (ctxEl.textContent || '').split(' · ')[0];
+  let html = '';
+  // 文件 → 分组（资产/月份）两层。资产相同就归到一个文件节点下。
+  const byAsset = {};
+  GROUPS.forEach((g, i) => {
+    const a = g.asset || '未命名';
+    (byAsset[a] = byAsset[a] || []).push({ g, i });
+  });
+  const assets = Object.keys(byAsset);
+  assets.forEach((a, ai) => {
+    const isLastAsset = ai === assets.length - 1;
+    html += '<div class="tree__node" data-depth="0"' + (isLastAsset ? ' data-last="true"' : '') + '>'
+      + '<span class="tree__check" data-state="on"></span>'
+      + '<button class="tree__caret">▸</button>'
+      + '<span class="tree__name">' + a + '</span>'
+      + '<span class="tree__meta">' + byAsset[a].length + '</span></div>';
+    byAsset[a].forEach(({ g, i }, gi) => {
+      const sel = i === CURRENT ? ' data-selected="true"' : '';
+      const isLast = gi === byAsset[a].length - 1;
+      html += '<div class="tree__node" data-depth="1"' + sel + (isLast ? ' data-last="true"' : '') + '>'
+        + '<span class="tree__check" data-state="on"></span>'
+        + '<button class="tree__caret" data-leaf="true">▸</button>'
+        + '<span class="tree__name">' + (g.month || '') + '</span>'
+        + '<span class="tree__meta">' + (g.date_count || 0) + ' 天</span></div>';
+    });
+  });
+  tree.innerHTML = html;
+
+  // 点月份节点切分组
+  const nodes = [...tree.querySelectorAll('.tree__node[data-depth="1"]')];
+  let idx = 0;
+  nodes.forEach(n => {
+    const my = idx++;
+    n.addEventListener('click', () => { CURRENT = my; loadGroup(my); });
+  });
+}
+
+async function loadGroup(i) {
+  CURRENT = i;
+  const g = GROUPS[i];
+  if (!g) return;
+  const r = await fetch(API_BASE + '/api/preview?session_id=' + encodeURIComponent(SESSION)
+    + '&group=' + i + '&format=json').then(x => x.json());
+  if (!r.ok) {
+    ctxEl.textContent = '取数失败：' + ((r.error && r.error.message) || '');
+    return;
+  }
+  CUR_DATA = r.data;
+  CUR_DAY = 0;
+  renderTree();
+  renderInfo();
+  renderDates();
+  renderChart();
+  renderNav();
+}
+
+function renderNav() {
+  const pos = document.getElementById('navPos');
+  if (pos) pos.textContent = (CURRENT + 1) + ' / ' + GROUPS.length;
+
+  const note = document.getElementById('footNote');
+  const g = GROUPS[CURRENT];
+  if (!note || !g) return;
+  const days = g.dates || [];
+  const missing = days.filter(d => d.has_data === false);
+  const pts = (CUR_DATA && CUR_DATA.time_labels) ? CUR_DATA.time_labels.length : 0;
+  const step = pts > 0 ? Math.round(1440 / pts) : 15;
+  let txt = '时间分辨率 ' + step + ' 分钟 · ' + days.length + ' 天';
+  if (missing.length) {
+    const names = missing.slice(0, 3).map(d => String(d.date).slice(5)).join('、');
+    txt += ' · 缺 ' + missing.length + ' 天（' + names + (missing.length > 3 ? '…' : '') + '）';
+  } else {
+    txt += ' · 无缺失';
+  }
+  note.textContent = txt;
+}
+
+function renderInfo() {
+  const info = document.getElementById('info');
+  if (!info || !CUR_DATA) return;
+  const g = CUR_DATA.group || {};
+  const arr = CUR_DATA.load_array || [];
+  const times = CUR_DATA.time_labels || [];
+  // 峰值与均值取全期
+  let peak = -Infinity, sum = 0, cnt = 0;
+  for (const row of arr) for (const v of row) { if (v > peak) peak = v; sum += v; cnt++; }
+  const avg = cnt ? sum / cnt : 0;
+  info.innerHTML =
+    '<span class="v3__info-title">' + (g.asset || '') + ' · ' + (g.month || '') + '</span>'
+    + '<span class="v3__info-kv">天数<b>' + arr.length + '</b></span>'
+    + '<span class="v3__info-kv">点数<b>' + times.length + '</b></span>'
+    + '<span class="v3__info-kv">峰值<b>' + Math.round(peak) + '</b>kW</span>'
+    + '<span class="v3__info-kv">均值<b>' + Math.round(avg) + '</b>kW</span>';
+}
+
+function renderDates() {
+  const panel = document.getElementById('datePanel');
+  const g = GROUPS[CURRENT];
+  if (!panel || !g) return;
+  const days = g.dates || [];
+  if (!days.length) { panel.innerHTML = '<span style="color:var(--text-faint)">无日期信息</span>'; return; }
+
+  // 格数与数组等长；第 N 格 = dates[N-1]
+  panel.innerHTML = days.map((d, i) => {
+    const dayNum = String(d.date || '').slice(-2).replace(/^0/, '');
+    const kind = d.has_data === false ? 'missing' : (d.type || 'weekday');
+    const sel = i === CUR_DAY ? ' data-selected="true"' : '';
+    const title = d.date + (d.has_data === false ? ' · 无数据' : '');
+    return '<span class="v3__date" data-kind="' + kind + '" data-idx="' + i + '"' + sel
+      + ' title="' + title + '">' + dayNum + '</span>';
+  }).join('');
+
+  // ④ 点一格 → 切曲线；无数据的天给出提示而不是画空图
+  panel.querySelectorAll('.v3__date').forEach(el => {
+    el.addEventListener('click', () => {
+      const i = Number(el.dataset.idx);
+      CUR_DAY = i;
+      panel.querySelectorAll('.v3__date').forEach(x => x.removeAttribute('data-selected'));
+      el.setAttribute('data-selected', 'true');
+      renderChart();
+    });
+  });
+}
+
+function renderChart() {
+  const el = document.getElementById('chart');
+  if (!el || !CUR_DATA) return;
+  const arr = CUR_DATA.load_array || [];
+  const times = CUR_DATA.time_labels || [];
+  const g = GROUPS[CURRENT] || {};
+  const dayInfo = (g.dates || [])[CUR_DAY] || {};
+
+  if (!arr.length || !arr[CUR_DAY]) {
+    el.innerHTML = '<div style="padding:var(--sp-4);color:var(--text-faint)">该日无数据</div>';
+    return;
+  }
+  if (dayInfo.has_data === false) {
+    el.innerHTML = '<div style="padding:var(--sp-4);color:var(--warn)">' + (dayInfo.date || '该日')
+      + ' 没有数据。可点击其他日期查看。</div>';
+    return;
+  }
+
+  const row = arr[CUR_DAY].map(Number);
+  const peak = Math.max(...row);
+  const avg = row.reduce((a, b) => a + b, 0) / row.length;
+  const yMax = Math.ceil(peak / 200) * 200 || 1200;
+
+  CurveViewer.render(el, {
+    title: '',
+    unit: 'kW',
+    times: times,
+    series: [
+      { name: dayInfo.date || ('第 ' + (CUR_DAY + 1) + ' 天'), data: row, kind: 'line' },
+      { name: '平均 ' + Math.round(avg), data: row.map(() => avg), kind: 'avg' },
+    ],
+    yMax: yMax,
+    yStep: yMax / 6,
+  });
+}
+
+function renderDemo() {
+  // 无 session 时保留原来的演示曲线
+}
+
+boot();
 
 // 曲线：96 个点，双峰（早高峰 09:30 / 晚高峰 18:30），午间与夜间回落
 const N = 96;
