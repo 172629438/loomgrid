@@ -105,12 +105,27 @@
 /* ② 带输入：直接复用 param-form 的 .field */
 .dialog__body .field { grid-template-columns: minmax(64px, 96px) 1fr; }
 
-/* ③ 带列表选择：高度受限，避免把按钮区挤出屏幕 */
+/* ③ 带列表选择：高度受限，避免把按钮区挤出屏幕。
+   限高是对的，但硬切会看着像「渲染坏了」——底部加一道渐隐，
+   让它读起来是「被折叠」而不是「被切掉」。
+   mask 比加遮罩层好：不挡交互、不用改 DOM、不占额外盒模型。 */
 .dialog__list {
   max-height: 220px;
   overflow: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-1);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - var(--sp-4)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - var(--sp-4)),
+    transparent 100%
+  );
 }
 .dialog__list-item {
   display: flex;

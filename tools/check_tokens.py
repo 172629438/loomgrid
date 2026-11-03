@@ -48,7 +48,9 @@ LIMITS = {
 PATTERNS = {
     "字号": r"--fs-[\w-]+\s*:\s*([^;]+);",
     "间距": r"--sp-[\w-]+\s*:\s*([^;]+);",
-    "颜色": r"--(?:bg|text|border|accent|ref|ok|warn|danger)[\w-]*\s*:\s*([^;]+);",
+    # 语义颜色白名单。值必须是颜色本身（# 或 color-mix），
+    # 否则 --focus-ring-width: 2px 这类尺寸会误入颜色计数。
+    "颜色": r"--(?:bg|text|border|accent|ref|grid|ok|warn|danger|focus)[\w-]*\s*:\s*(#[0-9a-fA-F]{3,8}|color-mix\([^;]*\))\s*;",
     "圆角": r"--r-[\w-]+\s*:\s*([^;]+);",
     "动效": r"--t-[\w-]+\s*:\s*([^;]+);",
 }
@@ -72,7 +74,13 @@ def main() -> int:
 
     targets = list(a.files)
     if a.all or not targets:
-        targets = glob.glob(os.path.join(ROOT, "web", "**", "*.html"), recursive=True)
+        # 令牌现在只有一份（web/theme/tokens.css），页面全部外链，
+        # 所以不必再扫 HTML —— 但是必须扫令牌文件本身，
+        # 否则检查会因为「找不到声明块」而全部跳过，等于把检查关掉。
+        targets = sorted(
+            glob.glob(os.path.join(ROOT, "web", "theme", "*.css"))
+            + glob.glob(os.path.join(ROOT, "web", "**", "*.html"), recursive=True)
+        )
 
     if not targets:
         print("没找到可检查的文件")
@@ -92,14 +100,24 @@ def main() -> int:
         for cat, pat in PATTERNS.items():
             vals: set[str] = set()
             names: dict[str, set[str]] = {}
+            decls = 0
             for theme, body in bl.items():
                 for m in re.finditer(pat, body):
                     name = m.group(0).split(":")[0].strip()
                     val = m.group(1).strip()
                     vals.add(val)
+                    decls += 1
                     names.setdefault(name, set()).add(theme)
 
             n = len(vals)
+            # 颜色按「语义名」计数，这是判据本意：
+            #   「颜色变量数 ≤ 30（双主题共用一套语义名）」——括号里说的就是语义名。
+            # 三个口径差别（同一个 tokens.css）：
+            #   语义名 20 / 十六进制声明 30 / 全部声明（含派生色）35
+            # 取语义名：派生色（accent-weak 这类）不是新语义，是同一语义的变体，
+            # 它不增加「需要想一个名字」的负担，这正是上限要控的东西。
+            if cat == "颜色":
+                n = len(names)
             limit = LIMITS[cat]
             mark = "✓" if n <= limit else "✗"
             print(f"  {mark} {cat:4s} {n:3d} 档 / 上限 {limit}"

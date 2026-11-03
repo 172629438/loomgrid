@@ -218,7 +218,10 @@
   background: var(--accent);
 }
 .switch input:focus-visible + .switch__track {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  /* 走全站统一焦点变量，不写固定的 2px 与 --accent ——
+     虽然两变量当前同值，但硬编码会在将来改主题时漏改，
+     结果是同一个屏幕上出现两种焦点色。 */
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 .switch input:disabled + .switch__track { opacity: 0.45; }

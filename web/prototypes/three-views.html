@@ -3,34 +3,10 @@
 <head>
 <meta charset="utf-8">
 <title>LoomGrid 三屏草图 · 精密仪器面板 v2</title>
+<link rel="stylesheet" href="../theme/tokens.css">
 <style>
-/* 令牌：字号 7 / 间距 6 / 颜色 15 名·30 值 / 圆角 2 / 动效 2 */
-:root {
-  --fs-2xs: 9px; --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px;
-  --fs-lg: 15px; --fs-xl: 18px; --fs-2xl: 24px;
-  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px;
-  --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
-  --r-1: 2px; --r-2: 4px;
-  --t-fast: 120ms; --t-base: 200ms;
-  --font-ui: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
-  --font-num: "JetBrains Mono", "Consolas", "Cascadia Mono", monospace;
-}
-[data-theme="dark"] {
-  --bg-canvas: #0E1116; --bg-surface: #151A21; --bg-raised: #1B222B;
-  --border-subtle: #232A33; --border-strong: #323C48;
-  --text-primary: #D8DEE6; --text-muted: #7C8794; --text-faint: #55606D;
-  --accent: #4EA8DE; --accent-dim: #2B6C93;
-  --ref-line: #D2A24C;   /* 参考线；与错误红分开，红只留给错误 */
-  --ok: #4CAF7D; --warn: #D9A441; --danger: #D96C6C;
-}
-[data-theme="light"] {
-  --bg-canvas: #F7F8FA; --bg-surface: #FFFFFF; --bg-raised: #FBFCFD;
-  --border-subtle: #E1E5EA; --border-strong: #C8CFD8;
-  --text-primary: #1A1F26; --text-muted: #5C6672; --text-faint: #8B95A1;
-  --accent: #1F6FB2; --accent-dim: #7FAAD0;
-  --ref-line: #9A6B12;
-  --ok: #2E8B57; --warn: #A8741A; --danger: #B3403F;
-}
+/* 令牌统一从 theme/tokens.css 引入 —— 只此一份，
+   原型与组件展示页共用同一套语义名与取值，不各写一份（两份必然漂移）。 */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { background: var(--bg-canvas); }
 body { font-family: var(--font-ui); font-size: var(--fs-md); color: var(--text-primary); -webkit-font-smoothing: antialiased; }
