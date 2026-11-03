@@ -84,14 +84,20 @@ HIDDEN = [
 
 
 def build() -> str:
-    for d in (DIST, BUILD):
-        if os.path.isdir(d):
-            shutil.rmtree(d, ignore_errors=True)
+    # 不删 dist：打包期间会让并行的协作者看到空目录（真发生过 —— 有人正好在
+    # rmtree 和重建之间查 dist，以为产物丢了）。改成打到 dist_new，成功后
+    # 才替换旧产物，窗口缩到毫秒级。
+    tmp_dist = os.path.join(REPO, "dist_new")
+    if os.path.isdir(tmp_dist):
+        shutil.rmtree(tmp_dist, ignore_errors=True)
+    if os.path.isdir(BUILD):
+        shutil.rmtree(BUILD, ignore_errors=True)
 
     args = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm", "--clean",
         "--onedir",
+        "--distpath", tmp_dist,
         "--name", STEM,
         "--add-data", os.path.join(REPO, "web") + os.pathsep + "web",
     ]
@@ -112,10 +118,18 @@ def build() -> str:
         print(r.stderr[-3000:])
         raise SystemExit("PyInstaller 失败")
 
-    out = os.path.join(DIST, STEM, STEM + ".exe")
+    out = os.path.join(tmp_dist, STEM, STEM + ".exe")
     if not os.path.isfile(out):
         raise SystemExit("产物不存在：" + out)
-    return out
+
+    # 打包成功后才动 dist
+    os.makedirs(DIST, exist_ok=True)
+    final_dir = os.path.join(DIST, STEM)
+    if os.path.isdir(final_dir):
+        shutil.rmtree(final_dir, ignore_errors=True)
+    shutil.move(os.path.join(tmp_dist, STEM), final_dir)
+    shutil.rmtree(tmp_dist, ignore_errors=True)
+    return os.path.join(final_dir, STEM + ".exe")
 
 
 def smoke(exe: str) -> bool:
