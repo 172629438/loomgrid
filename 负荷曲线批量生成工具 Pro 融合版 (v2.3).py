@@ -4897,7 +4897,20 @@ class ProfessionalWindow(QMainWindow):
                 if d_segs:
                     selected_d = [d_segs[0]]
 
-        return selected_c, selected_d
+        # v2.3.10fix: 剔除全零段（占位零）。
+        # compute_segmented_spaces 返回的四个平行列表里，每个段在**非本方向**那一侧
+        # 是占位零（充电段在放电侧为 0，放电段在充电侧为 0），目的是让四个列表等长。
+        # 但下游取 min / 取 max(min(配对)) 时，占位零会把结果直接压成 0：
+        # two_two（默认模式）全段参与，于是日需求恒为 0、满足天数恒为 0。
+        # 这里是段集合进入计算前的唯一收敛点（_get_all_filtered_daily_mins /
+        # _check_day_satisfied / _calc_days_from_capacity 均经此），在此滤掉即全链生效。
+        # 两张表（月表/日表）不经过本方法，它们用「充+放相加」的方式已处理好占位零，
+        # 所以不受本改动影响。
+        def _drop_zero_segments(arrs):
+            return [a for a in arrs
+                    if float(np.nansum(np.nan_to_num(a, nan=0.0))) != 0.0]
+
+        return _drop_zero_segments(selected_c), _drop_zero_segments(selected_d)
 
     def _get_all_filtered_daily_mins(self):
         """遍历所有月份，返回每天的最小段值列表（用于容量计算）
