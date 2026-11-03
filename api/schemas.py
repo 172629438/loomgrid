@@ -85,6 +85,13 @@ class MappingRequest(BaseModel):
     mapping: MappingSuggest
 
 
+class DayInfo(BaseModel):
+    """某一天在界面上的状态：日期 + 类型 + 有没有数据。"""
+    date: str
+    type: str = "weekday"          # weekday / weekend / holiday
+    has_data: bool = False
+
+
 class GroupInfo(BaseModel):
     asset: str
     month: str
@@ -92,6 +99,7 @@ class GroupInfo(BaseModel):
     time_points: int
     min_val: float | None = None
     max_val: float | None = None
+    dates: list[DayInfo] = []
 
 
 class InspectMappingData(BaseModel):

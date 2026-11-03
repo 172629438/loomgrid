@@ -138,7 +138,7 @@ def run_pipeline(mod, fp, sheet, mapping_override=None):
             return None, None, None, f"scan_error:{res.get('error', '')}"
         if not res:
             return [], None, None, "no_summary"
-        gs = mod.GroupSummary(**res[0])
+        gs = mod.GroupSummary.from_dict(res[0])
         provider = mod.DataProvider()
         data = provider.get_group_data(gs)
         if not data:

@@ -105,10 +105,6 @@ class PlotOptions:
             'dark_theme': self.dark_theme,
         }
 
-    @classmethod
-    def from_dict(cls, d):
-        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
-
 
 class GroupSummary:
     __slots__ = ('file_path', 'sheet_name', 'asset_value', 'month_str', 'date_count',
@@ -125,6 +121,16 @@ class GroupSummary:
         self.min_val = min_val
         self.max_val = max_val
         self.mapping = mapping
+
+    # 扫描结果 dict 允许带额外字段（dates 等），但 GroupSummary 是 __slots__
+    # 定长结构。统一从这里构造，而不是各处写 GroupSummary(**d) ——
+    # 那样每加一个字段都要改所有消费方。
+    _FIELDS = ('file_path', 'sheet_name', 'asset_value', 'month_str',
+               'date_count', 'time_points', 'min_val', 'max_val', 'mapping')
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(**{k: d[k] for k in cls._FIELDS if k in d})
 
     def __eq__(self, other):
         if not isinstance(other, GroupSummary):

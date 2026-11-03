@@ -1,13 +1,13 @@
 {
-  "captured_at": "2026-11-03T22:35:21",
+  "captured_at": "2026-11-04T01:27:49",
   "env": {
     "python": "3.12.9",
     "platform": "Windows-10-10.0.19045-SP0",
     "numpy": "2.4.4",
     "pandas": "3.0.2",
     "matplotlib": "3.10.9",
-    "fusion_file_sha256": "1e71d4944c831ed55fadb633a90855be1c7ad71c8fe7f8abba1172439842775a",
-    "fusion_lines": 10782,
+    "fusion_file_sha256": "dde90c4979d14bb9eb527ac452118207b0ced42da8c3f926d4a357983ec752ad",
+    "fusion_lines": 7907,
     "scipy": "1.17.1",
     "openpyxl": "3.1.5",
     "loguru": "0.7.3",

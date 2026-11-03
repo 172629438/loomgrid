@@ -50,7 +50,7 @@ def preview(session_id: str, group: int = 0, format: str = "json"):
         return _err("PREVIEW_GROUP_NOT_FOUND", f"分组序号越界：{group}（共 {len(groups)} 组）")
 
     try:
-        gs = GroupSummary(**groups[group])
+        gs = GroupSummary.from_dict(groups[group])
     except Exception as e:
         return _err("PREVIEW_NO_DATA", f"分组信息不完整：{e}")
 

@@ -76,7 +76,7 @@ def summary_for(fp, sheet="Sheet1"):
     mapping["format_type"] = "wide"
     mapping["header_row"] = 0
     res = _scan_file_worker((fp, sheet, mapping, None, threading.Event(), None))
-    return GroupSummary(**res[0]), df
+    return GroupSummary.from_dict(res[0]), df
 
 
 # ────────────────────────────────────────────────────────────

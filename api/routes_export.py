@@ -85,7 +85,10 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
         prepared: list[tuple[GroupSummary, dict]] = []
         for i in idxs:
             try:
-                gs = GroupSummary(**summaries_raw[i])
+                # session 里的分组 dict 会随 core 新增字段而变多（如 dates），
+                # 直接用 ** 展开会撞上 GroupSummary 的固定参数列表。
+                # 按 GroupSummary 的字段白名单过滤，新增字段不影响这里。
+                gs = GroupSummary.from_dict(summaries_raw[i])
             except Exception as e:
                 failed.append({"group": i, "error": f"分组信息不完整：{e}"})
                 continue

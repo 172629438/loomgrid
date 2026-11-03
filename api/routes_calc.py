@@ -70,7 +70,7 @@ def _load_group(session_id: str, group: int):
     groups = sess.get("groups", [])
     if not groups or group < 0 or group >= len(groups):
         return None, None, _err("PREVIEW_GROUP_NOT_FOUND", f"分组序号越界：{group}")
-    gs = GroupSummary(**groups[group])
+    gs = GroupSummary.from_dict(groups[group])
     data = _PROVIDER.get_group_data(gs)
     if not data or data.get("load_array") is None:
         return None, None, _err("CALC_NO_DATA", "该分组没有可用数据")

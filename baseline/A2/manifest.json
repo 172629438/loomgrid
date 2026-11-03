@@ -16,7 +16,7 @@
         "grade": "strict",
         "summaries": [
           {
-            "file_path": "<REPO>\\baseline\\_inputs\\A2\\A2_宽表行累计.xlsx",
+            "file_path": "baseline\\_inputs\\A2\\A2_宽表行累计.xlsx",
             "sheet_name": "Sheet1",
             "asset_value": "未命名",
             "month_str": "2026-01",
@@ -24,6 +24,11 @@
             "time_points": 96,
             "min_val": 0.0,
             "max_val": 15130.4141,
+            "dates": [
+              "2026-01-15",
+              "2026-01-16",
+              "2026-01-17"
+            ],
             "mapping": {
               "date_col": "日期",
               "load_col": [
@@ -644,7 +649,7 @@
           "excel": {
             "ok": true,
             "file": "midwide.xlsx",
-            "sha256_bytes": "09aedb4d6e322a2753ce4a12b017285e7bf841bc3ed444a371b9381018e5164f",
+            "sha256_bytes": "f1ca9fab337fb16d0748e3a6cf91c7bdba6153f1ded971c7e7e84d5ecbe15baa",
             "shape": [
               3,
               96
@@ -767,14 +772,14 @@
       "result": {
         "ok": true,
         "file": "生成报告.html",
-        "sha256": "74fdff381ca12da5cbc4e10024278257c7f053f41665f9f3c5fd1f6912c8abec",
-        "sha256_normalized": "b421807f6bdbaacd47c81bf1612da3dffa91fc5d9b4ebe272d3be243709ceacf",
-        "normalized": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: <TS></p>\n<p>输出目录: <REPO>\\baseline\\A2</p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
-        "chars": 963,
+        "sha256": "7d4881920f9088c1169dcdd129bc6fd920251b1ea5866e1c811a87be610ecf67",
+        "sha256_normalized": "d1d56e0aacabeaf04dd7d6153727bf2f7deafe86a1aa9dbc21fb2956146ad307",
+        "normalized": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: <TS></p>\n<p>输出目录: <OUTDIR></p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
+        "chars": 913,
         "has_amp_raw": false,
-        "text": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: 2026-11-03 22:35:16</p>\n<p>输出目录: <REPO>\\baseline\\A2</p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
+        "text": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: 2026-11-04 01:27:44</p>\n<p>输出目录: baseline\\A2</p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
         "log": [
-          "生成报告已保存至: <REPO>\\baseline\\A2\\生成报告.html"
+          "生成报告已保存至: baseline\\A2\\生成报告.html"
         ]
       }
     },
@@ -853,7 +858,7 @@
       "error": null,
       "summaries": [
         {
-          "file_path": "<REPO>\\baseline\\_inputs\\A2\\A2_宽表行累计.xlsx",
+          "file_path": "baseline\\_inputs\\A2\\A2_宽表行累计.xlsx",
           "sheet_name": "Sheet1",
           "asset_value": "未命名",
           "month_str": "2026-01",
@@ -861,6 +866,11 @@
           "time_points": 96,
           "min_val": 0.0,
           "max_val": 15130.4141,
+          "dates": [
+            "2026-01-15",
+            "2026-01-16",
+            "2026-01-17"
+          ],
           "mapping": {
             "date_col": "日期",
             "load_col": [

@@ -14,7 +14,7 @@
         "grade": "strict",
         "summaries": [
           {
-            "file_path": "<REPO>\\baseline\\_inputs\\T1\\T1_转置宽表.xlsx",
+            "file_path": "baseline\\_inputs\\T1\\T1_转置宽表.xlsx",
             "sheet_name": "Sheet1",
             "asset_value": "未命名",
             "month_str": "2026-01",
@@ -22,6 +22,7 @@
             "time_points": 96,
             "min_val": 420.0,
             "max_val": 996.4,
+            "dates": [],
             "mapping": {
               "time_col": "时间",
               "date_col": "2026-01-15",
@@ -556,7 +557,7 @@
           "excel": {
             "ok": true,
             "file": "midwide.xlsx",
-            "sha256_bytes": "8fb1dfb03261541d234bbb13a381e338b0202090179a5efc3eb524649cecf31d",
+            "sha256_bytes": "16c48e18a6740c1c831fd6ad857211a760dfb9011cbd20a2c514475c7a56b82c",
             "shape": [
               3,
               96
@@ -679,14 +680,14 @@
       "result": {
         "ok": true,
         "file": "生成报告.html",
-        "sha256": "407670c46067af76dd594793393bd40d517d24de35a58f0d592f680cfecf7ab1",
-        "sha256_normalized": "c69dafccbafcf96fccde3287c0ea11af43b3c4bd16bbe42609f0764be7f9e784",
-        "normalized": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: <TS></p>\n<p>输出目录: <REPO>\\baseline\\T1</p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
-        "chars": 963,
+        "sha256": "7ce30f2d6f8cec535cf806522ac5689b4261cdd4de5860f5e411b47595af9de2",
+        "sha256_normalized": "d1d56e0aacabeaf04dd7d6153727bf2f7deafe86a1aa9dbc21fb2956146ad307",
+        "normalized": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: <TS></p>\n<p>输出目录: <OUTDIR></p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
+        "chars": 913,
         "has_amp_raw": false,
-        "text": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: 2026-11-03 22:35:14</p>\n<p>输出目录: <REPO>\\baseline\\T1</p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
+        "text": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: 2026-11-04 01:27:43</p>\n<p>输出目录: baseline\\T1</p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
         "log": [
-          "生成报告已保存至: <REPO>\\baseline\\T1\\生成报告.html"
+          "生成报告已保存至: baseline\\T1\\生成报告.html"
         ]
       }
     },
@@ -765,7 +766,7 @@
       "error": null,
       "summaries": [
         {
-          "file_path": "<REPO>\\baseline\\_inputs\\T1\\T1_转置宽表.xlsx",
+          "file_path": "baseline\\_inputs\\T1\\T1_转置宽表.xlsx",
           "sheet_name": "Sheet1",
           "asset_value": "未命名",
           "month_str": "2026-01",
@@ -773,6 +774,7 @@
           "time_points": 96,
           "min_val": 420.0,
           "max_val": 996.4,
+          "dates": [],
           "mapping": {
             "time_col": "时间",
             "date_col": "2026-01-15",

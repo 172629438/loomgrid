@@ -18,6 +18,7 @@ from api.schemas import (
     Confidence, Envelope, GroupInfo, InspectData, InspectMappingData,
     MappingRequest, MappingSuggest, SheetInfo,
 )
+from core.timegrid import _get_day_type
 from core.ingest import (
     _detect_file_format_type, _read_file_full, _safe_excel_sheets,
     _scan_file_worker, _smart_classify_columns, get_columns_fast,
@@ -170,6 +171,32 @@ def inspect(payload: dict):
     return Envelope(ok=True, data=InspectData(path=path, sheets=out).model_dump()).model_dump()
 
 
+def _build_days(month_str: str, dates: list) -> list:
+    """把这个月的每一天列出来，标上类型与有没有数据。
+
+    日期类型用 core.timegrid._get_day_type —— 与扫描阶段同一套判定，
+    不在这里另写规则，否则前后端两份日历必然漂移。
+    """
+    if not month_str or len(month_str) != 7:
+        return []
+    try:
+        import calendar
+        y, m = int(month_str[:4]), int(month_str[5:7])
+        ndays = calendar.monthrange(y, m)[1]
+    except Exception:
+        return []
+    have = set(dates or [])
+    out = []
+    for d in range(1, ndays + 1):
+        ds = "%s-%02d" % (month_str, d)
+        try:
+            t = _get_day_type(ds)
+        except Exception:
+            t = "weekday"
+        out.append({"date": ds, "type": t, "has_data": ds in have})
+    return out
+
+
 @router.post("/mapping", response_model=Envelope)
 def apply_mapping(req: MappingRequest):
     """确认映射后真正扫描，产出分组清单与 session_id。"""
@@ -196,7 +223,8 @@ def apply_mapping(req: MappingRequest):
                         month=g.get("month_str", ""),
                         date_count=int(g.get("date_count", 0)),
                         time_points=int(g.get("time_points", 0)),
-                        min_val=g.get("min_val"), max_val=g.get("max_val"))
+                        min_val=g.get("min_val"), max_val=g.get("max_val"),
+                        dates=_build_days(g.get("month_str", ""), g.get("dates") or []))
               for g in res]
 
     sid = uuid.uuid4().hex

@@ -14,7 +14,7 @@
         "grade": "strict",
         "summaries": [
           {
-            "file_path": "<REPO>\\baseline\\_inputs\\L2\\L2_长表多资产.xlsx",
+            "file_path": "baseline\\_inputs\\L2\\L2_长表多资产.xlsx",
             "sheet_name": "Sheet1",
             "asset_value": "M001",
             "month_str": "2026-01",
@@ -22,6 +22,7 @@
             "time_points": 96,
             "min_val": 420.0,
             "max_val": 996.4,
+            "dates": [],
             "mapping": {
               "asset_col": "资产编号",
               "date_col": "日期",
@@ -32,7 +33,7 @@
             }
           },
           {
-            "file_path": "<REPO>\\baseline\\_inputs\\L2\\L2_长表多资产.xlsx",
+            "file_path": "baseline\\_inputs\\L2\\L2_长表多资产.xlsx",
             "sheet_name": "Sheet1",
             "asset_value": "M002",
             "month_str": "2026-01",
@@ -40,6 +41,7 @@
             "time_points": 96,
             "min_val": 672.0,
             "max_val": 1594.24,
+            "dates": [],
             "mapping": {
               "asset_col": "资产编号",
               "date_col": "日期",
@@ -565,7 +567,7 @@
           "excel": {
             "ok": true,
             "file": "midwide.xlsx",
-            "sha256_bytes": "9db4ef6cc6092971b2c20085ab0b64e730e6fcf4662cd82cac5700eac3460b3c",
+            "sha256_bytes": "8ac52c031a421c44253333fea2ca792eb697d847aae07f47618171b24b433a4e",
             "shape": [
               3,
               96
@@ -688,14 +690,14 @@
       "result": {
         "ok": true,
         "file": "生成报告.html",
-        "sha256": "138e87e24350d6672487112dbb27a2ddee7e056ae5f821333e20f3109afdcdfd",
-        "sha256_normalized": "6ef653e02520f663e64f7a106641c1c53a177f4d754ecd9a2abc48aac04694b7",
-        "normalized": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: <TS></p>\n<p>输出目录: <REPO>\\baseline\\L2</p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
-        "chars": 963,
+        "sha256": "9422a7240a9ac530d3e5b5135afe5244df7075478f027ebb7dedb645b1d00615",
+        "sha256_normalized": "d1d56e0aacabeaf04dd7d6153727bf2f7deafe86a1aa9dbc21fb2956146ad307",
+        "normalized": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: <TS></p>\n<p>输出目录: <OUTDIR></p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
+        "chars": 913,
         "has_amp_raw": false,
-        "text": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: 2026-11-03 22:35:13</p>\n<p>输出目录: <REPO>\\baseline\\L2</p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
+        "text": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>负荷曲线生成报告</title>\n<style>\nbody { font-family: 'Microsoft YaHei', sans-serif; margin: 40px; }\nh1 { color: #333; }\n.success { color: green; }\n.failure { color: red; }\ntable { border-collapse: collapse; width: 100%; margin-top: 20px; }\nth, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\nth { background-color: #4CAF50; color: white; }\ntr:nth-child(even) { background-color: #f2f2f2; }\n</style>\n</head>\n<body>\n<h1>负荷曲线批量生成报告</h1>\n<p>生成时间: 2026-11-04 01:27:42</p>\n<p>输出目录: baseline\\L2</p>\n<p>成功 <span class=\"success\">2</span> 张，失败 <span class=\"failure\">0</span> 张，总计 2 张。</p>\n<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr><tr><td>1</td><td>plot_dark_default.png</td><td>?</td><td>?</td><td>?</td></tr><tr><td>2</td><td>plot_light_default.png</td><td>?</td><td>?</td><td>?</td></tr></table></body></html>",
         "log": [
-          "生成报告已保存至: <REPO>\\baseline\\L2\\生成报告.html"
+          "生成报告已保存至: baseline\\L2\\生成报告.html"
         ]
       }
     },
@@ -774,7 +776,7 @@
       "error": null,
       "summaries": [
         {
-          "file_path": "<REPO>\\baseline\\_inputs\\L2\\L2_长表多资产.xlsx",
+          "file_path": "baseline\\_inputs\\L2\\L2_长表多资产.xlsx",
           "sheet_name": "Sheet1",
           "asset_value": "M001",
           "month_str": "2026-01",
@@ -782,6 +784,7 @@
           "time_points": 96,
           "min_val": 420.0,
           "max_val": 996.4,
+          "dates": [],
           "mapping": {
             "asset_col": "资产编号",
             "date_col": "日期",
@@ -792,7 +795,7 @@
           }
         },
         {
-          "file_path": "<REPO>\\baseline\\_inputs\\L2\\L2_长表多资产.xlsx",
+          "file_path": "baseline\\_inputs\\L2\\L2_长表多资产.xlsx",
           "sheet_name": "Sheet1",
           "asset_value": "M002",
           "month_str": "2026-01",
@@ -800,6 +803,7 @@
           "time_points": 96,
           "min_val": 672.0,
           "max_val": 1594.24,
+          "dates": [],
           "mapping": {
             "asset_col": "资产编号",
             "date_col": "日期",

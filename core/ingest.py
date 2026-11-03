@@ -909,6 +909,9 @@ def _scan_wide_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
         if mapping.get('format_type') == 'accumulated':
             ldf = _wide_row_accumulated_to_power(ldf, list(ldf.columns))
         yms = pd.Series(df_temp.index).apply(_extract_ym)
+        # 转置表的日期在 index 里（没有 date_col 变量）——
+        # 统一成 date_values，下游循环不必区分分支。
+        date_values = pd.Series(df_temp.index, index=df_temp.index)
         raw_vals = None
     else:
         existing = [c for c in load_cols if c in df.columns]
@@ -920,6 +923,7 @@ def _scan_wide_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
             ldf = _wide_row_accumulated_to_power(ldf, existing)
             existing = list(ldf.columns)
         yms = df[date_col].apply(_extract_ym)
+        date_values = df[date_col]
         raw_vals = df[asset_col] if asset_col and asset_col in df.columns else None
 
     for idx, ym in yms.items():
@@ -940,8 +944,24 @@ def _scan_wide_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
         if arr.size == 0:
             continue
         key = (ym, asset_val)
-        monthly_stats.setdefault(key, {'date_count': 0, 'min_val': np.inf, 'max_val': -np.inf, 'time_set': set()})
+        monthly_stats.setdefault(key, {'date_count': 0, 'min_val': np.inf,
+                                       'max_val': -np.inf, 'time_set': set(),
+                                       'dates': set()})
         monthly_stats[key]['date_count'] += 1
+        # v2.3.12: 记下具体日期，用于前后端判断「哪几天缺数据」。
+        # 原来只存 count，界面上只能显示「31 天里缺 1 天」却说不出是哪天。
+        try:
+            _dv = pd.to_datetime(str(date_values.get(idx, "")), errors='coerce')
+            if pd.notna(_dv):
+                _ds = _dv.strftime('%Y-%m-%d')
+                # 无年份的日期会被 pd.to_datetime 解成公元 1 年（Y1 场景实测 0001-01-15）。
+                # ym 已经经过了 _extract_ym 的年份处理（含 C8 默认今年），
+                # 用它的年月做前缀，保证 dates 与 month_str 同源。
+                if not _ds.startswith(ym):
+                    _ds = ym + _ds[7:]
+                monthly_stats[key]['dates'].add(_ds)
+        except Exception:
+            pass
         monthly_stats[key]['min_val'] = min(monthly_stats[key]['min_val'], np.nanmin(arr))
         monthly_stats[key]['max_val'] = max(monthly_stats[key]['max_val'], np.nanmax(arr))
         monthly_stats[key]['time_set'].update(vcols)
@@ -1086,6 +1106,7 @@ def _scan_file_worker(args):
                 'time_points': len(stats['time_set']),
                 'min_val': stats['min_val'],
                 'max_val': stats['max_val'],
+                'dates': sorted(stats.get('dates') or []),
                 'mapping': normative
             })
         return summaries
