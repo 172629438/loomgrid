@@ -88,8 +88,16 @@ run("_valid_periods 吃 tuple 格式（P-30）", lambda: m._valid_periods(P),
     lambda o: (isinstance(o, tuple) and o[0] is True, f"valid={o[0]}"))
 
 segs = run("_segment_periods（dict）", lambda: m._segment_periods(P_dict), lambda o: (isinstance(o, list), f"{len(o) if o else 0} 段"))
-run("compute_daily_spaces", lambda: m.compute_daily_spaces(arr, times, P_dict, mode='B', rated_power=500),
-    lambda o: (isinstance(o, tuple) and len(o) >= 2, f"{len(o)} 返回值"))
+
+# C2：compute_daily_spaces 已于 v3.2.9 删除（零调用，且口径与现役
+# compute_segmented_spaces 不一致）。这里不测它能跑，而是守着它不被加回来——
+# 一条守卫历史决策的断言，比一个长期红的项有用。
+if hasattr(m, "compute_daily_spaces"):
+    R.append(("compute_daily_spaces 应已删除（C2）", False, "但它又出现了"))
+    print("[FAIL] compute_daily_spaces 应已删除（C2），但它又出现了", flush=True)
+else:
+    R.append(("compute_daily_spaces 已删除（C2）", True, ""))
+    print("[PASS] compute_daily_spaces 已删除（C2）", flush=True)
 segs_arg = segs if segs else []
 run("compute_segmented_spaces", lambda: m.compute_segmented_spaces(arr, times, segs_arg, mode='B', rated_power=500),
     lambda o: (isinstance(o, tuple) and len(o) == 4, f"{len(o)} 返回值"))
