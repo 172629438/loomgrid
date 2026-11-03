@@ -161,6 +161,33 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
         TASK_STORE.fail(tid, f"{type(e).__name__}: {e}", failed)
 
 
+# 拒绝往系统目录写 —— output_dir 不限死（用户要能选任意目录），
+# 但 Windows / Program Files 这类位置写进去毫无用处，且风险更大。
+_FORBIDDEN_DIRS = [
+    os.environ.get("SystemRoot", r"C:\Windows"),
+    r"C:\Program Files",
+    r"C:\Program Files (x86)",
+    r"C:\ProgramData",
+]
+
+
+def _output_dir_allowed(d: str) -> bool:
+    try:
+        real = os.path.realpath(d)
+    except Exception:
+        return False
+    low = real.lower()
+    for f in _FORBIDDEN_DIRS:
+        if not f:
+            continue
+        try:
+            ff = os.path.realpath(f).lower()
+        except Exception:
+            continue
+        if low == ff or low.startswith(ff + os.sep):
+            return False
+    return True
+
 @router.post("/run", response_model=Envelope,
              description=(
                  "提交批量出图任务，**立即返回 task_id**（异步）。\n\n"
@@ -171,6 +198,11 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
                  "要看 done 事件里的 succeeded / failed，或查 GET /api/export/status。"
              ))
 def run(req: ExportRunRequest):
+    if not _output_dir_allowed(req.output_dir):
+        return _err("EXPORT_OUTPUT_FORBIDDEN",
+                    "不能写入系统目录：" + req.output_dir,
+                    {"output_dir": req.output_dir})
+
     sess = get_session(req.session_id)
     if not sess:
         return _err("EXPORT_TASK_NOT_FOUND", f"session 不存在：{req.session_id}")

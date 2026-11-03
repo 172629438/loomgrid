@@ -71,10 +71,16 @@ def req(method, path, body=None):
         return e.code, json.loads(e.read().decode("utf-8"))
 
 
+# path 白名单收紧后，本测试直接引 baseline 里的文件会被拒（这是正确的）。
+# 用 LGM_ALLOW_ROOTS 显式声明可信目录 —— 顺便验证这个开关真能开白名单。
+_env = dict(os.environ)
+_env["PYTHONPATH"] = ROOT
+_env["LGM_ALLOW_ROOTS"] = os.path.join(ROOT, "baseline", "_inputs")
+
 proc = subprocess.Popen(
     [sys.executable, "-m", "uvicorn", "api.app:app", "--port", str(PORT),
      "--log-level", "warning"],
-    cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    cwd=ROOT, env=_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
 try:
     ready = False
@@ -130,9 +136,18 @@ try:
               and g["month"] == "2026-01" and g["date_count"] == 5,
               f"{g}")
 
-    code, body = req("POST", "/api/ingest/inspect", {"path": "C:/__nope__.xlsx"})
+    # 路径白名单收紧后，任意路径会先被 INGEST_PATH_FORBIDDEN 拦下。
+    # 要测「文件不存在」这一层，得用一个在白名单内但不存在的路径。
+    _nope = os.path.join(ROOT, "baseline", "_inputs", "__nope__.xlsx")
+    code, body = req("POST", "/api/ingest/inspect", {"path": _nope})
     check("11) 不存在的文件返回 ok=false + INGEST_READ_FAILED",
           body.get("ok") is False and body["error"]["code"] == "INGEST_READ_FAILED",
+          str(body.get("error", {}).get("code")))
+
+    # 顺带钉住安全行为：白名单外的路径必须被拒
+    code, body = req("POST", "/api/ingest/inspect", {"path": "C:/Windows/win.ini"})
+    check("11b) 白名单外路径返回 INGEST_PATH_FORBIDDEN",
+          body.get("ok") is False and body["error"]["code"] == "INGEST_PATH_FORBIDDEN",
           str(body.get("error", {}).get("code")))
 
     code, body = req("POST", "/api/ingest/mapping",
@@ -156,7 +171,24 @@ try:
                 for d in range(3) for i, lab in enumerate(labels)]
         pd.DataFrame(recs).to_csv(csv_path, index=False, encoding="utf-8-sig")
 
-        code, body = req("POST", "/api/ingest/inspect", {"path": csv_path})
+        # 走 upload —— 这是白名单内的合法路径（安全收紧后唯一的正路）
+        import urllib.request as _ur
+        _boundary = "----lgbound"
+        with open(csv_path, "rb") as _f:
+            _content = _f.read()
+        _body = (
+            ("--" + _boundary + "\r\n"
+             'Content-Disposition: form-data; name="file"; filename="nohint.csv"\r\n'
+             "Content-Type: text/csv\r\n\r\n").encode() + _content
+            + ("\r\n--" + _boundary + "--\r\n").encode()
+        )
+        _rq = _ur.Request(BASE + "/api/ingest/upload", data=_body, method="POST",
+                          headers={"Content-Type": "multipart/form-data; boundary=" + _boundary})
+        with _ur.urlopen(_rq, timeout=30) as _resp:
+            _up = json.loads(_resp.read().decode("utf-8"))
+        up_path = (_up.get("data") or {}).get("path") or csv_path
+
+        code, body = req("POST", "/api/ingest/inspect", {"path": up_path})
         check("13) 无示数特征 + 有负荷列 → 200（不崩）",
               code == 200 and body.get("ok") is True,
               f"HTTP {code} {str(body.get('error'))[:80]}")

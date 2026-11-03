@@ -127,12 +127,41 @@ async def upload(file: UploadFile = File(...)):
         "size": len(data),
     })
 
+# ── 路径白名单 ─────────────────────────────────────────────
+# inspect / mapping 接受文件路径。若不限制，任何网页都能让本机 API
+# 去读 C:\\Windows\\win.ini 这类文件并回列名（信息泄露）。
+# 正常路径都经过 /upload（落在 _UPLOAD_DIR 内），
+# 额外的可信根用环境变量显式声明，默认空。
+_EXTRA_ROOTS = [p for p in (os.environ.get("LGM_ALLOW_ROOTS") or "").split(os.pathsep) if p.strip()]
+
+
+def _path_allowed(path: str) -> bool:
+    """文件路径是否在允许的根内。"""
+    try:
+        real = os.path.realpath(path)
+    except Exception:
+        return False
+    roots = [_UPLOAD_DIR] + _EXTRA_ROOTS
+    for r in roots:
+        try:
+            rr = os.path.realpath(r)
+        except Exception:
+            continue
+        if real == rr or real.startswith(rr + os.sep):
+            return True
+    return False
+
 @router.post("/inspect", response_model=Envelope)
 def inspect(payload: dict):
     """给文件路径，返回每个工作表的列清单与建议映射。"""
     path = (payload or {}).get("path")
     if not path:
         return _err("INGEST_MAPPING_INVALID", "缺少 path")
+    if not _path_allowed(path):
+        return _err("INGEST_PATH_FORBIDDEN",
+                    "该路径不在允许的范围内。请通过 /api/ingest/upload 上传文件，"
+                    "或用 LGM_ALLOW_ROOTS 环境变量声明可信目录。",
+                    {"path": path})
     if not os.path.exists(path):
         return _err("INGEST_READ_FAILED", f"文件不存在：{path}")
 
@@ -200,6 +229,9 @@ def _build_days(month_str: str, dates: list) -> list:
 @router.post("/mapping", response_model=Envelope)
 def apply_mapping(req: MappingRequest):
     """确认映射后真正扫描，产出分组清单与 session_id。"""
+    if not _path_allowed(req.path):
+        return _err("INGEST_PATH_FORBIDDEN",
+                    "该路径不在允许的范围内。", {"path": req.path})
     if not os.path.exists(req.path):
         return _err("INGEST_READ_FAILED", f"文件不存在：{req.path}")
 

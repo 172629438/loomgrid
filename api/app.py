@@ -40,12 +40,20 @@ app = FastAPI(
 
 # CORS：前端页面跑在 http://127.0.0.1:8899（静态服务）或 file://，
 # 而 API 跑在 8000 —— 跨源。允许本机任意端口，不开放给外部来源。
+# 只允许开发期静态服务与桌面壳（pywebview 的 file:// origin 是 "null"）。
+# 打包后如果壳改用 http://127.0.0.1:<port>，把那个来源加进这个列表。
+ALLOWED_ORIGINS = [
+    "http://127.0.0.1:8899",
+    "http://localhost:8899",
+    "null",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 
 app.include_router(ingest_router)
