@@ -90,9 +90,11 @@
   border-left: 2px solid var(--ref-line);
 }
 .period-bar[data-type="flat"] {
-  background: var(--bg-raised);
+  /* 平段是真数据，不是空白。背景必须与容器底拉开可读差距：
+     太暗会看起来像「这段没配置」。文字用主色，对比度远超 4.5:1。 */
+  background: color-mix(in srgb, var(--border-strong) 55%, var(--bg-surface));
   border-left: 2px solid var(--border-strong);
-  color: var(--text-muted);
+  color: var(--text-primary);
 }
 
 /* 选中段：描边而不是发光 */
@@ -176,6 +178,10 @@
   color: var(--danger);
   font-size: var(--fs-xs);
 }
+/* 缺口（总时长 < 24h）与重叠（> 24h）是两种不同错误，
+   用同一个读数表达：一天必须正好 24 小时，多了少了都是错。
+   颜色区分是因为严重度不同：缺口往往是漏配，重叠是硬冲突。 */
+.period-editor__error[data-kind="gap"] { color: var(--warn); }
 .period-editor__sum {
   margin-left: auto;
   font-family: var(--font-num);

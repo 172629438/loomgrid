@@ -1,0 +1,224 @@
+/* ═══════════════════════════════════════════════════════════
+   参数表单
+   ───────────────────────────────────────────────────────────
+   出现场景：V3 右栏策略参数、V5 底部导出设置。
+
+   判据：标签、输入、单位三者的关系必须一眼清楚。
+     · 单位跟在输入框右侧，不跟标签挤在一起
+     · 校验错误贴在字段下方，且带「怎么改」而不只是「错了」
+     · 数值输入走等宽，和全站读数一致
+
+   Fusion 现在是 QLabel + QLineEdit 逐行摆，校验提示靠 QMessageBox 弹 ——
+   字段级错误弹窗是最差的体验：用户得先关掉弹窗再回去找那个字段。
+   ═══════════════════════════════════════════════════════════ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* 分组：一段参数一个标题，标题不是装饰是导航 */
+.form__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.form__group:last-child { border-bottom: 0; padding-bottom: 0; }
+
+.form__group-title {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+/* ── 字段 ──────────────────────────────────────── */
+.field {
+  display: grid;
+  grid-template-columns: minmax(64px, 96px) 1fr;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+/* 单列形态：标签在上方，用于长标签或窄容器 */
+.field[data-layout="stack"] {
+  grid-template-columns: 1fr;
+  gap: var(--sp-1);
+}
+
+.field__label {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.field__label abbr {
+  color: var(--danger);
+  text-decoration: none;
+  margin-left: 2px;
+}
+
+/* 输入容器：输入框 + 单位 + 后缀按钮 */
+.field__control {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-1);
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.field__control:hover { border-color: var(--text-faint); }
+.field__control:focus-within { border-color: var(--accent); }
+
+.field__input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--sp-1) var(--sp-2);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+}
+/* 数值输入：等宽 + 右对齐，与全站读数一致 */
+.field__input[type="number"],
+.field__input[data-kind="num"] {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* 单位：贴在右侧，竖线分隔，不参与输入区 */
+.field__unit {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-2);
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  border-left: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+/* 下拉 */
+.field__select {
+  flex: 1;
+  padding: var(--sp-1) var(--sp-2);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* ── 六态 ──────────────────────────────────────── */
+.field[data-state="disabled"] { opacity: 0.45; }
+.field[data-state="disabled"] .field__control { pointer-events: none; }
+
+.field[data-state="error"] .field__control { border-color: var(--danger); }
+
+.field[data-state="warn"] .field__control { border-color: var(--warn); }
+
+/* 加载：输入区显示骨架，保留宽度不跳 */
+.field[data-state="loading"] .field__control {
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface) 0%,
+    var(--bg-raised) 50%,
+    var(--bg-surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: field-shimmer 1.2s linear infinite;
+  pointer-events: none;
+}
+@keyframes field-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* ── 校验提示 ───────────────────────────────────
+   贴在字段下方，占满右侧那一列（不占标签列）。
+   文案必须说「怎么改」，不是只说「错了」。 */
+.field__hint {
+  grid-column: 2;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+.field[data-layout="stack"] .field__hint { grid-column: 1; }
+.field__hint[data-kind="error"] { color: var(--danger); }
+.field__hint[data-kind="warn"] { color: var(--warn); }
+
+/* 前缀符号：单个字符，不引图标字体 */
+.field__hint::before {
+  content: "·";
+  flex: none;
+}
+.field__hint[data-kind="error"]::before { content: "!"; font-family: var(--font-num); }
+.field__hint[data-kind="warn"]::before { content: "?"; font-family: var(--font-num); }
+
+/* ── 行内组合：起止时间这类成对参数 ─────────────── */
+.field-pair {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.field-pair__sep {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  flex: none;
+}
+
+/* ── 开关 ──────────────────────────────────────── */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch__track {
+  display: inline-block;
+  width: 28px;
+  height: 16px;
+  border-radius: var(--r-1);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-strong);
+  position: relative;
+  transition: background var(--t-fast), border-color var(--t-fast);
+  flex: none;
+}
+.switch__track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-1);
+  background: var(--text-faint);
+  transition: transform var(--t-fast), background var(--t-fast);
+}
+.switch input:checked + .switch__track {
+  background: var(--accent-weak);
+  border-color: var(--accent);
+}
+.switch input:checked + .switch__track::after {
+  transform: translateX(12px);
+  background: var(--accent);
+}
+.switch input:focus-visible + .switch__track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.switch input:disabled + .switch__track { opacity: 0.45; }

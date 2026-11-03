@@ -1,0 +1,196 @@
+/* ═══════════════════════════════════════════════════════════
+   对话框
+   ───────────────────────────────────────────────────────────
+   出现场景：V2 映射确认、V5 导出确认、覆盖确认、错误详情。
+
+   设计前提：Fusion 里有 141 处 QMessageBox，分流成 Toast / Modal / 状态条三类。
+   Toast 管「只是告知」，状态条管「持续状态」，**Modal 要能吃掉剩下的绝大部分**。
+
+   所以它不是「一个确认框」，是四种形态共用一副骨架：
+     ① 纯确认        标题 + 说明 + 主次按钮
+     ② 带输入        再给一个字段（如重命名、目标目录）
+     ③ 带列表选择    再给一个可选列表（如选择要覆盖的分组）
+     ④ 带错误详情    说明之下可展开原始错误（不默认展开，不吓人）
+
+   骨架固定的三件事：标题区、动作区右下角、主按钮永远在最右。
+   ═══════════════════════════════════════════════════════════ */
+
+.dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg-canvas) 72%, transparent);
+  padding: var(--sp-4);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 520px;
+  max-height: calc(100% - var(--sp-6));
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-2);
+  overflow: hidden;
+}
+/* 宽变体：列表选择用 */
+.dialog[data-size="wide"] { max-width: 720px; }
+
+/* ── 标题区 ────────────────────────────────────── */
+.dialog__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.dialog__titles { flex: 1; min-width: 0; }
+
+.dialog__title {
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+  line-height: var(--lh-tight);
+}
+.dialog__desc {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin-top: var(--sp-1);
+}
+
+/* 语义点：错误态用红点，警告用琥珀，不整块染标题 */
+.dialog__mark {
+  flex: none;
+  width: var(--sp-3);
+  height: var(--sp-3);
+  margin-top: 3px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+}
+.dialog[data-kind="danger"] .dialog__mark { background: var(--danger); border-color: var(--danger); }
+.dialog[data-kind="warn"] .dialog__mark { background: var(--warn); border-color: var(--warn); }
+.dialog[data-kind="info"] .dialog__mark { background: var(--accent); border-color: var(--accent); }
+
+.dialog__close {
+  flex: none;
+  width: var(--sp-5);
+  height: var(--sp-5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-1);
+  cursor: pointer;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.dialog__close:hover { color: var(--text-primary); background: var(--bg-surface); }
+
+/* ── 主体 ──────────────────────────────────────── */
+.dialog__body {
+  padding: var(--sp-3);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+/* ② 带输入：直接复用 param-form 的 .field */
+.dialog__body .field { grid-template-columns: minmax(64px, 96px) 1fr; }
+
+/* ③ 带列表选择：高度受限，避免把按钮区挤出屏幕 */
+.dialog__list {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-1);
+}
+.dialog__list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.dialog__list-item:last-child { border-bottom: 0; }
+.dialog__list-item:hover { background: var(--bg-surface); color: var(--text-primary); }
+.dialog__list-item[data-selected="true"] { background: var(--accent-weak); color: var(--text-primary); }
+.dialog__list-meta {
+  margin-left: auto;
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* ④ 带错误详情：默认收起。原样保留原始错误，不做美化 ——
+   排障时人要看的是原话，不是编辑过的摘要。 */
+.dialog__details {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-1);
+  overflow: hidden;
+}
+.dialog__details summary {
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  background: var(--bg-surface);
+  list-style: none;
+}
+.dialog__details summary::-webkit-details-marker { display: none; }
+.dialog__details summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: var(--sp-1);
+  font-family: var(--font-num);
+  transition: transform var(--t-fast);
+}
+.dialog__details[open] summary::before { transform: rotate(90deg); }
+.dialog__details pre {
+  margin: 0;
+  padding: var(--sp-2);
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-secondary);
+  background: var(--bg-canvas);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 180px;
+  overflow: auto;
+}
+
+/* ── 动作区 ───────────────────────────────────────
+   永远右下角。主按钮永远最右 —— 位置固定，用户不用每次找。 */
+.dialog__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+.dialog__foot-note {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  margin-right: auto;
+}
+.dialog__foot .btn { flex: none; }
+
+/* 危险动作：主按钮走危险色，副按钮在左 —— 顺序不改，只改配色 */
+.btn--danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--bg-canvas);
+}
+.btn--danger:hover { filter: brightness(1.1); }
