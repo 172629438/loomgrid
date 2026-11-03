@@ -90,6 +90,34 @@ def _safe_get_col(df, col_name):
         series = series.iloc[:, 0]
     return series
 
+# 月份解析失败时的统一返回值。
+# 用它而不是 None/NaN：_extract_ym 的返回值会被多处消费，
+# 允许返回字符串就必须同时提供一个判断谓词，否则消费方会误用
+# .notna()（字符串恒为 True）。
+UNKNOWN_MONTH = "未知月份"
+
+
+def _is_valid_ym(v) -> bool:
+    """_extract_ym 的返回值是否是一个真实可用的年月。"""
+    if v is None:
+        return False
+    try:
+        if pd.isna(v):
+            return False
+    except (TypeError, ValueError):
+        pass
+    return str(v).strip() not in (UNKNOWN_MONTH, "", "nan", "NaT")
+
+
+def _ym_valid_ratio(series, sample_n: int = 20) -> float:
+    """一列值里能解析出真实年月的比例（抽样前 sample_n 个）。"""
+    if series is None or len(series) == 0:
+        return 0.0
+    vals = series.head(sample_n)
+    hit = sum(1 for v in vals if _is_valid_ym(_extract_ym(v)))
+    return hit / max(len(vals), 1)
+
+
 def _extract_ym(d):
     """从任意日期表示里取 YYYY-MM。
 
@@ -628,8 +656,12 @@ def _detect_wide_matrix(df: pd.DataFrame, cols, max_sample=100):
     load_candidates = [tc[0] for tc in time_cols[best_start:best_start+best_len]]
     left_idx = cols.index(load_candidates[0]) - 1
     date_col = None
+    # v2.3.11fix3: 原先用 .apply(_extract_ym).notna().any() 判断。
+    # _extract_ym 现在对无效值返回字符串「未知月份」而不是 NaN，
+    # 字符串的 .notna() 恒为 True —— 任何列都会通过，包括「户号」。
+    # 改为「抽样里至少 60% 能解析出真实年月」。
     if left_idx >= 0:
-        if sample[cols[left_idx]].apply(_extract_ym).notna().any():
+        if _ym_valid_ratio(sample[cols[left_idx]]) >= 0.6:
             date_col = cols[left_idx]
     if date_col is None:
         date_col = next((c for c in cols if '日期' in c or 'date' in c.lower()), None)
@@ -678,7 +710,7 @@ def _detect_transposed_wide(df: pd.DataFrame, cols, max_sample=100):
                         continue
                 except Exception:
                     pass
-                if top_vals.apply(_extract_ym).notna().any():
+                if _ym_valid_ratio(top_vals) >= 0.6:
                     date_cols.append(c)
             if len(date_cols) >= 2:
                 return {'date_cols': date_cols, 'time_col': time_col, 'transpose': True}
