@@ -162,16 +162,16 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 
 | 你的情况 | 用这个 |
 |---|---|
-| 明天要交方案，要稳 | **[Fusion v2.3.2](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.2)** |
+| 明天要交方案，要稳 | **[Fusion v2.3.7](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.7)** |
 | 功能越多越好 | **[Ultra v3.2.2](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.2)** |
-| 想读源码，10k 行比 36k 行好读 | **[Fusion v2.3.2](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.2)** |
+| 想读源码，10k 行比 36k 行好读 | **[Fusion v2.3.7](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.7)** |
 | 想研究三层叠加引擎的完整实现 | **[Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0)** |
 | 想看看真实项目的弯路长什么样 | **[Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0)** |
 | 想看某个功能最早怎么写的 | **[Fusion v1.1 ~ v2.3.0](https://github.com/172629438/loomgrid/releases)** |
 
 两个现役版本不是「新旧」，是**两条路线**：
 
-| | **Fusion v2.3.2** | **Ultra v3.2.2** |
+| | **Fusion v2.3.7** | **Ultra v3.2.2** |
 |---|---|---|
 | 定位 | **生产推荐** | 功能最全 |
 | 代码量 | 10,584 行 | 36,175 行 |
@@ -203,7 +203,7 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 
 | 版本 | 适合 | 包体 |
 |---|---|---|
-| [**Fusion v2.3.2**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.2) | **正式做方案**，稳定优先选它 | 114 MB（解压 286 MB） |
+| [**Fusion v2.3.7**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.7) | **正式做方案**，稳定优先选它 | 114 MB（解压 286 MB） |
 | [**Ultra v3.2.2**](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.2) | 功能最全，要 MILP / Pareto / 诊断就上 | 274 MB（解压 675 MB） |
 | [Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0) | Ultra 历史快照，含三层叠加引擎原文 | 139 MB |
 | [Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0) | 早期分支，含占位方法，**不要做正式方案** | 267 MB |
@@ -564,7 +564,7 @@ Fusion 是「稳定优先」那条线：原生控件、无装饰，把力气全�
 
 | 文件 | 内部版本 | 行数 | 定位 | 状态 |
 |---|---|---:|---|---|
-| `负荷曲线批量生成工具 Pro 融合版 (v2.3).py` | v2.3.2 | ~10.4k | **生产推荐**，要结果稳就选它 | 稳定 |
+| `负荷曲线批量生成工具 Pro 融合版 (v2.3).py` | v2.3.7 | ~10.4k | **生产推荐**，要结果稳就选它 | 稳定 |
 | `负荷曲线批量生成Ultra.py` | v3.2.2 | ~36.2k | 功能最全（MILP / Pareto / 13 步诊断） | 稳定 |
 
 > **为什么稳定版推荐的是行数少的那个？**
@@ -718,7 +718,7 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 - **单文件 3.6 万行**，没有单元测试框架，验证靠脚本巡检（16 套 433 项断言，含 12 项算法手算对拍，见 [`tests/`](tests/) 与[缺陷修复报告](docs/缺陷修复报告.md)）。
 - **测算依赖输入质量**。工具不校验外部数据真实性，列映射选错会一路错到底。
 - **GUI 交互流程没有自动化回归测试**。核心算法有，界面点击路径靠人工。
-- **Ultra v3.2.2 功能最全，但路径也多**。MILP、Pareto、13 步诊断、13 个动效组件都在里面，稳定性不如 Fusion v2.3.2。正式交付优先用 Fusion。
+- **Ultra v3.2.2 功能最全，但路径也多**。MILP、Pareto、13 步诊断、13 个动效组件都在里面，稳定性不如 Fusion v2.3.7。正式交付优先用 Fusion。
 - **`legacy/` 里的历史版本仅供考古**，配置格式与现役版本不兼容，不建议使用。
 
 ---
