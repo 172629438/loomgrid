@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>LoomGrid 组件展示 · 精密仪器面板</title>
+<link rel="stylesheet" href="theme/tokens.css">
+<link rel="stylesheet" href="components/base.css">
+<link rel="stylesheet" href="components/curve-viewer.css">
+<link rel="stylesheet" href="components/data-table.css">
+<style>
+/* 展示页自身的排版，不属于组件库 */
+body { padding: 0 0 var(--sp-6); }
+.showcase-head {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-5);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-strong);
+}
+.showcase-head h1 { font-size: var(--fs-lg); font-weight: 500; margin: 0; }
+.showcase-head .meta { font-size: var(--fs-xs); color: var(--text-muted); }
+.showcase-body { padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-6); }
+
+.demo-block { display: flex; flex-direction: column; gap: var(--sp-3); }
+.demo-block__title {
+  display: flex; align-items: baseline; gap: var(--sp-3);
+  font-size: var(--fs-xl); font-weight: 500;
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border-strong);
+}
+.demo-block__title span { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 400; }
+.demo-block__desc { font-size: var(--fs-sm); color: var(--text-muted); max-width: 78ch; }
+
+.demo-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+@media (max-width: 1100px) { .demo-pair { grid-template-columns: 1fr; } }
+
+.demo-pane {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-2);
+  padding: var(--sp-3);
+  display: flex; flex-direction: column; gap: var(--sp-3);
+}
+.demo-pane__label {
+  font-size: var(--fs-xs); color: var(--text-muted);
+  font-family: var(--font-num);
+}
+.demo-states { display: flex; flex-direction: column; gap: var(--sp-3); }
+.demo-state__name {
+  font-size: var(--fs-xs); color: var(--text-faint);
+  margin-bottom: var(--sp-1);
+}
+.demo-state__name b { color: var(--text-muted); font-weight: 500; }
+.demo-mini { height: 190px; }
+.demo-table-h { height: 260px; }
+</style>
+</head>
+<body>
+
+<div class="showcase-head">
+  <h1>组件展示</h1>
+  <span class="meta">精密仪器面板 · 阶段 3</span>
+  <span class="spacer"></span>
+  <span class="meta" id="token-count"></span>
+</div>
+
+<div class="showcase-body" id="root"></div>
+
+<script src="components/curve-viewer.js"></script>
+<script>
+/* ── 造数据 ─────────────────────────────── */
+const N = 96;
+const TIMES = Array.from({length: N}, (_, i) => {
+  const h = Math.floor(i * 15 / 60), m = (i * 15) % 60;
+  return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+});
+function profile(scale) {
+  return Array.from({length: N}, (_, i) => {
+    const h = i * 24 / N;
+    const v = 420 + 520*Math.exp(-((h-9.5)**2)/2) + 460*Math.exp(-((h-19.5)**2)/2);
+    return Math.round(v * (scale || 1));
+  });
+}
+const MAIN = profile(1);
+const AVG = profile(0.88).map(v => Math.round(v * 0.97));
+const STATS = [
+  { label: '峰值', value: Math.max(...MAIN) + ' kW' },
+  { label: '均值', value: Math.round(MAIN.reduce((a,b)=>a+b,0)/N) + ' kW' },
+  { label: '容量线', value: '500 kW' },
+];
+function curveData() {
+  return {
+    title: 'A-01 · 2026-01 · 31 天 · 96 点',
+    unit: 'kW',
+    times: TIMES,
+    series: [
+      { name: '日曲线', data: MAIN, kind: 'line' },
+      { name: '平均负荷', data: AVG, kind: 'avg' },
+      { name: '容量线 500', value: 500, kind: 'ref' },
+    ],
+    yMax: 1200, yStep: 200,
+    stats: STATS,
+    foot: '刻度 0–1200 kW · 200 一档 · 悬停出准线与读数',
+    errorTitle: '该分组无法绘制',
+    errorDesc: '时刻列中有 12 个值无法识别（如 25:00），清洗后重试',
+    emptyDesc: '当前筛选条件下没有可用日期',
+  };
+}
+
+/* ── 造表格数据 ─────────────────────────── */
+const ROWS = [
+  ['A栋负荷2026.xlsx','A-01','2026-01',31,96,'312.4','1048.2','宽表','ok','就绪',true],
+  ['A栋负荷2026.xlsx','A-01','2026-02',28,96,'298.7','1012.5','宽表','ok','就绪',true],
+  ['B&C楼<综合>.xlsx','B-07','2026-01',31,96,'88.1','642.9','转置','warn','需确认',true],
+  ['光伏倒送_2026Q1.csv','PV-02','2026-01',31,96,'-186.3','421.0','长表','ok','就绪',false],
+  ['老厂区示数表.xls','C-03','2026-01',31,96,'204.0','886.4','示数','err','解析失败',false],
+  ['D区冷库.xlsx','D-11','2026-01',31,96,'512.8','1204.6','宽表','ok','就绪',true],
+  ['E厂注塑线.xlsx','E-05','2026-01',31,96,'426.7','972.1','宽表','ok','就绪',true],
+  ['F仓储中心.xlsx','F-02','2026-01',31,96,'96.3','288.5','宽表','ok','就绪',false],
+];
+function tableHTML(opts) {
+  opts = opts || {};
+  const state = opts.state || 'default';
+  const rows = (state === 'default' || state === 'disabled') ? ROWS : [];
+  const body = rows.map((r, i) => {
+    const [f,t,m,d,tp,mn,mx,ft,st,stt,sel] = r;
+    const disabled = st === 'err';
+    return '<tr data-selected="' + (sel && state !== 'disabled') + '"' +
+      (disabled ? ' data-disabled="true"' : '') + '>' +
+      '<td><span class="chk" data-checked="' + (sel && state !== 'disabled') + '"' +
+      (disabled ? ' data-disabled="true"' : '') + '></span></td>' +
+      '<td data-primary="true">' + f + '</td>' +
+      '<td data-type="num">' + t + '</td>' +
+      '<td data-type="num">' + m + '</td>' +
+      '<td data-align="right" data-type="num">' + d + '</td>' +
+      '<td data-align="right" data-type="num">' + tp + '</td>' +
+      '<td data-align="right" data-type="num">' + mn + '</td>' +
+      '<td data-align="right" data-type="num">' + mx + '</td>' +
+      '<td>' + ft + '</td>' +
+      '<td><span class="badge badge--' + st + '">' + stt + '</span></td>' +
+      '</tr>';
+  }).join('');
+
+  const selCount = rows.filter(r => r[10]).length;
+  return '<div class="data-table" data-state="' + state + '">' +
+    '<div class="data-table__bar">' +
+      '<button class="btn btn--ghost">全选</button>' +
+      '<button class="btn btn--ghost">反选</button>' +
+      '<span class="spacer"></span>' +
+      '<span class="data-table__count">已选 ' + selCount + ' / ' + rows.length + '</span>' +
+    '</div>' +
+    '<div class="data-table__scroll"><table>' +
+    '<colgroup>' +
+      '<col data-w="narrow"><col data-w="flex"><col data-w="num"><col data-w="num">' +
+      '<col data-w="num"><col data-w="num"><col data-w="num"><col data-w="num">' +
+      '<col data-w="num"><col data-w="num">' +
+    '</colgroup>' +
+    '<thead><tr>' +
+      '<th></th><th>源文件</th><th>表号</th><th>月份</th>' +
+      '<th data-align="right">天数</th><th data-align="right">时刻点</th>' +
+      '<th data-align="right">最小负荷</th><th data-align="right">最大负荷</th>' +
+      '<th>表型</th><th>状态</th>' +
+    '</tr></thead><tbody>' + body + '</tbody></table></div>' +
+    '<div class="data-table__state data-table__state--empty">没有文件。拖入 .xlsx / .csv 开始</div>' +
+    '<div class="data-table__state data-table__state--loading"><span class="data-table__dots"></span> 正在扫描 12 个文件…</div>' +
+    '<div class="data-table__state data-table__state--error">扫描失败：无法读取「老厂区示数表.xls」</div>' +
+    '</div>';
+}
+
+/* ── 组装展示页 ─────────────────────────── */
+const STATES = [
+  ['default', '默认'],
+  ['loading', '加载'],
+  ['error', '错误'],
+  ['empty', '空数据'],
+  ['disabled', '禁用'],
+];
+
+function blockCurve() {
+  const panes = ['dark','light'].map(theme => {
+    const items = STATES.map(([st, name]) =>
+      '<div class="demo-state">' +
+        '<div class="demo-state__name"><b>' + name + '</b> · state=' + st + '</div>' +
+        '<div class="curve-viewer demo-mini" data-state="' + st + '" data-cv="' + theme + '-' + st + '"></div>' +
+      '</div>').join('');
+    return '<div class="demo-pane" data-theme="' + theme + '">' +
+      '<div class="demo-pane__label">' + theme + '</div>' +
+      '<div class="demo-states">' + items + '</div></div>';
+  }).join('');
+  return '<section class="demo-block">' +
+    '<div class="demo-block__title">曲线查看器 <span>V3 中间 · 替代 PreviewDialog 的绘图区</span></div>' +
+    '<p class="demo-block__desc">核心画面。判据是「能读数」：刻度必须有、数值等宽、峰值与时刻直接标在图上。悬停出准线与读数气泡；加载与错误态保留坐标框架，让人知道这里本来有图。</p>' +
+    '<div class="demo-pair">' + panes + '</div></section>';
+}
+
+function blockTable() {
+  const panes = ['dark','light'].map(theme => {
+    const items = STATES.map(([st, name]) =>
+      '<div class="demo-state">' +
+        '<div class="demo-state__name"><b>' + name + '</b> · state=' + st + '</div>' +
+        '<div class="demo-table-h">' + tableHTML({state: st}) + '</div>' +
+      '</div>').join('');
+    return '<div class="demo-pane" data-theme="' + theme + '">' +
+      '<div class="demo-pane__label">' + theme + '</div>' +
+      '<div class="demo-states">' + items + '</div></div>';
+  }).join('');
+  return '<section class="demo-block">' +
+    '<div class="demo-block__title">数据表格 <span>V1 主表 / V5 清单</span></div>' +
+    '<p class="demo-block__desc">用得最多。表头吸顶、无斑马纹、数字右对齐等宽。选中给三重信号（底色 10% + 左竖线 + 次列提亮），因为只靠一条 2px 线在宽表里会被扫视漏掉。失败行不可选，颜色降级但仍可读。</p>' +
+    '<div class="demo-pair">' + panes + '</div></section>';
+}
+
+document.getElementById('root').innerHTML = blockCurve() + blockTable();
+
+/* 渲染所有曲线实例 */
+document.querySelectorAll('[data-cv]').forEach(host => {
+  const state = host.dataset.state;
+  CurveViewer.render(host, curveData());
+  CurveViewer.setState(host, state);
+});
+
+/* 令牌统计（页面自证） */
+const cs = getComputedStyle(document.documentElement);
+const fsCount = ['2xs','xs','sm','md','lg','xl','2xl'].length;
+const spCount = ['1','2','3','4','5','6'].length;
+document.getElementById('token-count').textContent =
+  '字号 ' + fsCount + ' 档 · 间距 ' + spCount + ' 档 · 圆角 2 档 · 动效 2 档';
+</script>
+</body>
+</html>

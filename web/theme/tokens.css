@@ -1,0 +1,100 @@
+/* ═══════════════════════════════════════════════════════════
+   设计令牌 —— 全系统唯一来源
+   ───────────────────────────────────────────────────────────
+   这份文件是唯一允许出现裸值的地方。components/ 下一律走 var()，
+   由 tools/check_components.py 机械检查（对应阶段 3 判据）。
+
+   方向：精密仪器面板
+     读数优先 · 层级靠线 · 强调色只一个 · 语义色各管一格 · 密度高
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── 字号 7 档 ──────────────────────────────
+     档位不是「大小渐变」，是语义层级：
+     2xs 轴标签/极次要 · xs 标签与元信息 · sm 表格与正文默认
+     md 段落 · lg 小节标题 · xl 视图标题 · 2xl 关键数字         */
+  --fs-2xs: 9px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 18px;
+  --fs-2xl: 24px;
+
+  /* ── 间距 6 档 · 全为 4 的倍数 ───────────────── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  /* ── 圆角 2 档 ───────────────────────────── */
+  --r-1: 2px;   /* 控件、徽章、单元格 */
+  --r-2: 4px;   /* 面板、卡片 */
+
+  /* ── 动效 2 档 ───────────────────────────── */
+  --t-fast: 120ms;   /* 颜色、边框 */
+  --t-base: 200ms;   /* 展开、位移 */
+
+  /* ── 字体 ───────────────────────────────── */
+  --font-ui: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  --font-num: "JetBrains Mono", "Consolas", "Cascadia Mono", monospace;
+
+  /* ── 行高（不是字号，但同属排版，收在这里避免散落）── */
+  --lh-tight: 1.25;
+  --lh-normal: 1.5;
+
+  /* ── 焦点环：用 outline 不用 box-shadow（零阴影原则）── */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 1px;
+}
+
+/* ═══════════ 语义色 · 深色 ═══════════ */
+[data-theme="dark"] {
+  --bg-canvas: #0E1116;      /* 最底层 */
+  --bg-surface: #151A21;     /* 面板 */
+  --bg-raised: #1B222B;      /* 悬浮 / 选中底 */
+  --border-subtle: #232A33;  /* 分隔线 */
+  --border-strong: #323C48;  /* 控件边框、表头底线 */
+  --text-primary: #D8DEE6;   /* 正文 */
+  --text-muted: #7C8794;     /* 次要 */
+  --text-faint: #55606D;     /* 轴标签、占位 */
+  --accent: #4EA8DE;         /* 主操作、当前选中 */
+  --accent-dim: #2B6C93;     /* 强调色的弱化（hover 边框）*/
+  --ref-line: #D2A24C;       /* 参考线（容量线等），不承担「错误」语义 */
+  --ok: #4CAF7D;
+  --warn: #D9A441;
+  --danger: #D96C6C;
+  --focus-ring: #4EA8DE;
+}
+
+/* ═══════════ 语义色 · 浅色 ═══════════ */
+[data-theme="light"] {
+  --bg-canvas: #F7F8FA;
+  --bg-surface: #FFFFFF;
+  --bg-raised: #FBFCFD;
+  --border-subtle: #E1E5EA;
+  --border-strong: #C8CFD8;
+  --text-primary: #1A1F26;
+  --text-muted: #5C6672;
+  --text-faint: #8B95A1;
+  --accent: #1F6FB2;
+  --accent-dim: #7FAAD0;
+  --ref-line: #9A6B12;
+  --ok: #2E8B57;
+  --warn: #A8741A;
+  --danger: #B3403F;
+  --focus-ring: #1F6FB2;
+}
+
+/* ═══════════ 派生色 · 一次性定义，避免各处 color-mix ═══════════
+   这些是从语义色推出来的，不是新语义。集中在这里，组件里直接用。 */
+:root {
+  --accent-weak: color-mix(in srgb, var(--accent) 10%, transparent);
+  --ok-weak: color-mix(in srgb, var(--ok) 12%, transparent);
+  --warn-weak: color-mix(in srgb, var(--warn) 12%, transparent);
+  --danger-weak: color-mix(in srgb, var(--danger) 12%, transparent);
+  --grid-line: color-mix(in srgb, var(--border-subtle) 55%, transparent);
+  --shadow-none: none;   /* 显式声明：本项目零阴影 */
+}

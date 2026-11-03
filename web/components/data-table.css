@@ -1,0 +1,178 @@
+/* ═══════════════════════════════════════════════════════════
+   数据表格
+   ───────────────────────────────────────────────────────────
+   用得最多的组件，V1 主表与 V5 清单都是它。
+   仪器感的来源：表头吸顶、无斑马纹、行高紧凑、数字右对齐等宽。
+
+   选中态三重信号（只靠一条竖线在宽表里会被漏掉）：
+     底色 10% 强调 · 左侧 2px 竖线 · 次列文字提亮
+   ═══════════════════════════════════════════════════════════ */
+
+.data-table {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-surface);
+}
+.data-table__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.data-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+/* ── 表头：吸顶 + 底线加强 ─────────────────────── */
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  font-weight: 500;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: var(--lh-tight);
+  background: var(--bg-surface);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border-strong);
+  white-space: nowrap;
+}
+.data-table thead th[data-align="right"] { text-align: right; }
+.data-table thead th[data-align="center"] { text-align: center; }
+
+/* ── 行 ──────────────────────────────────────── */
+.data-table tbody td {
+  padding: var(--sp-1) var(--sp-3);
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  line-height: var(--lh-tight);
+  transition: background var(--t-fast);
+}
+.data-table tbody td[data-align="right"] { text-align: right; }
+.data-table tbody td[data-align="center"] { text-align: center; }
+
+/* 悬停：仅提亮，不改变布局 */
+.data-table tbody tr:hover td { background: var(--bg-raised); }
+
+/* 选中：三重信号 */
+/* 注：下面三处 box-shadow 都是 inset 模拟边框（选中竖线、可编辑格悬停框 / 编辑态框），
+   不是投影。用 inset 而不用 border，是因为 border 会改变单元格盒模型宽度，
+   在 border-collapse 的表里会导致列宽微跳。项目「零阴影」指的是不拿投影造层级，
+   inset 描边不属于那一类。 */
+.data-table tbody tr[data-selected="true"] td {
+  background: var(--accent-weak);
+}
+.data-table tbody tr[data-selected="true"] td:first-child {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.data-table tbody tr[data-selected="true"] td[data-primary="true"] {
+  color: var(--text-primary);
+}
+.data-table tbody tr[data-selected="false"] td[data-primary="true"] {
+  color: var(--text-muted);
+}
+
+/* 不可选行（如失败行） */
+.data-table tbody tr[data-disabled="true"] td {
+  color: var(--text-faint);
+}
+.data-table tbody tr[data-disabled="true"] td[data-primary="true"] {
+  color: var(--text-faint);
+}
+
+/* ── 单元格类型 ───────────────────────────────── */
+
+/* 数字：等宽 + 右对齐由 data-align="right" 控制 */
+.data-table td[data-type="num"] {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 可编辑：平时无边框，hover 出现细框，编辑态变输入框 */
+.data-table td[data-editable="true"] {
+  cursor: text;
+  position: relative;
+}
+.data-table td[data-editable="true"]:hover {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.data-table td[data-editable="true"][data-modified="true"] {
+  color: var(--warn);
+}
+.data-table td[data-editable="true"][data-editing="true"] {
+  box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--bg-canvas);
+  padding: 0;
+}
+.data-table td[data-editing="true"] input {
+  font: inherit;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  width: 100%;
+  padding: var(--sp-1) var(--sp-3);
+  color: var(--text-primary);
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+
+/* 文件名等主列：等宽，便于纵向对齐比较 */
+.data-table td[data-primary="true"] {
+  font-family: var(--font-num);
+}
+
+/* ── 工具条 ──────────────────────────────────── */
+.data-table__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex: none;
+}
+.data-table__count {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 空 / 加载 / 错误 ───────────────────────────
+   三态都保留表头，让人知道「这里本来是什么表」 */
+.data-table__state {
+  display: none;
+  padding: var(--sp-6) var(--sp-4);
+  text-align: center;
+  color: var(--text-muted);
+}
+.data-table[data-state="empty"] .data-table__state--empty,
+.data-table[data-state="loading"] .data-table__state--loading,
+.data-table[data-state="error"] .data-table__state--error { display: block; }
+
+.data-table[data-state="empty"] tbody,
+.data-table[data-state="loading"] tbody,
+.data-table[data-state="error"] tbody { display: none; }
+
+.data-table__state--error { color: var(--danger); }
+.data-table__state--loading .data-table__dots {
+  display: inline-block;
+  width: var(--sp-6);
+  height: var(--sp-1);
+  border-radius: var(--r-1);
+  background: var(--text-faint);
+  animation: pulse var(--t-base) ease-in-out infinite alternate;
+}
+
+/* ── 禁用 ────────────────────────────────────── */
+.data-table[data-state="disabled"] { opacity: 0.5; pointer-events: none; }
+
+/* ── 列宽控制：窄列压到内容宽，宽列撑开 ─────────── */
+.data-table col[data-w="narrow"] { width: var(--sp-6); }
+.data-table col[data-w="num"] { width: 88px; }
+.data-table col[data-w="flex"] { width: auto; }
