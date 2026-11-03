@@ -35,6 +35,11 @@
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-surface);
   flex: none;
+  /* 固定最小高度：首页（V1）没有返回按钮，内容少 26px，
+     不加这条会比其他屏矮 1px —— 用户从 V1 进 V2 会看到顶栏长高。
+     首页可以没有返回键，但顶栏不该有第二种高度。 */
+  min-height: 43px;
+  box-sizing: border-box;
 }
 
 .shell__back {

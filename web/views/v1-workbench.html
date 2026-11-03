@@ -170,7 +170,7 @@
   <!-- 顶栏：骨架统一 -->
   <div class="shell__bar">
     <span class="shell__title">LoomGrid Fusion</span>
-    <span class="shell__ctx">5 个文件 · 147 个分组 · 12.8 MB</span>
+    <span class="shell__ctx" id="ctx">5 个文件 · 147 个分组 · 12.8 MB</span>
     <div class="shell__bar-right">
       <button class="v1__demo-toggle" id="demoToggle">演示：切到空态</button>
       <button class="btn" id="themeBtn">界面主题：深色</button>
@@ -180,8 +180,8 @@
   <!-- 工具条 -->
   <div class="v1__tools">
     <button class="btn btn--primary">添加文件</button>
-    <button class="btn">移除选中</button>
-    <button class="btn">清空</button>
+    <button class="btn" id="btnRemove">移除选中</button>
+    <button class="btn" id="btnClear">清空</button>
     <div class="v1__tool-sep"></div>
     <div class="v1__setting">
       <span>扫描并发</span>
@@ -192,8 +192,8 @@
       <div class="field__control"><select class="field__select"><option>4</option><option>2</option><option>8</option></select></div>
     </div>
     <div class="v1__tools-right">
-      <button class="btn">专业模式</button>
-      <button class="btn btn--primary">开始处理</button>
+      <button class="btn" id="btnPro">专业模式</button>
+      <button class="btn btn--primary" id="btnStart">开始处理</button>
     </div>
   </div>
 
@@ -457,9 +457,9 @@
       <span class="v1__statusbar-sep"></span>
       <span><b id="sb-groups">147</b> 个分组</span>
       <span class="v1__statusbar-sep"></span>
-      <span><b>12.8</b> MB</span>
+      <span><b id="sb-size">12.8</b> MB</span>
       <span class="v1__statusbar-sep"></span>
-      <span>最近扫描 <b>0.8</b> s</span>
+      <span id="sb-scan-wrap">最近扫描 <b id="sb-scan">0.8</b> s</span>
       <span class="v1__statusbar-sep"></span>
       <span>配置已加载 · <b>14</b> 版</span>
     </div>
@@ -494,7 +494,24 @@ function render() {
   full.style.display = isEmpty ? 'none' : '';
   empty.style.display = isEmpty ? 'flex' : 'none';
   dt.textContent = isEmpty ? '演示：切到满态' : '演示：切到空态';
+
+  // 空态下统计必须归零、无文件可操作的按钮必须禁用 ——
+  // 否则会显示一套自相矛盾的状态：主体说「没有文件」，顶栏说「5 个文件」。
+  document.getElementById('ctx').textContent =
+    isEmpty ? '暂无文件' : '5 个文件 · 147 个分组 · 12.8 MB';
+  document.getElementById('sb-files').textContent = isEmpty ? '0' : '5';
+  document.getElementById('sb-groups').textContent = isEmpty ? '0' : '147';
+  document.getElementById('sb-size').textContent = isEmpty ? '0' : '12.8';
+  document.getElementById('sb-scan-wrap').style.display = isEmpty ? 'none' : '';
   sbHint.textContent = isEmpty ? '等待添加文件' : '已选 10 / 14 个文件';
+
+  // 四个动作在空态下都无对象可操作
+  ['btnRemove', 'btnClear', 'btnPro', 'btnStart'].forEach(id => {
+    const b = document.getElementById(id);
+    b.disabled = isEmpty;
+    b.style.opacity = isEmpty ? '0.4' : '';
+    b.style.pointerEvents = isEmpty ? 'none' : '';
+  });
 }
 dt.addEventListener('click', () => { isEmpty = !isEmpty; render(); });
 render();
