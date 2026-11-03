@@ -53,22 +53,21 @@ git push origin main
 
 ### 上传后必须自证
 
-不能只看 `git push` 的成功提示——要确认远端文件真的变了：
+不能只看 `git push` 的成功提示——要确认远端文件真的变了。
 
 ```bash
-# 拉远端文件，与本地比对
-python -c "
-import urllib.request, urllib.parse, hashlib
-f = urllib.parse.quote('负荷曲线批量生成工具 Pro 融合版 (v2.3).py')
-u = 'https://raw.githubusercontent.com/172629438/loomgrid/main/' + f
-r = urllib.request.urlopen(u).read().decode('utf-8')
-l = open('负荷曲线批量生成工具 Pro 融合版 (v2.3).py', encoding='utf-8').read()
-print('远端 == 本地:', r == l)
-print('SHA256:', hashlib.sha256(r.encode()).hexdigest()[:16])
-"
+git ls-tree origin/main -- "负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
+git hash-object "负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
 ```
 
-**判据**：输出 `远端 == 本地: True`。不是 True 就没上传成功，别往下走。
+两行输出的 blob hash 必须一致。
+
+**用 git 对象哈希，不要用 raw.githubusercontent.com 比对内容。**
+那个地址有 CDN 缓存，刚 push 完去拉可能还是旧文件，
+2026-11-03 因此误判过一次「没推上去」，实际已经推了。
+
+若确实想看内容是否含某段代码，等几分钟或直接读本地文件——
+本地与 origin 的 blob hash 一致，内容就一致。
 
 ---
 
