@@ -137,8 +137,22 @@ def _patch(rel_id, body):
         raise RuntimeError(r.stderr[:300])
 
 
-def fix_existing(only_tag: str | None = None):
-    rels = json.loads(_gh("api", f"repos/{REPO}/releases?per_page=50").lstrip("\ufeff"))
+def fix_existing(only_tag: str | None = None, force: bool = False):
+    """给已有 Release 补齐两段指引。
+
+    force=False（默认）：幂等补录。已有 <!-- ver-guide --> 就跳过。
+        适合「第一次给旧版补说明」。
+
+    force=True：强制刷新版本指引。
+        适合「新发版后把全部旧版的推荐指向改到新版本」。
+        默认的幂等模式永远做不到这件事——它看到已有段就跳过，
+        于是旧 Release 会一直挂着「你正在看的这一版就是当前生产版本」。
+        2026-11-03 发 Ultra v3.2.9 时就撞到这一点，只能另写脚本手工刷。
+
+    force 只动 ver-guide，不动 dl-hint——下载指引是各版本自己的 zip 名，
+    不应该被串改。
+    """
+    rels = json.loads(_gh("api", f"repos/{REPO}/releases?per_page=100").lstrip("\ufeff"))
     for r in sorted(rels, key=lambda x: x["tag_name"]):
         tag = r["tag_name"]
         if only_tag and tag != only_tag:
@@ -149,8 +163,23 @@ def fix_existing(only_tag: str | None = None):
             continue
         a = zips[0]
         body = r.get("body") or ""
-        changed = False
 
+        if force:
+            idx = body.find(MARK_VER)
+            core = body[:idx].rstrip() if idx >= 0 else body.rstrip()
+            new_body = core + "\n\n" + version_guide(tag)
+            if not core:
+                # 没有正文只剩指引没意义，垫上 dl-hint
+                new_body = download_hint(a["name"], a["size"] / 1024 / 1024) + new_body
+            if new_body.strip() == body.strip():
+                print(f"  {tag:<22} 指引已是最新")
+                continue
+            _patch(r["id"], new_body)
+            kind = "现役" if tag in (PROD_FUSION, PROD_ULTRA) else "历史"
+            print(f"  {tag:<22} 强制刷新  [{kind}]")
+            continue
+
+        changed = False
         if MARK_DL not in body:
             body = download_hint(a["name"], a["size"] / 1024 / 1024) + body.lstrip()
             changed = True
@@ -170,11 +199,13 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--tag", help="只处理指定的 tag")
     ap.add_argument("--fix-existing", action="store_true",
-                    help="给已有 Release 补齐两段指引")
+                    help="给已有 Release 补齐两段指引（幂等）")
+    ap.add_argument("--force", action="store_true",
+                    help="配合 --fix-existing：强制刷新版本指引（发新版后必跑）")
     args = ap.parse_args()
 
     if args.fix_existing:
-        fix_existing(args.tag)
+        fix_existing(args.tag, force=args.force)
     else:
         # 无参数时打印一段样例，方便复制
         print(compose("（正文内容写这里）", "ultra-v3.2.2",
