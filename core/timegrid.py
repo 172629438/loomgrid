@@ -18,7 +18,8 @@
 从不直接读变量；后者在主程序里没有任何读取（即 C7 记录的「配了个不生效的开关」），
 所以搬走不会造成「两边各持一份状态」的失联。
 
-铁律：core/ 不许 import PySide6 / matplotlib / fastapi。
+铁律：core/ 不得 import 任何 UI 框架 / 绘图库 / Web 框架
+（用 tools/check_layering.py 校验，那是 AST 级检查，不会误伤文档）。
 本模块只用标准库 + pandas + loguru + chinese_calendar（可选）。
 """
 from __future__ import annotations

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""纯数据模型：零 Qt、零 matplotlib、零 IO。
+"""纯数据模型：零 UI 依赖、零绘图依赖、零 IO。
 
 本模块从 Fusion v2.3.9 单文件（`负荷曲线批量生成工具 Pro 融合版 (v2.3).py`）
 原样搬出，逻辑一字未改，只把散落在模块级的两类东西收拢到这里：
@@ -10,10 +10,10 @@
 
 铁律（方案 D 第 3 节）
 ----------------------
-core/ 不许 import PySide6、不许 import matplotlib、不许 import fastapi。
-可机械检查：
+core/ 不得 import 任何 UI 框架、绘图库或 Web 框架。
+可机械检查（AST 级，不会误伤注释与文档）：
 
-    grep -rn "PySide6\\|matplotlib\\|fastapi" core/
+    python tools/check_layering.py
 
 搬出依据：这五个类经 AST 扫描确认「零 Qt 引用、零文件 IO」，
 是整份单文件中耦合最低的一块，因此作为阶段 1 的第一块。
