@@ -133,6 +133,9 @@
     <span class="shell__title">列映射</span>
     <span class="v2__file">A栋负荷2026.xlsx · Sheet1 · 多工作表</span>
     <div class="shell__bar-right">
+      <span id="backendState" hidden style="font-size:var(--fs-xs);color:var(--text-muted)"></span>
+      <button class="btn" id="pickBtn">选择文件…</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls,.csv,.xlsb" hidden>
       <button class="btn" id="themeBtn">界面主题：深色</button>
     </div>
   </div>
@@ -264,7 +267,7 @@
               <th style="width:120px">自动匹配为</th>
               <th style="width:88px">相似度</th>
             </tr></thead>
-            <tbody>
+            <tbody id="colRows">
               <tr class="sel"><td>1</td><td>日期</td><td>日期列</td><td><span class="v2__sim" data-good="true">100%</span></td></tr>
               <tr class="sel"><td>2</td><td>户号</td><td>资产列</td><td><span class="v2__sim" data-good="true">92%</span></td></tr>
               <tr><td>3</td><td>00:00</td><td>负荷列</td><td><span class="v2__sim" data-good="true">100%</span></td></tr>
@@ -330,6 +333,152 @@ btn.addEventListener('click', () => {
   sync();
 });
 sync();
+
+// ── 接线（阶段 4.5）─────────────────────────────────
+// 只在能连上 API 时工作；连不上就保留演示数据，不把页面搞空。
+// 后端地址：同源时留空，本地静态服务 + 独立 API 时填端口。
+const API_BASE = (location.protocol === 'file:' || location.port === '8899')
+  ? 'http://127.0.0.1:8000' : '';
+
+const pickBtn = document.getElementById('pickBtn');
+const fileInput = document.getElementById('fileInput');
+const colRows = document.getElementById('colRows');
+
+function toast(msg, kind) {
+  const el = document.createElement('div');
+  el.className = 'toast toast--' + (kind || 'info');
+  el.style.position = 'fixed';
+  el.style.right = '16px';
+  el.style.bottom = '16px';
+  el.style.zIndex = '60';
+  el.innerHTML = '<div class="toast__body"><div class="toast__title">' + msg + '</div></div>';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function setBackendState(text) {
+  const el = document.getElementById('backendState');
+  if (el) { el.textContent = text; el.hidden = !text; }
+}
+
+pickBtn.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', async () => {
+  const f = fileInput.files && fileInput.files[0];
+  if (!f) return;
+  await runWithFile(f);
+});
+
+async function runWithFile(file) {
+  setBackendState('上传中…');
+  try {
+    // 1) 上传：浏览器拿不到本地路径，必须先传字节
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    const up = await fetch(API_BASE + '/api/ingest/upload', { method: 'POST', body: fd }).then(r => r.json());
+    if (!up.ok) throw new Error((up.error && up.error.message) || '上传失败');
+
+    // 2) inspect：拿表型、列清单、建议映射、confidence
+    setBackendState('识别中…');
+    const ins = await fetch(API_BASE + '/api/ingest/inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: up.data.path }),
+    }).then(r => r.json());
+    if (!ins.ok) throw new Error((ins.error && ins.error.message) || '识别失败');
+
+    renderInspect(file.name, ins.data);
+    setBackendState('');
+    toast('已识别：' + file.name, 'success');
+  } catch (e) {
+    setBackendState('');
+    toast('未连上后端，展示演示数据（' + e.message + '）', 'warn');
+  }
+}
+
+function renderInspect(filename, data) {
+  const sheets = (data && data.sheets) || [];
+  const sh = sheets[0];
+  if (!sh) return;
+
+  // 文件上下文
+  const ctx = document.querySelector('.shell__ctx');
+  if (ctx) ctx.textContent = filename + ' · ' + sh.name + ' · ' + sh.rows_sampled + ' 行样本';
+
+  // 表型与 confidence
+  const fmt = (sh.suggest && sh.suggest.format_type) || '';
+  document.querySelectorAll('.v2__fmt').forEach(el => {
+    const v = el.querySelector('input').value;
+    el.dataset.checked = String(v === fmt);
+    el.querySelector('input').checked = v === fmt;
+  });
+
+  const conf = sh.confidence || {};
+  const hint = document.querySelector('.v2__hint');
+  if (hint && conf.score !== undefined) {
+    const reasons = (conf.reasons || []).join('；');
+    hint.querySelector('span:last-child').textContent =
+      '识别为 ' + fmt + '（置信 ' + Math.round(conf.score * 100) + '%）' + (reasons ? ' · ' + reasons : '');
+    hint.dataset.kind = conf.score >= 0.9 ? '' : (conf.score >= 0.6 ? 'muted' : 'warn');
+  }
+
+  // 列名表重建
+  const cols = sh.columns || [];
+  const sug = sh.suggest || {};
+  const loadCols = Array.isArray(sug.load_col) ? sug.load_col : (sug.load_col ? [sug.load_col] : []);
+  const dateCol = sug.date_col, timeCol = sug.time_col, assetCol = sug.asset_col;
+
+  let html = '';
+  const MAX = 24;
+  cols.slice(0, MAX).forEach((c, i) => {
+    let match = '', sim = '';
+    if (c === dateCol) { match = '日期列'; sim = '100%'; }
+    else if (c === timeCol) { match = '时间列'; sim = '100%'; }
+    else if (c === assetCol) { match = '资产列'; sim = '100%'; }
+    else if (loadCols.indexOf(c) >= 0) { match = '负荷列'; sim = '100%'; }
+    const cls = match ? ' class="sel"' : '';
+    html += '<tr' + cls + '><td>' + (i + 1) + '</td><td>' + c + '</td>'
+      + '<td>' + (match || '—') + '</td>'
+      + '<td>' + (sim ? '<span class="v2__sim" data-good="true">' + sim + '</span>' : '') + '</td></tr>';
+  });
+  if (cols.length > MAX) {
+    html += '<tr><td>—</td><td colspan="3" style="color:var(--text-faint);text-align:center;padding:var(--sp-3)">'
+      + '… 其余 ' + (cols.length - MAX) + ' 列未展开</td></tr>';
+  }
+  colRows.innerHTML = html;
+
+  // 列数读数
+  const note = document.querySelector('.v2__pane-note');
+  if (note) {
+    const matched = [dateCol, timeCol, assetCol].filter(Boolean).length + (loadCols.length ? 1 : 0);
+    note.textContent = cols.length + ' 列 · 映射 ' + Math.min(matched, 4) + ' / 4 已定';
+  }
+
+  // 映射四列
+  const selects = document.querySelectorAll('.v2__left select.field__select');
+  if (selects.length >= 4) {
+    // 日期列
+    fillSelect(selects[0], cols, dateCol);
+    fillSelect(selects[1], ['（不适用）'].concat(cols), timeCol || '（不适用）');
+    fillSelect(selects[2], ['（未选择）'].concat(cols), assetCol || '（未选择）');
+  }
+  const loadInput = document.querySelector('.v2__left input[readonly]');
+  if (loadInput) {
+    loadInput.value = loadCols.length
+      ? (loadCols.length + ' 列（' + loadCols[0] + ' – ' + loadCols[loadCols.length - 1] + '）')
+      : '（未选择）';
+  }
+}
+
+function fillSelect(el, options, current) {
+  el.innerHTML = '';
+  options.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o; opt.textContent = o;
+    if (o === current) opt.selected = true;
+    el.appendChild(opt);
+  });
+}
 
 // 格式单选：视觉态靠 data-checked，逻辑值仍由原生 radio 承担
 document.querySelectorAll('.v2__fmt').forEach(el => {
