@@ -89,11 +89,29 @@ def main() -> int:
     bad = 0
     for path in targets:
         text = open(path, encoding="utf-8", errors="replace").read()
+
+        # 反向断言必须放在 blocks() 之前 —— 否则带 :root 的内联副本会走「有声明块」
+        # 分支，反而绕过检查（阴性对照实测发现的）。
+        inline_hit = False
+        if path.endswith(".html"):
+            # 不能只匹配行首 —— 同一行写多个声明时只有第一个能被 ^ 匹配到。
+            # 改成「行首 / { / ; 之后」均可。var(--accent) 不会被误判：
+            # --accent 后面是 ) 而不是冒号。
+            inline = re.findall(r"(?:^|[{;])\s*(--[a-z-]+\s*:\s*\S)", text, re.M)
+            if inline:
+                print(f"  ✗ 出现内联令牌声明 {len(inline)} 处，应统一走 theme/tokens.css")
+                print(f"      例: {inline[0].strip()[:60]}")
+                bad += 1
+                inline_hit = True
+            else:
+                print("  ✓ 无内联令牌声明（全部外链 tokens.css）")
+
         bl = blocks(text)
         print(f"\n{'=' * 70}\n{os.path.relpath(path, ROOT)}\n{'=' * 70}")
 
         if not bl:
-            print("  没有找到 :root 或 [data-theme] 声明块，跳过")
+            if not path.endswith(".html"):
+                print("  没有找到 :root 或 [data-theme] 声明块，跳过")
             continue
 
         # 每个类别在所有主题块里的取值并集
