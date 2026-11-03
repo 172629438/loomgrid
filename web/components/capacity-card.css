@@ -1,0 +1,103 @@
+/* ═══════════════════════════════════════════════════════════
+   容量卡片 · 数字 + 单位 + 对比
+   ───────────────────────────────────────────────────────────
+   出现场景：V4 测算视图的推荐配置。核心是「一个数一眼读出来」。
+
+   量纲纪律（阶段 2 定死的）：
+     容量      单位 kWh      回答「电池该装多大」
+     日吞吐量  单位 kWh/天   回答「一天能搬多少能量」
+   两张卡片并列，字段名带量纲，不靠文档提醒。
+   ═══════════════════════════════════════════════════════════ */
+
+.capacity-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-2);
+  min-width: 0;
+}
+
+.capacity-card__label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+/* 主数值：全站最大的字号之一，等宽，单位不跟数字抢位置 */
+.capacity-card__value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-2xl);
+  line-height: var(--lh-tight);
+  color: var(--text-primary);
+}
+.capacity-card__unit {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* 对比：当前值 → 建议值，变化幅度用语义色（升是强调，降是中性） */
+.capacity-card__compare {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.capacity-card__from {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+.capacity-card__delta {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.capacity-card__delta[data-dir="down"] { color: var(--text-muted); }
+
+/* 口径标记：让人知道这个数是按什么算的 */
+.capacity-card__basis {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+/* 两卡片并列时的分隔 */
+.capacity-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--sp-3);
+}
+
+/* 强调变体：推荐配置用，边框走强调色但不发光 */
+.capacity-card[data-emphasis="true"] {
+  border-color: var(--accent-dim);
+}
+.capacity-card[data-emphasis="true"] .capacity-card__value {
+  color: var(--accent);
+}
+
+/* 单位不同不能直接比较 —— 两张卡片的单位区加一条提示线 */
+.capacity-card[data-dimension] .capacity-card__label::after {
+  content: " · " attr(data-dimension);
+  color: var(--text-faint);
+}
+
+/* 禁用 / 无数据 */
+.capacity-card[data-state="empty"] .capacity-card__value {
+  color: var(--text-faint);
+}
+.capacity-card[data-state="disabled"] {
+  opacity: 0.5;
+}

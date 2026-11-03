@@ -7,6 +7,9 @@
 <link rel="stylesheet" href="components/base.css">
 <link rel="stylesheet" href="components/curve-viewer.css">
 <link rel="stylesheet" href="components/data-table.css">
+<link rel="stylesheet" href="components/toast.css">
+<link rel="stylesheet" href="components/progress.css">
+<link rel="stylesheet" href="components/capacity-card.css">
 <style>
 /* 展示页自身的排版，不属于组件库 */
 body { padding: 0 0 var(--sp-6); }
@@ -86,9 +89,9 @@ const STATS = [
   { label: '峰值', value: Math.max(...MAIN) + ' kW', priority: 'high' },
   { label: '均值', value: Math.round(MAIN.reduce((a,b)=>a+b,0)/N) + ' kW', priority: 'high' },
   { label: '容量线', value: '500 kW', priority: 'high' },
-  { label: '天数', value: '31', priority: 'low' },
-  { label: '点数', value: '96', priority: 'low' },
 ];
+// 注：天数 / 点数不进 stats —— 它们在标题里已经写过（「31 天 · 96 点」），
+// 同一份信息不写两遍。规模属于标题，读数属于 stats。
 function curveData() {
   return {
     title: 'A-01 · 2026-01 · 31 天 · 96 点',
@@ -224,7 +227,104 @@ function blockTable() {
     '<div class="demo-pair">' + panes + '</div></section>';
 }
 
-document.getElementById('root').innerHTML = blockCurve() + blockCurveReal() + blockTable();
+function blockToast() {
+  const panes = ['dark','light'].map(theme => {
+    const items = [
+      ['success', '已复制路径', 'D:\\输出\\2026-01'],
+      ['info', '配置已保存', '设置 → 扫描并发 4'],
+      ['warn', '部分图表失败', '3 张未能生成，详见报告'],
+      ['error', '导出目录不可写', '请检查权限或换一个目录'],
+    ].map(([kind, title, desc]) =>
+      '<div class="demo-state"><div class="demo-state__name"><b>' + kind + '</b></div>' +
+      '<div class="toast toast--' + kind + '" style="position:static;max-width:none">' +
+        '<div class="toast__body"><div class="toast__title">' + title + '</div>' +
+        '<div class="toast__desc">' + desc + '</div></div>' +
+        '<button class="toast__close" aria-label="关闭">✕</button>' +
+      '</div></div>').join('') +
+      '<div class="demo-state"><div class="demo-state__name"><b>带进度</b>（后台任务）</div>' +
+      '<div class="toast toast--info" style="position:static;max-width:none">' +
+        '<div class="toast__body"><div class="toast__title">正在生成图表</div>' +
+        '<div class="toast__desc">7 / 12 张</div>' +
+        '<div class="toast__meter"><i style="width:58%"></i></div></div>' +
+      '</div></div>';
+    return '<div class="demo-pane" data-theme="' + theme + '"><div class="demo-pane__label">' +
+      theme + '</div><div class="demo-states">' + items + '</div></div>';
+  }).join('');
+  return '<section class="demo-block">' +
+    '<div class="demo-block__title">Toast <span>全局 · 不打断的信息</span></div>' +
+    '<p class="demo-block__desc">用于「已复制」「已保存」这类无需回应的反馈，3 秒自走。需用户回应才用对话框——Fusion 里 141 次 QMessageBox 大部分本该是 Toast。</p>' +
+    '<div class="demo-pair">' + panes + '</div></section>';
+}
+
+function blockProgress() {
+  const stages = [['parse','解析','done'],['scan','扫描','done'],['preload','预加载','active'],['generate','生成图表','pending']];
+  const stageItems = stages.map(([k,n,s]) =>
+    '<li class="progress__stage" data-state="' + s + '"><div class="progress__bar"><i></i></div>' +
+    '<div class="progress__label">' + n + '</div></li>').join('');
+  const errStages = stages.map(([k,n,s],i) =>
+    '<li class="progress__stage" data-state="' + (i<2?'done':i===2?'error':'pending') + '">' +
+    '<div class="progress__bar"><i></i></div><div class="progress__label">' + n + '</div></li>').join('');
+
+  const panes = ['dark','light'].map(theme =>
+    '<div class="demo-pane" data-theme="' + theme + '"><div class="demo-pane__label">' + theme + '</div>' +
+    '<div class="demo-states">' +
+      '<div class="demo-state"><div class="demo-state__name"><b>四阶段</b>（进行中）</div>' +
+        '<div class="progress"><div class="progress__head"><span class="progress__title">处理 12 个分组</span>' +
+        '<span class="progress__count">7 / 12</span></div>' +
+        '<ul class="progress__stages">' + stageItems + '</ul></div></div>' +
+      '<div class="demo-state"><div class="demo-state__name"><b>四阶段</b>（某阶段出错）</div>' +
+        '<div class="progress"><div class="progress__head"><span class="progress__title">处理 12 个分组</span>' +
+        '<span class="progress__count">失败</span></div>' +
+        '<ul class="progress__stages">' + errStages + '</ul></div></div>' +
+      '<div class="demo-state"><div class="demo-state__name"><b>单任务条</b></div>' +
+        '<div class="progress-bar"><div class="progress-bar__row"><span>生成 A-01_2026-01</span>' +
+        '<span class="progress-bar__value">58%</span></div>' +
+        '<div class="progress-bar__track"><i style="width:58%"></i></div></div></div>' +
+      '<div class="demo-state"><div class="demo-state__name"><b>不确定进度</b></div>' +
+        '<div class="progress-bar" data-indeterminate="true"><div class="progress-bar__row">' +
+        '<span>正在扫描文件…</span></div><div class="progress-bar__track"><i></i></div></div></div>' +
+    '</div></div>').join('');
+
+  return '<section class="demo-block">' +
+    '<div class="demo-block__title">进度指示 <span>V1 扫描 / 出图、V5 导出</span></div>' +
+    '<p class="demo-block__desc">两种形态：四阶段条给「有明确阶段」的流程（对应 ProcessingThread 的四段），单任务条给不知道步数的任务。阶段名必须显示——用户要知道卡在哪一步，不只是转圈。</p>' +
+    '<div class="demo-pair">' + panes + '</div></section>';
+}
+
+function blockCapacity() {
+  const panes = ['dark','light'].map(theme =>
+    '<div class="demo-pane" data-theme="' + theme + '"><div class="demo-pane__label">' + theme + '</div>' +
+    '<div class="demo-states">' +
+      '<div class="demo-state"><div class="demo-state__name"><b>两张并列</b>（不同量纲，不可互换）</div>' +
+      '<div class="capacity-row">' +
+        '<div class="capacity-card" data-emphasis="true" data-dimension="kWh">' +
+          '<div class="capacity-card__label">建议容量</div>' +
+          '<div class="capacity-card__value">216.22<span class="capacity-card__unit">kWh</span></div>' +
+          '<div class="capacity-card__compare"><span>当前</span><span class="capacity-card__from">120.00</span>' +
+          '<span class="capacity-card__delta">+96.22</span></div>' +
+          '<div class="capacity-card__basis">口径：最小可行容量 · DOD 95%</div>' +
+        '</div>' +
+        '<div class="capacity-card" data-dimension="kWh/天">' +
+          '<div class="capacity-card__label">日吞吐量</div>' +
+          '<div class="capacity-card__value">1855.12<span class="capacity-card__unit">kWh/天</span></div>' +
+          '<div class="capacity-card__compare"><span>瓶颈在</span>' +
+          '<span class="capacity-card__delta">放电侧</span></div>' +
+          '<div class="capacity-card__basis">与左侧容量不可比较：一个是装多大，一个是一天搬多少</div>' +
+        '</div>' +
+      '</div></div>' +
+      '<div class="demo-state"><div class="demo-state__name"><b>无数据</b></div>' +
+      '<div class="capacity-row"><div class="capacity-card" data-state="empty" data-dimension="kWh">' +
+        '<div class="capacity-card__label">建议容量</div>' +
+        '<div class="capacity-card__value">—<span class="capacity-card__unit">kWh</span></div>' +
+        '<div class="capacity-card__basis">先设置容量线才能测算</div></div></div></div>' +
+    '</div></div>').join('');
+  return '<section class="demo-block">' +
+    '<div class="demo-block__title">容量卡片 <span>V4 测算结果</span></div>' +
+    '<p class="demo-block__desc">数值最大、单位跟在后面不抢位置。关键：<b>容量（kWh）与日吞吐量（kWh/天）两张卡片并列但不可比较</b>，量纲写进卡片标签（data-dimension），不靠文档提醒。</p>' +
+    '<div class="demo-pair">' + panes + '</div></section>';
+}
+
+document.getElementById('root').innerHTML = blockCurve() + blockCurveReal() + blockTable() + blockToast() + blockProgress() + blockCapacity();
 
 /* 迷你块：宽扁比例（820:120），不是把标准画面压扁 */
 document.querySelectorAll('[data-cv]').forEach(host => {

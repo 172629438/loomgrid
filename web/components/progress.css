@@ -1,0 +1,160 @@
+/* ═══════════════════════════════════════════════════════════
+   进度指示 · 两种形态
+   ───────────────────────────────────────────────────────────
+   四阶段条   扫描/出图这种「有明确阶段」的流程，对应 ProcessingThread 的四段
+   单任务条   不知道总步数、只知道百分比的任务（如导出单张图）
+
+   判据：阶段名必须显示，用户要知道「卡在哪一步」，而不只是「转圈」。
+   Fusion 现在是 QProgressDialog 加一段文字，没有阶段概念。
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 四阶段 ─────────────────────────────────────── */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-2);
+}
+
+.progress__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.progress__title { color: var(--text-primary); font-size: var(--fs-sm); }
+.progress__count {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+
+.progress__stages {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.progress__stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+/* 段条：细，但不是最细 —— 要有存在感 */
+.progress__bar {
+  height: 2px;
+  background: var(--border-subtle);
+  border-radius: var(--r-1);
+  overflow: hidden;
+  position: relative;
+}
+.progress__bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width var(--t-base) ease-out;
+}
+
+.progress__label {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 三态：待做 / 进行中 / 完成 */
+.progress__stage[data-state="done"] .progress__bar i { width: 100%; background: var(--ok); }
+.progress__stage[data-state="done"] .progress__label { color: var(--text-muted); }
+
+.progress__stage[data-state="active"] .progress__bar i {
+  width: 100%;
+  background: var(--accent);
+  animation: stage-pulse var(--t-base) ease-in-out infinite alternate;
+}
+.progress__stage[data-state="active"] .progress__label { color: var(--text-primary); }
+
+.progress__stage[data-state="pending"] .progress__label { color: var(--text-faint); }
+
+.progress__stage[data-state="error"] .progress__bar i { width: 100%; background: var(--danger); }
+.progress__stage[data-state="error"] .progress__label { color: var(--danger); }
+
+@keyframes stage-pulse {
+  from { opacity: 0.45; }
+  to   { opacity: 1; }
+}
+
+/* ── 单任务条 ───────────────────────────────────── */
+.progress-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.progress-bar__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.progress-bar__value {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.progress-bar__track {
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: var(--r-1);
+  overflow: hidden;
+}
+.progress-bar__track i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--t-base) ease-out;
+}
+
+/* 不确定进度（不知道总量）：斜纹流动，不用来回跳的假进度 */
+.progress-bar[data-indeterminate="true"] .progress-bar__track i {
+  width: 35%;
+  animation: indeterminate 1.2s linear infinite;
+}
+@keyframes indeterminate {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(320%); }
+}
+
+/* 完成 / 出错 */
+.progress-bar[data-state="done"] .progress-bar__track i { background: var(--ok); }
+.progress-bar[data-state="error"] .progress-bar__track i { background: var(--danger); }
+
+/* ── 内联迷你进度（表格行内、卡片角标）─────────────── */
+.progress-dot {
+  display: inline-block;
+  width: var(--sp-2);
+  height: var(--sp-2);
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  vertical-align: middle;
+}
+.progress-dot[data-state="active"] {
+  border-color: var(--accent);
+  border-top-color: transparent;
+  animation: spin 0.8s linear infinite;
+}
+.progress-dot[data-state="done"] { background: var(--ok); border-color: var(--ok); }
+.progress-dot[data-state="error"] { background: var(--danger); border-color: var(--danger); }
+@keyframes spin { to { transform: rotate(360deg); } }
