@@ -20,6 +20,15 @@
     python tools/analyze_deps.py _parse_min _fmt_time
     python tools/analyze_deps.py --group timegrid
     python tools/analyze_deps.py --group timegrid --detail
+
+估工的正确用法（别再用入口行数）
+--------------------------------
+实测依赖扩散倍数为 1.1～1.2：
+    timegrid  入口 261 行 → 闭包 302 行
+    spaces    入口 150 行 → 闭包 277 行
+估一块的工时，先用本工具量出**闭包规模**，再乘以实测速率；
+直接拿入口函数的行数估会系统性低估，因为被带出的基础设施（缓存类、正则、
+常量、辅助函数）看不见。
 """
 from __future__ import annotations
 
