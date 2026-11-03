@@ -313,7 +313,9 @@
 }
 /* 耗时条：相对长度表达占比，比四个数字更容易看出瓶颈 */
 .v6__bars { display: flex; gap: 2px; margin-left: auto; align-items: center; }
-.v6__bar {
+/* 名字必须与顶栏 .v6__bar 区分开 —— 同名时后定义的 height/background
+   会覆盖顶栏，把整条导航压成一根蓝带（协作方截图捕获的 P0）。 */
+.v6__timebar {
   height: 4px;
   border-radius: var(--r-1);
   background: var(--accent);
@@ -594,10 +596,10 @@
     <div class="v6__stage"><span>预加载</span><span class="v6__stage-num">1.4s</span></div>
     <div class="v6__stage"><span>生成图表</span><span class="v6__stage-num">11.3s</span></div>
     <div class="v6__bars" aria-hidden="true">
-      <i class="v6__bar" style="width:6px;opacity:.4"></i>
-      <i class="v6__bar" style="width:16px;opacity:.55"></i>
-      <i class="v6__bar" style="width:11px;opacity:.7"></i>
-      <i class="v6__bar" style="width:88px"></i>
+      <i class="v6__timebar" style="width:6px;opacity:.4"></i>
+      <i class="v6__timebar" style="width:16px;opacity:.55"></i>
+      <i class="v6__timebar" style="width:11px;opacity:.7"></i>
+      <i class="v6__timebar" style="width:88px"></i>
     </div>
     <span style="margin-left:auto">总计 15.6s · 瓶颈在生成图表</span>
   </div>

@@ -63,6 +63,9 @@
   flex-direction: column;
   gap: var(--sp-3);
   padding: var(--sp-3);
+  /* grid 子项默认 min-height:auto，内容超长时不会启动滚动，
+     而是直接溢出到容器外被裁掉。必须显式归零。 */
+  min-height: 0;
   overflow: auto;
   border-right: 1px solid var(--border-subtle);
 }
