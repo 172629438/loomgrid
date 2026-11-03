@@ -28,6 +28,17 @@ full_load     满载利用率：max(min(每个配对的充、放))
     pick=<段名>     只取该段
     pick="merge"    合并前两段
     pick=None       回退到第一段（与界面默认分支一致）
+
+⚠️ 接 API 时必须传 drop_zero_placeholders=True
+----------------------------------------------------
+compute_segmented_spaces 返回的四个列表里，每个段在非本方向那一侧是占位零。
+不过滤的话 min_feasible 的 min(所有段) 与 full_load 的 max(min(每对)) 都恒为 0。
+
+本模块的 drop_zero_placeholders 参数默认 **False**，仅仅是为了保持与 v2.3.9
+界面行为一致（供对照与测试 E1 使用）。
+
+**接进 API 时忘了传 True，接口就会返回我们刚修好的那个 0。**
+阶段 2 的 /api/calc/capacity 必须显式传 True。
 """
 from __future__ import annotations
 
