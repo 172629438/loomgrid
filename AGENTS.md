@@ -249,6 +249,26 @@ gh release upload <tag> <zip> --clobber
 **铁律**：改主程序前先 `git fetch` + `git log --oneline HEAD..origin/main`，
 改完**立刻提交，不攒着**。工作区里躺着未提交的改动时，别人一保存就没了。
 
+### 分层依赖禁令（`tools/check_layering.py` 会扫 AST 强制）
+
+| 层 | 禁止 import |
+|---|---|
+| `core/` | PySide6、matplotlib、fastapi、starlette、webview |
+| `plotting/` | PySide6、fastapi、starlette、webview |
+| `services/` | PySide6、fastapi、starlette、webview |
+| `api/` | PySide6 |
+
+检查用 AST 扫 `Import` / `ImportFrom` 节点，**不靠文本匹配**——
+模块文档里写「不许 import 某某」不会误报。
+
+```bash
+python tools/check_layering.py        # 零违规退出码 0
+python tools/check_layering.py -v     # 同时打印每层实际引入了什么
+```
+
+清单写在这里而不是写在 `core/` 的模块文档里：文档里的清单会被文本 grep 误判，
+而 AGENTS.md 不在被扫描的层目录下；且它是所有协作者必读的入口，规则不会失传。
+
 ---
 
 ## 九、当前状态（每次接手时核对）
