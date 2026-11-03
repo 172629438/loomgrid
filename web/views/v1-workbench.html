@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoomGrid · V1 工作台</title>
+<link rel="stylesheet" href="../theme/tokens.css">
+<link rel="stylesheet" href="../components/base.css">
+<link rel="stylesheet" href="../components/app-shell.css">
+<link rel="stylesheet" href="../components/data-table.css">
+<link rel="stylesheet" href="../components/tree.css">
+<link rel="stylesheet" href="../components/dropzone.css">
+<link rel="stylesheet" href="../components/progress.css">
+<style>
+/* V1 是六屏里唯一「满屏表格」的一屏，信息密度最高。
+   同时它也是唯一有两个差别极大的状态：文件还没进来（空态）与
+   文件全进来了（满态）。用户第一次打开看到的是空态。 */
+
+/* 工具条：动作 + 设置。放在顶栏之下、表格之上，横向一条。 */
+.v1__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex: none;
+}
+.v1__tool-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border-subtle);
+  margin: 0 var(--sp-1);
+}
+.v1__setting {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.v1__setting .field__control {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-1);
+}
+.v1__setting .field__select {
+  padding: 2px var(--sp-2);
+  font-size: var(--fs-xs);
+  min-width: 52px;
+}
+.v1__tools-right { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
+
+/* 左栏分组树宽度：比 V3 窄，因为这一屏主角是右侧表格 */
+.v1__tree {
+  width: 216px;
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.v1__tree-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  flex: none;
+}
+.v1__tree-scroll { overflow: auto; flex: 1; min-height: 0; }
+
+/* 文件表格：满态主体 */
+.v1__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.v1__table-wrap { flex: 1; min-height: 0; overflow: auto; }
+
+/* 状态列：徽章 + 可选的行内进度点 */
+.v1__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+}
+.v1__dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+.v1__dot[data-kind="ok"] { background: var(--ok); }
+.v1__dot[data-kind="warn"] { background: var(--warn); }
+.v1__dot[data-kind="error"] { background: var(--danger); }
+.v1__dot[data-kind="idle"] { background: var(--border-strong); }
+.v1__status-text[data-kind="ok"] { color: var(--ok); }
+.v1__status-text[data-kind="warn"] { color: var(--warn); }
+.v1__status-text[data-kind="error"] { color: var(--danger); }
+.v1__status-text[data-kind="idle"] { color: var(--text-muted); }
+.v1__status-text[data-kind="busy"] { color: var(--accent); }
+
+/* 空态：拖放区居中，两侧留白但不铺满 —— 拖放目标太大反而不好瞄 */
+.v1__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  flex: 1;
+  min-height: 0;
+  padding: var(--sp-6);
+}
+.v1__empty-inner { width: 100%; max-width: 560px; }
+
+/* 空态下方的三条提示：告诉用户「能吃什么、会发生什么、下一步」
+   新用户第一次打开看到的就是这块，它比任何功能都重要。 */
+.v1__empty-hints {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+.v1__hint-card {
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid var(--border-strong);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.v1__hint-card b {
+  display: block;
+  color: var(--text-secondary);
+  font-weight: 400;
+  font-size: var(--fs-sm);
+  margin-bottom: 2px;
+}
+
+/* 状态栏：底栏的读数，等宽 */
+.v1__statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+.v1__statusbar b { color: var(--text-muted); font-weight: 400; }
+.v1__statusbar-sep { width: 1px; align-self: stretch; background: var(--border-subtle); }
+
+/* 满态 / 空态切换（仅演示用，真实产品由数据决定） */
+.v1__demo-toggle {
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-1);
+  padding: 1px var(--sp-1);
+  cursor: pointer;
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- 顶栏：骨架统一 -->
+  <div class="shell__bar">
+    <span class="shell__title">LoomGrid Fusion</span>
+    <span class="shell__ctx">5 个文件 · 147 个分组 · 12.8 MB</span>
+    <div class="shell__bar-right">
+      <button class="v1__demo-toggle" id="demoToggle">演示：切到空态</button>
+      <button class="btn" id="themeBtn">界面主题：深色</button>
+    </div>
+  </div>
+
+  <!-- 工具条 -->
+  <div class="v1__tools">
+    <button class="btn btn--primary">添加文件</button>
+    <button class="btn">移除选中</button>
+    <button class="btn">清空</button>
+    <div class="v1__tool-sep"></div>
+    <div class="v1__setting">
+      <span>扫描并发</span>
+      <div class="field__control"><select class="field__select"><option>4</option><option>2</option><option>8</option></select></div>
+    </div>
+    <div class="v1__setting">
+      <span>出图进程</span>
+      <div class="field__control"><select class="field__select"><option>4</option><option>2</option><option>8</option></select></div>
+    </div>
+    <div class="v1__tools-right">
+      <button class="btn">专业模式</button>
+      <button class="btn btn--primary">开始处理</button>
+    </div>
+  </div>
+
+  <!-- 满态 -->
+  <div class="shell__body" data-layout="narrow-left" id="fullState">
+
+    <!-- 左：分组树 -->
+    <div class="v1__tree">
+      <div class="v1__tree-head">
+        <span>分组</span>
+        <span style="margin-left:auto;font-family:var(--font-num)">147</span>
+      </div>
+      <div class="v1__tree-scroll">
+        <div class="tree">
+          <div class="tree__node" data-depth="0" data-expanded="true">
+            <span class="tree__check" data-state="on"></span>
+            <button class="tree__caret">▸</button>
+            <span class="tree__name">A栋负荷2026.xlsx</span>
+            <span class="tree__meta">12</span>
+          </div>
+          <div class="tree__node" data-depth="1" data-expanded="true">
+            <span class="tree__check" data-state="on"></span>
+            <button class="tree__caret">▸</button>
+            <span class="tree__name">A-01</span>
+            <span class="tree__meta">6</span>
+          </div>
+          <div class="tree__node" data-depth="2" data-selected="true">
+            <span class="tree__check" data-state="on"></span>
+            <button class="tree__caret" data-leaf="true">▸</button>
+            <span class="tree__name">2026-01</span>
+            <span class="tree__meta">31 天</span>
+          </div>
+          <div class="tree__node" data-depth="2">
+            <span class="tree__check" data-state="on"></span>
+            <button class="tree__caret" data-leaf="true">▸</button>
+            <span class="tree__name">2026-02</span>
+            <span class="tree__meta">28 天</span>
+          </div>
+          <div class="tree__node" data-depth="2" data-last="true">
+            <span class="tree__check" data-state="off"></span>
+            <button class="tree__caret" data-leaf="true">▸</button>
+            <span class="tree__name">2026-03</span>
+            <span class="tree__meta">31 天</span>
+          </div>
+          <div class="tree__node" data-depth="1" data-last="true" data-disabled="true">
+            <span class="tree__check" data-state="off"></span>
+            <button class="tree__caret">▸</button>
+            <span class="tree__name">A-02</span>
+            <i class="tree__flag" data-kind="warn"></i>
+            <span class="tree__meta">6</span>
+          </div>
+          <div class="tree__node" data-depth="0">
+            <span class="tree__check" data-state="partial"></span>
+            <button class="tree__caret">▸</button>
+            <span class="tree__name">B&amp;C楼&lt;综合&gt;.xlsx</span>
+            <span class="tree__meta">8</span>
+          </div>
+          <div class="tree__node" data-depth="0" data-last="true" data-disabled="true">
+            <span class="tree__check" data-state="off"></span>
+            <button class="tree__caret">▸</button>
+            <span class="tree__name">老厂区示数表.xls</span>
+            <i class="tree__flag" data-kind="error"></i>
+            <span class="tree__meta">4</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：文件表格 -->
+    <div class="v1__main">
+      <div class="v1__table-wrap data-table">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:32px"><input type="checkbox" aria-label="全选"></th>
+              <th>源文件</th>
+              <th style="width:72px">分组</th>
+              <th style="width:72px" data-align="right" data-type="num">时刻点</th>
+              <th style="width:96px" data-align="right" data-type="num">最小负荷</th>
+              <th style="width:96px" data-align="right" data-type="num">最大负荷</th>
+              <th style="width:104px">状态</th>
+              <th style="width:120px">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="sel">
+              <td><span class="chk on"></span></td>
+              <td>A栋负荷2026.xlsx</td><td>6</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">312.4</td>
+              <td data-align="right" data-type="num">1048.2</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="ok"></i><span class="v1__status-text" data-kind="ok">就绪</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">预览</button></td>
+            </tr>
+            <tr>
+              <td><span class="chk on"></span></td>
+              <td>B&amp;C楼&lt;综合&gt;.xlsx</td><td>8</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">88.1</td>
+              <td data-align="right" data-type="num">642.9</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="warn"></i><span class="v1__status-text" data-kind="warn">需确认</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">核对映射</button></td>
+            </tr>
+            <tr>
+              <td><span class="chk on"></span></td>
+              <td>光伏倒送_2026Q1.csv</td><td>3</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">-186.3</td>
+              <td data-align="right" data-type="num">421.0</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="ok"></i><span class="v1__status-text" data-kind="ok">就绪</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">预览</button></td>
+            </tr>
+            <tr data-disabled="true">
+              <td><span class="chk"></span></td>
+              <td>老厂区示数表.xls</td><td>—</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">204.0</td>
+              <td data-align="right" data-type="num">886.4</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="error"></i><span class="v1__status-text" data-kind="error">解析失败</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">看原因</button></td>
+            </tr>
+            <tr>
+              <td><span class="chk on"></span></td>
+              <td>D区冷库.xlsx</td><td>4</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">512.8</td>
+              <td data-align="right" data-type="num">1204.6</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="ok"></i><span class="v1__status-text" data-kind="ok">就绪</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">预览</button></td>
+            </tr>
+            <tr>
+              <td><span class="chk on"></span></td>
+              <td>E厂注塑线.xlsx</td><td>3</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">426.7</td>
+              <td data-align="right" data-type="num">972.1</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="busy"></i><span class="v1__status-text" data-kind="busy">处理中</span></span></td>
+              <td><span class="progress-dot" data-state="active"></span></td>
+            </tr>
+            <tr>
+              <td><span class="chk"></span></td>
+              <td>F仓储中心.xlsx</td><td>12</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">96.3</td>
+              <td data-align="right" data-type="num">288.5</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="ok"></i><span class="v1__status-text" data-kind="ok">就绪</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">预览</button></td>
+            </tr>
+            <tr>
+              <td><span class="chk on"></span></td>
+              <td>G化工园区.xlsx</td><td>6</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">724.5</td>
+              <td data-align="right" data-type="num">1421.3</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="ok"></i><span class="v1__status-text" data-kind="ok">就绪</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">预览</button></td>
+            </tr>
+            <tr>
+              <td><span class="chk on"></span></td>
+              <td>H数据中心.xlsx</td><td>4</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">882.0</td>
+              <td data-align="right" data-type="num">936.7</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="ok"></i><span class="v1__status-text" data-kind="ok">就绪</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">预览</button></td>
+            </tr>
+            <tr>
+              <td><span class="chk on"></span></td>
+              <td>I物流园.csv</td><td>2</td>
+              <td data-align="right" data-type="num">1440</td>
+              <td data-align="right" data-type="num">142.8</td>
+              <td data-align="right" data-type="num">398.2</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="ok"></i><span class="v1__status-text" data-kind="ok">就绪</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">预览</button></td>
+            </tr>
+            <tr>
+              <td><span class="chk on"></span></td>
+              <td>J食品加工.xlsx</td><td>5</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">368.9</td>
+              <td data-align="right" data-type="num">815.4</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="ok"></i><span class="v1__status-text" data-kind="ok">就绪</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">预览</button></td>
+            </tr>
+            <tr>
+              <td><span class="chk on"></span></td>
+              <td>K制造车间.xlsx</td><td>9</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">258.1</td>
+              <td data-align="right" data-type="num">734.5</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="ok"></i><span class="v1__status-text" data-kind="ok">就绪</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">预览</button></td>
+            </tr>
+            <tr>
+              <td><span class="chk"></span></td>
+              <td>L商业综合体.xlsx</td><td>7</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">412.6</td>
+              <td data-align="right" data-type="num">1096.8</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="ok"></i><span class="v1__status-text" data-kind="ok">就绪</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">预览</button></td>
+            </tr>
+            <tr>
+              <td><span class="chk on"></span></td>
+              <td>M职教中心.xlsx</td><td>4</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">186.4</td>
+              <td data-align="right" data-type="num">521.7</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="ok"></i><span class="v1__status-text" data-kind="ok">就绪</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">预览</button></td>
+            </tr>
+            <tr>
+              <td><span class="chk on"></span></td>
+              <td>N冷链物流.xlsx</td><td>3</td>
+              <td data-align="right" data-type="num">96</td>
+              <td data-align="right" data-type="num">634.2</td>
+              <td data-align="right" data-type="num">1288.9</td>
+              <td><span class="v1__status"><i class="v1__dot" data-kind="ok"></i><span class="v1__status-text" data-kind="ok">就绪</span></span></td>
+              <td><button class="btn" style="padding:1px 6px;font-size:var(--fs-xs)">预览</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 空态 -->
+  <div class="v1__empty" id="emptyState" style="display:none">
+    <div class="v1__empty-inner">
+      <div class="dropzone" data-state="idle">
+        <div class="dropzone__title">拖入负荷数据文件</div>
+        <div class="dropzone__desc">支持宽表、长表、转置表与示数表，自动识别列</div>
+        <div class="dropzone__formats">.xlsx · .xlsm · .xls · .csv · .xlsb</div>
+        <div class="dropzone__actions">
+          <button class="btn btn--primary">选择文件</button>
+          <span style="font-size:var(--fs-xs);color:var(--text-faint)">或整窗拖入</span>
+        </div>
+      </div>
+
+      <div class="v1__empty-hints">
+        <div class="v1__hint-card">
+          <b>1 · 认列</b>
+          自动识别日期、时刻与负荷列，识别不确定时让你确认
+        </div>
+        <div class="v1__hint-card">
+          <b>2 · 看图</b>
+          按分组生成负荷曲线，峰值与容量线直接标在图上
+        </div>
+        <div class="v1__hint-card">
+          <b>3 · 导出</b>
+          PNG 图表 + 中间宽表 + HTML 报告，文件名按模板生成
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底栏：状态栏读数 -->
+  <div class="shell__foot">
+    <div class="v1__statusbar">
+      <span><b id="sb-files">5</b> 个文件</span>
+      <span class="v1__statusbar-sep"></span>
+      <span><b id="sb-groups">147</b> 个分组</span>
+      <span class="v1__statusbar-sep"></span>
+      <span><b>12.8</b> MB</span>
+      <span class="v1__statusbar-sep"></span>
+      <span>最近扫描 <b>0.8</b> s</span>
+      <span class="v1__statusbar-sep"></span>
+      <span>配置已加载 · <b>14</b> 版</span>
+    </div>
+    <div class="shell__actions">
+      <span style="font-size:var(--fs-xs);color:var(--text-faint)" id="sb-hint">已选 10 / 14 个文件</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// 主题：全局唯一入口
+const root = document.documentElement;
+const tbtn = document.getElementById('themeBtn');
+function syncTheme() {
+  tbtn.textContent = '界面主题：' + (root.dataset.theme === 'dark' ? '深色' : '浅色');
+}
+tbtn.addEventListener('click', () => {
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  syncTheme();
+});
+syncTheme();
+
+// 空态 / 满态切换：真实产品由「有没有文件」决定，
+// 这里给一个演示开关，因为两态的差别必须都看到。
+const full = document.getElementById('fullState');
+const empty = document.getElementById('emptyState');
+const dt = document.getElementById('demoToggle');
+const sbHint = document.getElementById('sb-hint');
+let isEmpty = new URLSearchParams(location.search).get('state') === 'empty';
+
+function render() {
+  full.style.display = isEmpty ? 'none' : '';
+  empty.style.display = isEmpty ? 'flex' : 'none';
+  dt.textContent = isEmpty ? '演示：切到满态' : '演示：切到空态';
+  sbHint.textContent = isEmpty ? '等待添加文件' : '已选 10 / 14 个文件';
+}
+dt.addEventListener('click', () => { isEmpty = !isEmpty; render(); });
+render();
+
+// 表格全选
+const all = document.querySelector('thead input[type=checkbox]');
+all.addEventListener('change', () => {
+  document.querySelectorAll('tbody .chk').forEach(c => c.classList.toggle('on', all.checked));
+});
+</script>
+</body>
+</html>
