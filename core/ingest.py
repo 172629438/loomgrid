@@ -143,6 +143,19 @@ def _extract_ym(d):
             pass
         return "未知月份"
 
+    # M/D 与 M-D 同义的无年份日期。必须在 pd.to_datetime 之前处理：
+    # '1/32' 会被 pd.to_datetime 当成「1 月 / 32 年」→ 2032-01，
+    # 年份 >= 1900 就跑不进任何合理性检查。这里先接下并校验日号。
+    _md3 = re.match(r"^(\d{1,2})[-/](\d{1,2})$", raw)
+    if _md3:
+        _mm, _dd = int(_md3.group(1)), int(_md3.group(2))
+        if 1 <= _mm <= 12 and 1 <= _dd <= 31:
+            import datetime as _dt3
+            _y3 = _dt3.date.today().year
+            log.warning(f"日期 '{raw}' 无年份，按 {_y3} 年处理；如属往年请指定年份")
+            return "%s-%02d" % (_y3, _mm)
+        return UNKNOWN_MONTH
+
     try:
         # 用 raw（已转字符串）而不是 d：pd.to_datetime(0) 会得到 1970-01，
         # 而 pd.to_datetime('0') 是 NaT。数字一律只能走上面的序列号分支。
@@ -151,16 +164,6 @@ def _extract_ym(d):
             # 年份 < 1900 一律视为解析失败：0001-01 是 pd.to_datetime 对
             # 无法识别的格式给出的「像日期的东西」，比报错更难发现。
             if dt.year < 1900:
-                # M-D 形式（无年份）：'01-15' 被 pd.to_datetime 当成公元 1 年。
-                # 月份合法时补今年并留警告；否则确实无法识别。
-                _md2 = re.match(r"^(\d{1,2})-(\d{1,2})$", raw)
-                if _md2 and 1 <= int(_md2.group(1)) <= 12:
-                    import datetime as _dt2
-                    _y2 = _dt2.date.today().year
-                    log.warning(
-                        f"日期 '{raw}' 无年份，按 {_y2} 年处理；如属往年请指定年份"
-                    )
-                    return "%s-%02d" % (_y2, int(_md2.group(1)))
                 log.warning(f"日期 '{raw}' 解析出年份 {dt.year}，视为无法识别")
                 return UNKNOWN_MONTH
             return dt.strftime("%Y-%m")
