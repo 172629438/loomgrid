@@ -42,9 +42,17 @@ def strip_comments(css: str) -> str:
     return re.sub(r"/\*.*?\*/", "", css, flags=re.S)
 
 
+STYLE_BLOCK = re.compile(r"<style[^>]*>(.*?)</style>", re.S | re.I)
+
+
 def scan(path: str) -> dict:
     raw = open(path, encoding="utf-8", errors="replace").read()
-    css = strip_comments(raw)
+    # HTML 只取 <style> 块：行内 style="..." 多是布局参数（列宽、flex），
+    # 强行套设计令牌判据会产生大量假阳性，反而训练人忽略红叉。
+    if path.lower().endswith((".html", ".htm")):
+        css = strip_comments("\n".join(STYLE_BLOCK.findall(raw)))
+    else:
+        css = strip_comments(raw)
     out = {"裸字号": [], "裸颜色": [], "box-shadow": [], "裸圆角": [], "裸动效": []}
     for i, line in enumerate(css.splitlines(), 1):
         for m in DECL.finditer(line):
@@ -70,12 +78,22 @@ def scan(path: str) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="组件层体检")
-    ap.add_argument("--dir", default=os.path.join(ROOT, "web", "components"))
+    ap.add_argument("--dir", default=None,
+                    help="只扫指定目录；省略则扫 components/*.css + views/*.html")
     a = ap.parse_args()
 
-    files = sorted(glob.glob(os.path.join(a.dir, "*.css")))
+    if a.dir:
+        files = sorted(glob.glob(os.path.join(a.dir, "*.css")))
+        src_desc = a.dir
+    else:
+        # 视图也是「会被看着判断」的地方，一次性样式同样会从这里渗进去。
+        files = sorted(
+            glob.glob(os.path.join(ROOT, "web", "components", "*.css"))
+            + glob.glob(os.path.join(ROOT, "web", "views", "*.html"))
+        )
+        src_desc = "web/components + web/views"
     if not files:
-        print(f"{a.dir} 下没有 css")
+        print(f"{src_desc} 下没有可扫文件")
         return 2
 
     hard = 0

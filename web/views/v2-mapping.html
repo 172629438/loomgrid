@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoomGrid · V2 列映射</title>
+<link rel="stylesheet" href="../theme/tokens.css">
+<link rel="stylesheet" href="../components/base.css">
+<link rel="stylesheet" href="../components/param-form.css">
+<link rel="stylesheet" href="../components/data-table.css">
+<style>
+/* V2 布局：左「解析与映射」固定 340，右「列名与样本」吃掉剩余宽度。
+   一屏里同时看到「我选了什么」和「选出来是什么」，不用来回滚。 */
+.v2 {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg-canvas);
+}
+
+/* 顶栏：全局导航 + 界面主题（全局唯一入口） */
+.v2__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex: none;
+}
+.v2__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
+  cursor: pointer;
+}
+.v2__back:hover { color: var(--text-primary); border-color: var(--border-strong); }
+.v2__title {
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+}
+.v2__file {
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  padding-left: var(--sp-3);
+  border-left: 1px solid var(--border-subtle);
+}
+.v2__bar-right { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
+
+/* 主体：两栏 */
+.v2__body {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+.v2__left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  overflow: auto;
+  border-right: 1px solid var(--border-subtle);
+}
+.v2__right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* 区块标题：比分组标题更轻，只是视觉分隔 */
+.v2__sec {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  padding-bottom: var(--sp-1);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.v2__sec-note {
+  margin-left: auto;
+  font-family: var(--font-num);
+  color: var(--text-faint);
+}
+
+/* 表型提示条：识别结论。是信息不是错误，所以走中性底 + 前缀点 */
+.v2__hint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  background: var(--bg-raised);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--r-1);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+.v2__hint[data-kind="warn"] { border-left-color: var(--warn); }
+.v2__hint[data-kind="muted"] { border-left-color: var(--border-strong); color: var(--text-muted); }
+
+/* 格式三选：横向分块，不用下拉 —— 三种形态用户的判断成本高，必须并排比较 */
+.v2__formats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-1);
+}
+.v2__fmt {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-1);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.v2__fmt:hover { border-color: var(--border-strong); background: var(--bg-surface); }
+.v2__fmt[data-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent-weak);
+  color: var(--text-primary);
+}
+.v2__fmt input { position: absolute; opacity: 0; width: 0; height: 0; }
+.v2__fmt-mark {
+  flex: none;
+  width: 11px; height: 11px;
+  margin-top: 3px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.v2__fmt[data-checked="true"] .v2__fmt-mark { border-color: var(--accent); }
+.v2__fmt[data-checked="true"] .v2__fmt-mark::after {
+  content: "";
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.v2__fmt-body { min-width: 0; }
+.v2__fmt-name { display: block; }
+.v2__fmt-desc {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  margin-top: 1px;
+}
+.v2__fmt[data-checked="true"] .v2__fmt-desc { color: var(--text-muted); }
+
+/* 右栏：列名表 + 样本表上下分 */
+.v2__pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.v2__pane + .v2__pane { border-top: 1px solid var(--border-subtle); }
+.v2__pane-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  flex: none;
+}
+.v2__pane-head .v2__sec-note { margin-left: auto; }
+.v2__scroll { overflow: auto; flex: 1; min-height: 0; }
+
+/* 底栏：三个选项 + 动作 */
+.v2__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex: none;
+}
+.v2__opts { display: flex; flex-direction: column; gap: 2px; }
+.v2__opt {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.v2__opt input { accent-color: var(--accent); }
+.v2__actions { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
+
+/* 相似度：作为一列读数，等宽右对齐 */
+.v2__sim {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+.v2__sim[data-good="true"] { color: var(--ok); }
+
+/* 映射状态灯：四列各自的完成度 */
+.v2__dots { display: inline-flex; gap: 3px; margin-left: var(--sp-2); }
+.v2__dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.v2__dot[data-on="true"] { background: var(--ok); }
+.v2__dot[data-optional="true"][data-on="false"] { background: var(--border-subtle); }
+</style>
+</head>
+<body>
+<div class="v2">
+
+  <!-- 顶栏：导航 + 全局界面主题 -->
+  <div class="v2__bar">
+    <button class="v2__back">← 返回工作台</button>
+    <span class="v2__title">列映射</span>
+    <span class="v2__file">A栋负荷2026.xlsx · Sheet1 · 多工作表</span>
+    <div class="v2__bar-right">
+      <button class="btn" id="themeBtn">界面主题：深色</button>
+    </div>
+  </div>
+
+  <div class="v2__body">
+
+    <!-- 左：解析与映射 -->
+    <div class="v2__left">
+
+      <div class="v2__sec">解析设置 <span class="v2__sec-note">3 项</span></div>
+
+      <div class="form">
+        <div class="field">
+          <span class="field__label">标题行</span>
+          <div class="field__control"><input class="field__input" data-kind="num" value="1"></div>
+          <div class="field__hint">从 1 开始计数</div>
+        </div>
+        <div class="field">
+          <span class="field__label">编码</span>
+          <div class="field__control">
+            <select class="field__select">
+              <option>自动检测（gb18030）</option>
+              <option>utf-8</option>
+              <option>utf-8-sig</option>
+              <option>gbk</option>
+              <option>latin1</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field__label">分隔符</span>
+          <div class="field__control">
+            <select class="field__select"><option>自动</option><option>逗号</option><option>制表符</option><option>分号</option></select>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn" style="align-self:flex-start">刷新列名</button>
+
+      <div class="v2__sec">数据格式 <span class="v2__sec-note">已自动识别</span></div>
+
+      <div class="v2__formats" role="radiogroup" aria-label="数据格式">
+        <label class="v2__fmt" data-checked="false">
+          <input type="radio" name="fmt" value="long">
+          <span class="v2__fmt-mark"></span>
+          <span class="v2__fmt-body">
+            <span class="v2__fmt-name">长表</span>
+            <span class="v2__fmt-desc">单列负荷 + 独立的日期列与时间列</span>
+          </span>
+        </label>
+        <label class="v2__fmt" data-checked="true">
+          <input type="radio" name="fmt" value="wide" checked>
+          <span class="v2__fmt-mark"></span>
+          <span class="v2__fmt-body">
+            <span class="v2__fmt-name">宽表</span>
+            <span class="v2__fmt-desc">多列时间点负荷，时刻从列名识别</span>
+          </span>
+        </label>
+        <label class="v2__fmt" data-checked="false">
+          <input type="radio" name="fmt" value="acc">
+          <span class="v2__fmt-mark"></span>
+          <span class="v2__fmt-body">
+            <span class="v2__fmt-name">正向有功示数表</span>
+            <span class="v2__fmt-desc">多列累积电度，自动差分计算功率</span>
+          </span>
+        </label>
+      </div>
+
+      <div class="v2__hint">
+        <span class="v2__fmt-mark" style="border-color:var(--accent);background:var(--accent);margin-top:2px"></span>
+        <span>检测到多列时间点负荷（宽表格式），时刻将从列名自动识别</span>
+      </div>
+
+      <div class="v2__sec">
+        映射设置
+        <span class="v2__dots">
+          <i class="v2__dot" data-on="true"></i>
+          <i class="v2__dot" data-on="false" data-optional="true"></i>
+          <i class="v2__dot" data-on="false" data-optional="true"></i>
+          <i class="v2__dot" data-on="true"></i>
+        </span>
+        <span class="v2__sec-note">2 必填 / 2 可选</span>
+      </div>
+
+      <div class="form">
+        <div class="field">
+          <span class="field__label">日期列<abbr>*</abbr></span>
+          <div class="field__control">
+            <select class="field__select"><option>日期</option><option>日期时间</option><option>时间</option></select>
+          </div>
+          <div class="field__hint">已自动匹配（相似度 100%）</div>
+        </div>
+        <div class="field">
+          <span class="field__label">时间列</span>
+          <div class="field__control">
+            <select class="field__select"><option>（不适用）</option><option>时间</option></select>
+          </div>
+          <div class="field__hint">宽表/示数表无需选择，时刻从列名识别</div>
+        </div>
+        <div class="field">
+          <span class="field__label">资产列</span>
+          <div class="field__control">
+            <select class="field__select"><option>（未选择）</option><option>户号</option><option>表号</option><option>资产</option></select>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field__label">负荷列<abbr>*</abbr></span>
+          <div class="field__control">
+            <input class="field__input" value="96 列（00:00 – 23:45）" readonly>
+            <span class="field__unit">列</span>
+          </div>
+          <div class="field__hint">宽表格式已自动勾选全部时刻列</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：列名与样本 -->
+    <div class="v2__right">
+
+      <div class="v2__pane">
+        <div class="v2__pane-head">
+          列名 <span class="v2__sec-note">98 列 · 已匹配 2 / 4</span>
+        </div>
+        <div class="v2__scroll">
+          <table class="table">
+            <thead><tr>
+              <th style="width:44px">#</th>
+              <th>列名</th>
+              <th style="width:120px">自动匹配为</th>
+              <th style="width:88px">相似度</th>
+            </tr></thead>
+            <tbody>
+              <tr class="sel"><td>1</td><td>日期</td><td>日期列</td><td><span class="v2__sim" data-good="true">100%</span></td></tr>
+              <tr class="sel"><td>2</td><td>户号</td><td>资产列</td><td><span class="v2__sim" data-good="true">92%</span></td></tr>
+              <tr><td>3</td><td>00:00</td><td>负荷列</td><td><span class="v2__sim" data-good="true">100%</span></td></tr>
+              <tr><td>4</td><td>00:15</td><td>负荷列</td><td><span class="v2__sim" data-good="true">100%</span></td></tr>
+              <tr><td>5</td><td>00:30</td><td>负荷列</td><td><span class="v2__sim" data-good="true">100%</span></td></tr>
+              <tr><td>6</td><td>00:45</td><td>负荷列</td><td><span class="v2__sim" data-good="true">100%</span></td></tr>
+              <tr><td>7</td><td>01:00</td><td>负荷列</td><td><span class="v2__sim" data-good="true">100%</span></td></tr>
+              <tr><td>8</td><td>01:15</td><td>负荷列</td><td><span class="v2__sim" data-good="true">100%</span></td></tr>
+              <tr><td>—</td><td colspan="3" style="color:var(--text-faint);text-align:center;padding:var(--sp-3)">… 其余 90 个时刻列已自动勾选</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="v2__pane" style="flex:0 0 42%">
+        <div class="v2__pane-head">
+          样本数据 <span class="v2__sec-note">前 5 行 · 6 列</span>
+        </div>
+        <div class="v2__scroll">
+          <table class="table">
+            <thead><tr>
+              <th style="width:88px">日期</th><th style="width:64px">户号</th>
+              <th>00:00</th><th>00:15</th><th>00:30</th><th>00:45</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>2026-01-01</td><td>1002</td><td>312.4</td><td>308.9</td><td>301.2</td><td>298.7</td></tr>
+              <tr><td>2026-01-02</td><td>1002</td><td>305.1</td><td>302.6</td><td>299.4</td><td>297.2</td></tr>
+              <tr><td>2026-01-03</td><td>1002</td><td>418.3</td><td>412.0</td><td>405.6</td><td>399.1</td></tr>
+              <tr><td>2026-01-04</td><td>1002</td><td>286.7</td><td>284.2</td><td>281.9</td><td>280.5</td></tr>
+              <tr><td>2026-01-05</td><td>1002</td><td>329.8</td><td>326.4</td><td>321.7</td><td>318.3</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底栏：选项 + 动作 -->
+  <div class="v2__foot">
+    <div class="v2__opts">
+      <label class="v2__opt"><input type="checkbox" checked> 保存此配置以便下次自动推荐</label>
+      <label class="v2__opt"><input type="checkbox"> 应用到本次所有文件</label>
+    </div>
+    <label class="v2__opt" style="margin-left:var(--sp-4)"><input type="checkbox"> 跳过手动确认</label>
+    <div class="v2__actions">
+      <button class="btn">跳过此文件</button>
+      <button class="btn">取消全部</button>
+      <button class="btn btn--primary">确认</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// 界面主题：全局唯一入口。切换只改根节点 data-theme，所有视图共用。
+const root = document.documentElement;
+const btn = document.getElementById('themeBtn');
+function sync() {
+  const dark = root.dataset.theme === 'dark';
+  btn.textContent = '界面主题：' + (dark ? '深色' : '浅色');
+}
+btn.addEventListener('click', () => {
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  sync();
+});
+sync();
+
+// 格式单选：视觉态靠 data-checked，逻辑值仍由原生 radio 承担
+document.querySelectorAll('.v2__fmt').forEach(el => {
+  const input = el.querySelector('input');
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.v2__fmt').forEach(o => o.dataset.checked = 'false');
+    el.dataset.checked = 'true';
+    input.checked = true;
+  });
+});
+</script>
+</body>
+</html>
