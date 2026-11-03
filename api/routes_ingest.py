@@ -237,6 +237,30 @@ def apply_mapping(req: MappingRequest):
                     data=InspectMappingData(groups=groups, session_id=sid).model_dump()).model_dump()
 
 
+@router.get("/groups", response_model=Envelope)
+def list_groups(session_id: str):
+    """列出某个 session 的分组摘要（含日期类型与是否有数据）。
+
+    V4 的月度表按分组循环，V3 的分组树也用这个。
+    """
+    sess = get_session(session_id)
+    if not sess:
+        return _err("INGEST_SESSION_NOT_FOUND", f"session 不存在或已过期：{session_id}")
+    raw = sess.get("groups") or []
+    out = [GroupInfo(asset=g.get("asset_value", "未命名"),
+                     month=g.get("month_str", ""),
+                     date_count=int(g.get("date_count", 0)),
+                     time_points=int(g.get("time_points", 0)),
+                     min_val=g.get("min_val"), max_val=g.get("max_val"),
+                     dates=_build_days(g.get("month_str", ""), g.get("dates") or []))
+           for g in raw]
+    return Envelope(ok=True, data={
+        "session_id": session_id,
+        "path": os.path.basename(sess.get("path") or ""),
+        "groups": [g.model_dump() for g in out],
+    })
+
+
 def get_session(sid: str) -> dict | None:
     with _SESSION_LOCK:
         return _SESSIONS.get(sid)

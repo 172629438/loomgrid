@@ -117,7 +117,7 @@
   <div class="shell__bar">
     <button class="shell__back">← 返回预览</button>
     <span class="shell__title">容量测算</span>
-    <span class="shell__ctx">A-01 · 2026-01 · 31 天 · 96 点</span>
+    <span class="shell__ctx" id="ctx">A-01 · 2026-01 · 31 天 · 96 点</span>
     <div class="shell__bar-right">
       <button class="btn" id="themeBtn">界面主题：深色</button>
     </div>
@@ -147,7 +147,7 @@
         <div class="field">
           <span class="field__label">忽略负值</span>
           <div class="field__control" style="background:none;border:0;padding-left:var(--sp-2)">
-            <label class="switch"><input type="checkbox" checked><span class="switch__track"></span>光伏返送不计入</label>
+            <label class="switch"><input type="checkbox" id="ignoreNeg"><span class="switch__track"></span>光伏返送不计入</label>
           </div>
         </div>
         <div class="field">
@@ -206,7 +206,7 @@
 
       <div class="shell__sec">测算结果 <span class="shell__sec-note">实时</span></div>
 
-      <div class="v4__result">
+      <div class="v4__result" id="capResult">
         <div class="v4__result-row">
           <span class="v4__result-label">配置容量</span>
           <span class="v4__result-value" data-strong="true">216.22<span class="v4__result-unit">kWh</span></span>
@@ -262,19 +262,19 @@
         </div>
         <div class="shell__scroll data-table">
           <table>
-            <thead>
+            <thead id="monthHead">
               <tr>
                 <th style="width:64px">月份</th>
                 <th data-align="right" data-type="num">充电1</th>
-                <th data-align="right" data-type="num">充电2</th>
                 <th data-align="right" data-type="num">放电1</th>
+                <th data-align="right" data-type="num">充电2</th>
                 <th data-align="right" data-type="num">放电2</th>
-                <th data-align="right" data-type="num">平段</th>
+                <th data-align="right" data-type="num">放电3</th>
                 <th data-align="right" data-type="num">最小段总和</th>
                 <th data-align="right" data-type="num">日最小</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="monthRows">
               <tr class="sel">
                 <td>2026-01</td>
                 <td data-align="right" data-type="num">18,240.0</td>
@@ -420,7 +420,7 @@
                 <th style="width:72px">满足</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="dayRows">
               <tr class="sel"><td>2026-01-01</td><td data-align="right" data-type="num">1,024.0</td><td data-align="right" data-type="num">880.0</td><td data-align="right" data-type="num">880.0</td><td data-align="right" data-type="num">211.4</td><td>是</td></tr>
               <tr><td>2026-01-02</td><td data-align="right" data-type="num">982.0</td><td data-align="right" data-type="num">842.0</td><td data-align="right" data-type="num">842.0</td><td data-align="right" data-type="num">202.3</td><td>是</td></tr>
               <tr><td>2026-01-03</td><td data-align="right" data-type="num">1,186.0</td><td data-align="right" data-type="num">1,014.0</td><td data-align="right" data-type="num">1,014.0</td><td data-align="right" data-type="num">243.6</td><td>是</td></tr>
@@ -457,6 +457,168 @@ btn.addEventListener('click', () => {
   sync();
 });
 sync();
+
+// ── 接线：session → groups → 逐月 spaces → 月度表 ──────────
+const API_BASE = (location.protocol === 'file:' || location.port === '8899')
+  ? 'http://127.0.0.1:8000' : '';
+
+const QS = new URLSearchParams(location.search);
+const SESSION = QS.get('session') || '';
+const ctxEl = document.getElementById('ctx');
+const ignoreNegEl = document.getElementById('ignoreNeg');
+
+// V4 的默认时段（后续接时段配置器）
+const SEGMENTS = [
+  { start: 0.0,  end: 8.0,  type: 'charge',    label: '充电1' },
+  { start: 8.0,  end: 11.0, type: 'discharge', label: '放电1' },
+  { start: 11.0, end: 14.0, type: 'charge',    label: '充电2' },
+  { start: 14.0, end: 18.0, type: 'discharge', label: '放电2' },
+  { start: 18.0, end: 21.0, type: 'discharge', label: '放电3' },
+];
+
+function fmt(n, d) {
+  if (n == null || Number.isNaN(n)) return '—';
+  return Number(n).toLocaleString('zh-CN', { minimumFractionDigits: d == null ? 1 : d, maximumFractionDigits: d == null ? 1 : d });
+}
+
+// 把 segments（每段逐日数组）汇总成一行月度数据
+function summarize(segs, ndays) {
+  const rows = [];
+  for (let day = 0; day < ndays; day++) {
+    const vals = [];
+    const per = {};
+    for (const s of segs) {
+      const v = s.type === 'charge' ? s.charge[day] : s.discharge[day];
+      if (s.type === 'charge' && v !== 0) vals.push(v);
+      if (s.type === 'discharge' && v !== 0) vals.push(v);
+      per[s.label] = (per[s.label] || 0) + (v || 0);
+    }
+    rows.push({ day, vals, per, dailyMin: vals.length ? Math.min(...vals) : 0 });
+  }
+  const total = {};
+  for (const s of segs) {
+    total[s.label] = s.type === 'charge'
+      ? s.charge.reduce((a, b) => a + b, 0)
+      : s.discharge.reduce((a, b) => a + b, 0);
+  }
+  // 「最小段总和」：逐日把各段（充电+放电，剔除占位零）相加，取当天最小值，
+  // 再对全期取最小。这是「这一天最紧的那一段能过多少」的思路，
+  // 与「各段全期求和再取 min」是两种口径 —— 需要与产品核对，见页面标注。
+  const dailySegSums = rows.map(r => {
+    const vals = Object.values(r.per).filter(v => v !== 0);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) : 0;
+  }).filter(v => v !== 0);
+  const minSegSum = dailySegSums.length ? Math.min(...dailySegSums) : 0;
+  const dailyMins = rows.map(r => r.dailyMin).filter(v => v !== 0);
+  const dayMin = dailyMins.length ? Math.min(...dailyMins) : 0;
+  return { rows, total, minSegSum, dayMin };
+}
+
+async function postJSON(path, body) {
+  // 金轮要求的第一件事：把请求体打出来，不猜
+  console.log('[REQ]' + path, JSON.stringify(body));
+  const r = await fetch(API_BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(x => x.json());
+  console.log('[RES]' + path, r.ok ? 'ok' : JSON.stringify(r.error));
+  return r;
+}
+
+async function loadAll() {
+  if (!SESSION) {
+    ctxEl.textContent = '演示数据（未接 session）';
+    ctxEl.style.color = 'var(--warn)';
+    return;
+  }
+  try {
+    const g = await fetch(API_BASE + '/api/ingest/groups?session_id=' + encodeURIComponent(SESSION))
+      .then(x => x.json());
+    if (!g.ok) throw new Error((g.error && g.error.message) || '取分组失败');
+    const groups = g.data.groups || [];
+    ctxEl.textContent = (g.data.path || '') + ' · ' + groups.length + ' 个分组';
+
+    const rows = [];
+    for (let i = 0; i < groups.length; i++) {
+      const gi = groups[i];
+      const body = {
+        session_id: SESSION, group: i, segments: SEGMENTS,
+        mode: 'B', rated_power: 100.0,
+        ignore_negative: !!(ignoreNegEl && ignoreNegEl.checked),
+      };
+      const r = await postJSON('/api/calc/spaces', body);
+      if (!r.ok) { rows.push({ gi, err: (r.error && r.error.message) || '测算失败' }); continue; }
+      const ndays = (r.data.date_labels || []).length;
+      rows.push({ gi, sum: summarize(r.data.segments || [], ndays), segs: r.data.segments });
+    }
+    renderHead(rows);
+    renderMonths(rows);
+    renderDays(rows);
+  } catch (e) {
+    ctxEl.textContent = '接线失败：' + e.message;
+    ctxEl.style.color = 'var(--danger)';
+  }
+}
+
+
+function renderHead(rows) {
+  // 表头与列值必须同源 —— 都从 SEGMENTS 来，不写死
+  const thead = document.getElementById('monthHead');
+  if (!thead) return;
+  const cols = SEGMENTS.map(sg => '<th data-align="right" data-type="num">' + sg.label + '</th>').join('');
+  thead.innerHTML = '<tr><th style="width:64px">月份</th>' + cols
+    + '<th data-align="right" data-type="num">最小段总和</th>'
+    + '<th data-align="right" data-type="num">日最小</th></tr>';
+}
+
+function renderMonths(rows) {
+  const tb = document.getElementById('monthRows');
+  if (!tb) return;
+  tb.innerHTML = rows.map((r, i) => {
+    if (r.err) {
+      return '<tr><td>' + r.gi.month + '</td><td colspan="7" style="color:var(--danger)">' + r.err + '</td></tr>';
+    }
+    const t = r.sum.total;
+    // 列顺序必须与 SEGMENTS 的 label 顺序一致 —— 写死列表会和表头错位
+    const cells = SEGMENTS.map(sg => {
+      const v = t[sg.label] || 0;
+      return '<td data-align="right" data-type="num"' + (v ? '' : ' class="v4__cell-zero"') + '>'
+        + (v ? fmt(v) : '0.0') + '</td>';
+    }).join('');
+    return '<tr' + (i === 0 ? ' class="sel"' : '') + '><td>' + r.gi.month + '</td>' + cells
+      + '<td data-align="right" data-type="num">' + fmt(r.sum.minSegSum) + '</td>'
+      + '<td data-align="right" data-type="num">' + fmt(r.sum.dayMin) + '</td></tr>';
+  }).join('');
+}
+
+function renderDays(rows) {
+  const tb = document.getElementById('dayRows');
+  if (!tb) return;
+  const first = rows.find(r => r.sum && r.segs);
+  if (!first) { tb.innerHTML = '<tr><td colspan="6" style="color:var(--text-faint)">无数据</td></tr>'; return; }
+  const segs = first.segs;
+  const ndays = segs.length ? segs[0].charge.length : 0;
+  let html = '';
+  for (let d = 0; d < Math.min(ndays, 10); d++) {
+    const c = segs.filter(s => s.type === 'charge').reduce((a, s) => a + s.charge[d], 0);
+    const dis = segs.filter(s => s.type === 'discharge').reduce((a, s) => a + s.discharge[d], 0);
+    const vals = segs.map(s => s.type === 'charge' ? s.charge[d] : s.discharge[d]).filter(v => v !== 0);
+    const dmin = vals.length ? Math.min(...vals) : 0;
+    html += '<tr' + (d === 0 ? ' class="sel"' : '') + '><td>' + first.sum.rows[d]?.day + '</td>'
+      + '<td data-align="right" data-type="num">' + fmt(c) + '</td>'
+      + '<td data-align="right" data-type="num">' + fmt(dis) + '</td>'
+      + '<td data-align="right" data-type="num">' + fmt(dmin) + '</td>'
+      + '<td data-align="right" data-type="num">' + fmt(dmin) + '</td>'
+      + '<td>' + (dmin > 0 ? '是' : '否') + '</td></tr>';
+  }
+  tb.innerHTML = html;
+}
+
+// 开关变化即重拉 —— 用来验证「忽略负值」是不是充电为 0 的原因
+if (ignoreNegEl) ignoreNegEl.addEventListener('change', loadAll);
+
+if (SESSION) loadAll();
 
 // 两级联动：最小可行容量不需要选充放段（v3.0 规则，段选择整块隐藏）；
 // 满载利用率才需要指定「哪个充放配对」。
