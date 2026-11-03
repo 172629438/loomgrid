@@ -282,12 +282,33 @@ try:
                     check("32) PNG 文件非空且魔数正确",
                           size > 1000 and magic == b"\x89PNG\r\n\x1a\n",
                           f"{size} 字节, magic={magic[:4]}")
-                # 中间宽表
+                # 33) 默认模板必须与主程序一致（不传模板时用那个）
+                # 这三条的本质：测试不许用自己新造的默认值，必须用界面里那个真实的
+                check("33) 默认模板产出文件名含表号与年份-月份",
+                      any("2026-01" in f for f in pngs),
+                      f"实际文件名: {pngs[:2]}")
+                check("34) 默认模板文件名含「负荷曲线」",
+                      any("负荷曲线" in f for f in pngs),
+                      f"实际文件名: {pngs[:2]}")
                 xlsxs = [f for f in os.listdir(outdir) if f.lower().endswith(".xlsx")]
-                check("33) 中间宽表已导出", len(xlsxs) > 0, str(xlsxs[:2]))
+                check("35) 中间宽表已导出", len(xlsxs) > 0, str(xlsxs[:2]))
+
+                # 36) 未知占位符原样保留，不报错（主程序用逐个 replace 而非 format）
+                outdir2 = tempfile.mkdtemp(prefix="lg_export2_")
+                code, b2 = req("POST", "/api/export/run",
+                               {"session_id": sid, "output_dir": outdir2,
+                                "filename_template": "{table_no}_{foo}_曲线"})
+                ok2 = code == 200 and b2.get("ok") is True and b2["data"]["succeeded"] > 0
+                names2 = [f for f in os.listdir(outdir2) if f.endswith(".png")]
+                check("36) 未知占位符 {foo} 原样保留不报错",
+                      ok2 and any("{foo}" in f for f in names2),
+                      f"{names2[:2]}")
+                import shutil as _sh2
+                _sh2.rmtree(outdir2, ignore_errors=True)
+
                 # 报告
                 rpt = os.path.join(outdir, "生成报告.html")
-                check("34) 报告文件已生成", os.path.exists(rpt),
+                check("37) 报告文件已生成", os.path.exists(rpt),
                       f"{os.path.getsize(rpt) if os.path.exists(rpt) else 0} 字节")
                 # 取报告端点
                 try:
@@ -295,11 +316,11 @@ try:
                             f"{BASE}/api/export/report?task_id={d['task_id']}",
                             timeout=30) as r:
                         html_text = r.read().decode("utf-8")
-                    check("35) /api/export/report 返回 HTML",
+                    check("38) /api/export/report 返回 HTML",
                           "负荷曲线批量生成报告" in html_text and "成功列表" in html_text,
                           f"{len(html_text)} 字符")
                 except Exception as e:
-                    check("35) /api/export/report 返回 HTML", False, repr(e))
+                    check("38) /api/export/report 返回 HTML", False, repr(e))
                 import shutil as _sh
                 _sh.rmtree(outdir, ignore_errors=True)
 

@@ -26,11 +26,18 @@ import pandas as pd
 
 from core.models import GroupSummary
 from plotting.curves import _plot_curves
-from plotting.naming import _sanitize_name
+from plotting.naming import _sanitize_name, generate_filename, parse_title_template
 
 log = logging.getLogger(__name__)
 
-__all__ = ["export_midwide", "generate_report", "plot_group"]
+# 默认模板必须与主程序一致（L2855 / L2871 处的 QLineEdit 初始值）：
+# 用 API 和不传模板的用户，拿到的文件名该跟界面里跑出来的一模一样。
+# 只在这里定义一份，api 层从这里 import，不要各写各的。
+DEFAULT_TITLE_TEMPLATE = "{table_no}_{year_month}_负荷曲线"
+DEFAULT_FILENAME_TEMPLATE = "{table_no}_{year_month}_负荷曲线"
+
+__all__ = ["export_midwide", "generate_report", "plot_group",
+           "export_csv", "DEFAULT_TITLE_TEMPLATE", "DEFAULT_FILENAME_TEMPLATE"]
 
 
 def export_midwide(summary: GroupSummary, data: dict, output_dir: str) -> str:
@@ -69,10 +76,20 @@ def plot_group(summary: GroupSummary, data: dict, output_dir: str,
     if multiplier and multiplier != 1.0:
         load = load * float(multiplier)
 
-    title = (title_template or "{asset} {month}").format(asset=asset, month=month)
-    fname = (filename_template or "{asset}_{month}").format(asset=asset, month=month)
-    fname = "".join(ch for ch in fname if ch not in '<>:"/\\|?*') or "curve"
-    outpath = os.path.join(output_dir, f"{fname}.png")
+    # 模板渲染必须走 plotting.naming（主程序原样实现），不要自己再写一遍：
+    #   · 占位符是 year_month / table_no / asset / sheet 四 个
+    #   · 逐字 replace，未知占位符原样保留（用 .format() 会 KeyError）
+    #   · 文件名要过 _sanitize_name（非法字符 / Windows 保留名 / 长度截断）
+    # 自己写一份的后果：资产名 "A/B栋" 会往路径里插斜杠，"CON" 在 Windows 写不进去。
+    ctx = {
+        "year_month": summary.month_str or "",
+        "table_no": summary.asset_value or "未命名",
+        "asset": summary.asset_value or "未命名",
+        "sheet": summary.sheet_name or "",
+    }
+    title = parse_title_template(title_template or DEFAULT_TITLE_TEMPLATE, ctx)
+    fname = generate_filename(filename_template or DEFAULT_FILENAME_TEMPLATE, ctx)
+    outpath = os.path.join(output_dir, fname)
 
     _plot_curves(list(data["date_labels"]), load, list(data["time_labels"]),
                  title, outpath, opts=plot_options, bill=billing, periods=price_periods)

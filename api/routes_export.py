@@ -20,7 +20,10 @@ from pydantic import BaseModel, Field
 from api.routes_ingest import get_session
 from api.schemas import Envelope
 from core.models import GroupSummary
-from services.export import export_midwide, generate_report, plot_group
+from services.export import (
+    DEFAULT_FILENAME_TEMPLATE, DEFAULT_TITLE_TEMPLATE,
+    export_midwide, generate_report, plot_group,
+)
 from services.provider import DataProvider
 
 log = logging.getLogger(__name__)
@@ -41,8 +44,13 @@ class ExportRunRequest(BaseModel):
     session_id: str
     output_dir: str = Field(description="输出目录，不存在会自动创建")
     groups: list[int] | None = Field(default=None, description="要导出的分组序号；省略=全部")
-    title_template: str = "{asset} {month}"
-    filename_template: str = "{asset}_{month}"
+    # 默认值与主程序界面一致，从 services.export 引——不要在这里另写一份
+    title_template: str = Field(
+        default=DEFAULT_TITLE_TEMPLATE,
+        description="标题模板，可用占位符：{table_no} {year_month} {asset} {sheet}")
+    filename_template: str = Field(
+        default=DEFAULT_FILENAME_TEMPLATE,
+        description="文件名模板，同上；未知占位符会原样保留")
     multiplier: float = 1.0
     plot_options: dict | None = None
     billing: dict | None = None
@@ -50,7 +58,13 @@ class ExportRunRequest(BaseModel):
     export_midwide: bool = False
 
 
-@router.post("/run", response_model=Envelope)
+@router.post("/run", response_model=Envelope,
+             description=(
+                 "批量出图（当前同步）。\n\n"
+                 "**调用方不能只看 HTTP 状态码判断成功**："
+                 "请求本身处理完就返回 200，但可能 `succeeded: 0`、`failed` 里全是错误。"
+                 "必须读 `succeeded` 与 `failed` 才能知道导出是否真的成功。"
+             ))
 def run(req: ExportRunRequest):
     """批量出图（同步）。返回文件清单与 task_id。"""
     sess = get_session(req.session_id)
