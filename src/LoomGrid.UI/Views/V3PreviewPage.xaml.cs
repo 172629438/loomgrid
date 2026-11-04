@@ -38,6 +38,14 @@ public sealed partial class V3PreviewPage : Page
     private PreviewResult? _data;
     private int _selectedDay = -1;   // -1 = 画全部天
 
+    // 双点对比：A → B → 重置（第三下把 A 换成新落点）。
+    // 为什么不是「点空白重置」：曲线区域里几乎没有真正的空白（曲线/网格/刻度/图例都在），
+    // 用户猜不到「点哪里才算空白」。三下循环语义弱，但可预测。
+    private (int Day, int Idx)? _pointA;
+    private (int Day, int Idx)? _pointB;
+    // 对比标记的 plottable 引用：按引用删比按类型猜可靠（LinePattern 不支持 == 比较）
+    private readonly List<ScottPlot.IPlottable> _comparePlottables = new();
+
     public V3PreviewPage()
     {
         InitializeComponent();
@@ -255,6 +263,135 @@ public sealed partial class V3PreviewPage : Page
         => Probe.Visibility = Visibility.Collapsed;
 
     /// <summary>
+    /// 双点对比：点一下落 A，再点落 B 并算差值，第三下重置（A 变新落点，B 清空）。
+    /// 差值口径：绝对值必给；百分比只在 A≠0 且 A、B 同号时给——
+    /// 曲线里有负值（光伏倒送），A=-50 B=100 时百分比算出来是 -300%，数学对但用户会看懵。
+    /// </summary>
+    private void OnPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_data is null || _index < 0 || _index >= _groups.Count) return;
+
+        var px = e.GetCurrentPoint(PlotView).Position;
+        ScottPlot.Coordinates c;
+        try { c = PlotView.Plot.GetCoordinates(new Pixel(px.X, px.Y)); }
+        catch { return; }
+
+        int nPts = _data.TimeLabels.Count;
+        int idx = (int)Math.Round(c.X);
+        if (idx < 0 || idx >= nPts) return;
+
+        int day = _selectedDay >= 0 ? _selectedDay : _data.LoadArray.Count - 1;
+        if (day < 0 || day >= _data.LoadArray.Count) return;
+        if (idx >= _data.LoadArray[day].Count) return;
+
+        // 三下循环
+        if (_pointA is null) { _pointA = (day, idx); }
+        else if (_pointB is null) { _pointB = (day, idx); }
+        else { _pointA = (day, idx); _pointB = null; }
+
+        RedrawCompare();
+        e.Handled = true;
+    }
+
+    private void ClearCompare()
+    {
+        _pointA = null;
+        _pointB = null;
+        RedrawCompare();
+    }
+
+    /// <summary>对比标记重绘。先清掉上次的 plottable，再按当前状态重画。</summary>
+    private void RedrawCompare()
+    {
+        if (_data is null || _index < 0 || _index >= _groups.Count) return;
+        var plot = PlotView.Plot;
+
+        // 清旧标记（按引用删，不动曲线本体）
+        foreach (var p in _comparePlottables)
+            plot.PlottableList.Remove(p);
+        _comparePlottables.Clear();
+
+        double? vA = _pointA is null ? null : _data.LoadArray[_pointA.Value.Day][_pointA.Value.Idx];
+        double? vB = _pointB is null ? null : _data.LoadArray[_pointB.Value.Day][_pointB.Value.Idx];
+
+        var cA = ScottPlot.Color.FromHex("#4EA8DE");   // A 青蓝
+        var cB = ScottPlot.Color.FromHex("#D29922");   // B 琥珀
+
+        if (_pointA is not null && vA is not null)
+        {
+            var m = plot.Add.Marker(_pointA.Value.Idx, vA.Value);
+            m.Color = cA; m.Size = 9; m.Shape = ScottPlot.MarkerShape.FilledCircle;
+            _comparePlottables.Add(m);
+            var t = plot.Add.Text("A", _pointA.Value.Idx, vA.Value);
+            t.Color = cA; t.OffsetY = -14; t.FontSize = 12;
+            _comparePlottables.Add(t);
+        }
+        if (_pointB is not null && vB is not null)
+        {
+            var m = plot.Add.Marker(_pointB.Value.Idx, vB.Value);
+            m.Color = cB; m.Size = 9; m.Shape = ScottPlot.MarkerShape.FilledCircle;
+            _comparePlottables.Add(m);
+            var t = plot.Add.Text("B", _pointB.Value.Idx, vB.Value);
+            t.Color = cB; t.OffsetY = -14; t.FontSize = 12;
+            _comparePlottables.Add(t);
+
+            if (_pointA is not null && vA is not null)
+            {
+                // 虚线连接：两点对比的核心是「与之间隔的关系」
+                var ln = plot.Add.Line(_pointA.Value.Idx, vA.Value, _pointB.Value.Idx, vB.Value);
+                ln.Color = ScottPlot.Color.FromHex("#8B949E");
+                ln.LinePattern = ScottPlot.LinePattern.Dashed;
+                ln.LineWidth = 1.2f;
+                _comparePlottables.Add(ln);
+            }
+        }
+
+        // 文案
+        string lineA = _pointA is null ? "" :
+            $"A: {_data.DateLabels[_pointA.Value.Day]} {_data.TimeLabels[_pointA.Value.Idx]} · {vA:N1} kW";
+        string lineB = _pointB is null ? "" :
+            $"B: {_data.DateLabels[_pointB.Value.Day]} {_data.TimeLabels[_pointB.Value.Idx]} · {vB:N1} kW";
+
+        string diff = "";
+        if (vA is not null && vB is not null)
+        {
+            double d = vB.Value - vA.Value;
+            diff = $"Δ: {d:+0.0;-0.0;0.0} kW";
+            // 百分比只在 A≠0 且同号时给（异号时百分比数学对但会误导）
+            if (Math.Abs(vA.Value) > 1e-9 && vA.Value * vB.Value > 0)
+                diff += $"（较 A {(d / Math.Abs(vA.Value) * 100):+0.0;-0.0;0.0}%）";
+            else if (Math.Abs(vA.Value) <= 1e-9)
+                diff += "（A 为 0，不计百分比）";
+            else
+                diff += "（A、B 异号，不计百分比）";
+
+            int di = _pointB.Value.Idx - _pointA.Value.Idx;
+            int minutes = di * (24 * 60 / Math.Max(1, _data.TimeLabels.Count));
+            diff += $"  Δt: {Math.Abs(minutes) / 60}h{Math.Abs(minutes) % 60:00}m";
+        }
+
+        // 状态区 + 右下角淡字提示（11px / 40% 透明）
+        if (_pointA is null)
+        {
+            CompareText.Text = "";
+            CompareHint.Text = "点图落 A 点";
+        }
+        else if (_pointB is null)
+        {
+            CompareText.Text = lineA;
+            CompareHint.Text = "再点一次落 B";
+        }
+        else
+        {
+            CompareText.Text = $"{lineA}　{lineB}　{diff}";
+            CompareHint.Text = "再点一次重新开始 · Esc 清除";
+        }
+
+        PlotFontBootstrap.Apply(plot);
+        PlotView.Refresh();
+    }
+
+    /// <summary>
     /// F12 自检：取 X 轴中心位置，走一遍「坐标 → 索引 → 数值」并打日志。
     /// <para><b>边界</b>：它只验证换算链（GetCoordinates / 索引取整 / 数组取值）。</para>
     /// <para>它**不验证** PointerMoved 是否触发——那条要靠真实鼠标移动。</para>
@@ -404,6 +541,7 @@ public sealed partial class V3PreviewPage : Page
     {
         if (e.Key == Windows.System.VirtualKey.Left) { await SelectAsync(_index - 1); e.Handled = true; }
         else if (e.Key == Windows.System.VirtualKey.Right) { await SelectAsync(_index + 1); e.Handled = true; }
+        else if (e.Key == Windows.System.VirtualKey.Escape) { ClearCompare(); e.Handled = true; }
     }
 
     private void OnBackClick(object sender, RoutedEventArgs e)

@@ -123,7 +123,7 @@
             <!-- Background="Transparent" 不能省：WinUI 里 Background 为 null 的 Panel **不参与命中测试**，
                  指针事件根本不会触达。之前两次 PointerMoved 不生效（日志 0 行）就是这个原因。
                  注意 Transparent 不是 null：Transparent 能命中，null 不能。 -->
-            <Grid Grid.Column="1" Background="Transparent" PointerMoved="OnPointerMoved" PointerExited="OnPointerExited">
+            <Grid Grid.Column="1" Background="Transparent" PointerMoved="OnPointerMoved" PointerPressed="OnPointerPressed" PointerExited="OnPointerExited">
                 <scott:WinUIPlot x:Name="PlotView" />
                 <Border
                     x:Name="Probe"
@@ -149,11 +149,11 @@
                             Text="" />
                     </StackPanel>
                 </Border>
-            </Grid>
-        </Grid>
+            </Grid>        </Grid>
 
         <Grid Grid.Row="2" Padding="28,8,28,12" ColumnSpacing="8">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
@@ -168,12 +168,34 @@
                 Grid.ColumnSpan="2"
                 Margin="0,0,0,6"
                 Style="{StaticResource TextCaption}"
-                Text="本版本暂未实现：时段编辑 · 省份策略 · 模板管理 · 配色自定义 · 策略管理 · 曲线探针与双点对比"
+                Text="本版本暂未实现：时段编辑 · 省份策略 · 模板管理 · 配色自定义 · 策略管理 · 双点对比"
                 TextWrapping="Wrap" />
+
+            <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnSpacing="10" Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                    x:Name="CompareText"
+                    Grid.Column="0"
+                    FontFamily="{StaticResource MonoFamily}"
+                    FontSize="{StaticResource FsCaption}"
+                    Text=""
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    x:Name="CompareHint"
+                    Grid.Column="1"
+                    VerticalAlignment="Top"
+                    FontSize="11"
+                    Opacity="0.4"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="点图落 A 点" />
+            </Grid>
 
             <TextBlock
                 x:Name="StatusText"
-                Grid.Row="1"
+                Grid.Row="2"
                 Grid.Column="0"
                 VerticalAlignment="Center"
                 FontFamily="{StaticResource MonoFamily}"
@@ -181,7 +203,7 @@
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                 TextTrimming="CharacterEllipsis" />
 
-            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <Button Click="OnBackClick" Content="返回映射" />
                 <Button x:Name="PrevButton" Click="OnPrevClick" Content="上一组" IsEnabled="False" />
                 <Button x:Name="NextButton" Click="OnNextClick" Content="下一组" IsEnabled="False" />
