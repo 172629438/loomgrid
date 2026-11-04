@@ -49,6 +49,12 @@ public sealed partial class V1WorkbenchPage : Page
         _loaded = true;
         AppLog.Write("V1 工作台已加载");
 
+        // 从 V2 返回时页面会重建（Frame 默认不缓存页面），
+        // 而文件列表存在 Workspace 里 —— 必须主动重建列表，
+        // 否则用户回到工作台会看到「文件 0」，以为刚才的文件丢了。
+        RefreshList();
+        UpdateStatus();
+
         try
         {
             var services = await Boot.EnsureAsync();

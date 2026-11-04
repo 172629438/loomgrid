@@ -33,11 +33,11 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" Spacing="3">
-                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="工作台" />
+                <TextBlock Style="{StaticResource TextDisplay}" Text="工作台" />
                 <TextBlock
                     x:Name="SubtitleText"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Style="{StaticResource TextCaption}"
                     Text="拖入 Excel 或 CSV，或点「添加文件」" />
             </StackPanel>
 
@@ -84,7 +84,7 @@
                     <TextBlock
                         HorizontalAlignment="Center"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Style="{StaticResource TextCaption}"
                         Text="支持 .xlsx / .xlsm / .csv，可一次拖入多个" />
                 </StackPanel>
             </Border>
@@ -172,12 +172,12 @@
 
                                 <StackPanel Grid.Column="0" Spacing="1">
                                     <TextBlock
-                                        FontSize="13"
+                                        FontSize="{StaticResource FsBody}"
                                         Text="{x:Bind FileName}"
                                         TextTrimming="CharacterEllipsis" />
                                     <TextBlock
-                                        FontFamily="Consolas"
-                                        FontSize="11"
+                                        FontFamily="{StaticResource MonoFamily}"
+                                        FontSize="{StaticResource FsCaption}"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                         Text="{x:Bind SizeText}" />
                                 </StackPanel>
@@ -185,7 +185,7 @@
                                 <TextBlock
                                     Grid.Column="1"
                                     VerticalAlignment="Center"
-                                    FontSize="12.5"
+                                    FontSize="{StaticResource FsBody}"
                                     Text="{x:Bind Asset}"
                                     TextTrimming="CharacterEllipsis" />
 
@@ -193,24 +193,24 @@
                                     Grid.Column="2"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
-                                    FontFamily="Consolas"
-                                    FontSize="12.5"
+                                    FontFamily="{StaticResource MonoFamily}"
+                                    FontSize="{StaticResource FsBody}"
                                     Text="{x:Bind TimePoints}" />
 
                                 <TextBlock
                                     Grid.Column="3"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
-                                    FontFamily="Consolas"
-                                    FontSize="12.5"
+                                    FontFamily="{StaticResource MonoFamily}"
+                                    FontSize="{StaticResource FsBody}"
                                     Text="{x:Bind MinLoad}" />
 
                                 <TextBlock
                                     Grid.Column="4"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
-                                    FontFamily="Consolas"
-                                    FontSize="12.5"
+                                    FontFamily="{StaticResource MonoFamily}"
+                                    FontSize="{StaticResource FsBody}"
                                     Text="{x:Bind MaxLoad}" />
 
                                 <StackPanel
@@ -222,7 +222,7 @@
                                         Width="7"
                                         Height="7"
                                         Fill="{x:Bind StatusBrush}" />
-                                    <TextBlock FontSize="12.5" Text="{x:Bind StatusText}" />
+                                    <TextBlock FontSize="{StaticResource FsBody}" Text="{x:Bind StatusText}" />
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -246,7 +246,7 @@
                 x:Name="StatusLeftText"
                 Grid.Column="0"
                 VerticalAlignment="Center"
-                FontSize="12"
+                FontSize="{StaticResource FsCaption}"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                 Text="文件 0 · 就绪 0 · 需确认 0 · 失败 0" />
 
@@ -258,12 +258,12 @@
                 <TextBlock
                     x:Name="NoticeText"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    FontSize="12"
+                    FontSize="{StaticResource FsCaption}"
                     Text="" />
                 <TextBlock
                     x:Name="BackendText"
-                    FontFamily="Consolas"
-                    FontSize="11.5"
+                    FontFamily="{StaticResource MonoFamily}"
+                    FontSize="{StaticResource FsCaption}"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     Text="后端：启动中…" />
             </StackPanel>

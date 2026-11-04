@@ -22,10 +22,10 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Spacing="3">
-                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="列映射" />
-                <TextBlock x:Name="SubtitleText" FontSize="12" Text="逐文件确认" />
+                <TextBlock Style="{StaticResource TextDisplay}" Text="列映射" />
+                <TextBlock x:Name="SubtitleText" FontSize="{StaticResource FsCaption}" Text="逐文件确认" />
             </StackPanel>
-            <TextBlock x:Name="ProgressText" Grid.Column="1" VerticalAlignment="Center" FontSize="12" Text="0 / 0" />
+            <TextBlock x:Name="ProgressText" Grid.Column="1" VerticalAlignment="Center" FontSize="{StaticResource FsCaption}" Text="0 / 0" />
         </Grid>
 
         <StackPanel Grid.Row="0" Padding="28,0,28,14" Spacing="6" />
@@ -57,7 +57,7 @@
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="local:WorkFile">
-                            <TextBlock FontSize="12.5" Text="{x:Bind FileName}" />
+                            <TextBlock FontSize="{StaticResource FsBody}" Text="{x:Bind FileName}" />
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
@@ -91,16 +91,16 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Spacing="4">
-                        <TextBlock FontSize="11.5" Text="日期列" />
+                        <TextBlock FontSize="{StaticResource FsCaption}" Text="日期列" />
                         <ComboBox x:Name="DateCombo" MinWidth="180" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Spacing="4">
-                        <TextBlock FontSize="11.5" Text="资产列（可选）" />
+                        <TextBlock FontSize="{StaticResource FsCaption}" Text="资产列（可选）" />
                         <ComboBox x:Name="AssetCombo" MinWidth="160" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" Spacing="4">
-                        <TextBlock FontSize="11.5" Text="负荷列" />
-                        <TextBlock x:Name="LoadInfoText" FontSize="12.5" Text="—" TextWrapping="Wrap" />
+                        <TextBlock FontSize="{StaticResource FsCaption}" Text="负荷列" />
+                        <TextBlock x:Name="LoadInfoText" FontSize="{StaticResource FsBody}" Text="—" TextWrapping="Wrap" />
                     </StackPanel>
                 </Grid>
 
@@ -109,13 +109,13 @@
                     Background="{ThemeResource LayerFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
-                    CornerRadius="8">
+                    CornerRadius="{StaticResource CardCorner}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <TextBlock x:Name="PreviewCaption" Grid.Row="0" Margin="14,10,14,8" FontSize="11.5" Text="选一个工作表" />
+                        <TextBlock x:Name="PreviewCaption" Grid.Row="0" Margin="14,10,14,8" FontSize="{StaticResource FsCaption}" Text="选一个工作表" />
                         <ScrollViewer Grid.Row="1" Padding="14,0,14,14" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                             <Grid x:Name="PreviewGrid" />
                         </ScrollViewer>
@@ -129,7 +129,7 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock x:Name="StatusText" Grid.Column="0" FontSize="12" Text="" />
+            <TextBlock x:Name="StatusText" Grid.Column="0" FontSize="{StaticResource FsCaption}" Text="" />
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                 <Button Click="OnBackClick" Content="返回工作台" />
                 <Button x:Name="ConfirmButton" Click="OnConfirmClick" Content="确认这个文件" IsEnabled="False" Style="{StaticResource AccentButtonStyle}" />

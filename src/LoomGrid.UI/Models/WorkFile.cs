@@ -2,9 +2,8 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using LoomGrid.Bridge;
-using Microsoft.UI;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-using Windows.UI;
 
 namespace LoomGrid.UI;
 
@@ -82,10 +81,18 @@ public static class FileStateJudge
 /// <summary>V1 列表里的一行：一个待处理的源文件。</summary>
 public sealed class WorkFile : INotifyPropertyChanged
 {
-    private static readonly SolidColorBrush ReadyBrush = new(Color.FromArgb(255, 0x2E, 0xA0, 0x43));
-    private static readonly SolidColorBrush WarnBrush = new(Color.FromArgb(255, 0xC9, 0xA2, 0x27));
-    private static readonly SolidColorBrush FailBrush = new(Color.FromArgb(255, 0xD1, 0x34, 0x38));
-    private static readonly SolidColorBrush IdleBrush = new(Colors.Gray);
+    /// <summary>
+    /// 语义色从令牌字典取（Themes/Tokens.xaml），不在 C# 里写死色值——
+    /// 否则同一含两处定义，改一处就会不同步。资源缺失（设计时器/单元测试）退灰。
+    /// </summary>
+    private static SolidColorBrush Res(string key)
+    {
+        if (Application.Current?.Resources is { } res
+            && res.TryGetValue(key, out var v)
+            && v is SolidColorBrush brush)
+            return brush;
+        return new SolidColorBrush(Microsoft.UI.Colors.Gray);
+    }
 
     public string FullPath { get; }
     public string FileName { get; }
@@ -146,10 +153,10 @@ public sealed class WorkFile : INotifyPropertyChanged
 
     public SolidColorBrush StatusBrush => State switch
     {
-        FileState.Ready => ReadyBrush,
-        FileState.NeedsConfirm => WarnBrush,
-        FileState.Failed => FailBrush,
-        _ => IdleBrush,
+        FileState.Ready => Res("SemanticReadyBrush"),
+        FileState.NeedsConfirm => Res("SemanticWarnBrush"),
+        FileState.Failed => Res("SemanticErrorBrush"),
+        _ => Res("SemanticIdleBrush"),
     };
 
     /// <summary>失败与需确认的文件仍然可以继续（需确认）或不能（失败）。</summary>
