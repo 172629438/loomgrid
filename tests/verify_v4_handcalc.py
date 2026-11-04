@@ -8,10 +8,10 @@
     充电 = Σ max(容量线 − 负荷, 0) × dt
 
 **梯形权重/中点法**（最容易算错的地方）：
-    时段**含左不含右**：0:00–8:00 取 0:00、0:15 … 7:45，共 32 点
-    本实现是**中点法 + 两端补齐**（首点 0.125 / 中间 0.25 / 末点 0.375）
-    **Σseg_dt 恒等于时段长度**：8h → 8.0000 h，4h → 4.0000 h
-    ⚠️ 曾经按「32 点 × 首尾半格」推成 7.75 h —— 那是错的，以实测为准。
+    时段**含左含右**：0:00–8:00 取 0:00、0:15 … 8:00，共 **33** 点
+     （core/spaces.py 用 np.searchsorted(..., side='right') 取右端点）
+    首点 0.125 / 中间 0.25 / 末点 0.125，Σ 恒等于时段长度（8h → 8.0）
+    ⚠️ 恒负荷测试无法区分端点约定：32 点与 33 点的 Σ 都是 8.0，必须用变负荷。
 
 用法：
     python tests/verify_v4_handcalc.py
@@ -77,25 +77,25 @@ def main() -> int:
     def idx_of(hhmm: str) -> int:
         return tl.index(hhmm)
 
-    # 时段**含左不含右**：0:00–8:00 取 0:00…7:45，共 32 点（不含 8:00）
+    # 时段**含左含右**：0:00–8:00 取 0:00…8:00，共 33 点（与 side='right' 一致）
     i0, i1 = idx_of("00:00"), idx_of("08:00")
     j0, j1 = idx_of("18:00"), idx_of("22:00")
 
     day0 = arr[0]
 
     # ── 手算：充电段（mode A） ──
-    seg = day0[i0:i1]
+    seg = day0[i0:i1 + 1]
     dt = mid_dt(len(seg), 0.0, 8.0)
-    print(f"\n[充电段 00:00–08:00] 点数={len(seg)}（不含 08:00）"
+    print(f"\n[充电段 00:00–08:00] 点数={len(seg)}（含 08:00）"
           f"  Σdt={dt.sum():.4f} h（应等于 8.0000）")
     charge = float(np.sum(np.maximum(CAP_LINE - seg, 0.0) * dt))
     print(f"  充电空间 手算 = {charge:,.3f} kWh")
     print(f"  该段负荷范围 = {seg.min():.1f} … {seg.max():.1f}")
 
     # ── 手算：放电段 ──
-    segd = day0[j0:j1]
+    segd = day0[j0:j1 + 1]
     dtd = mid_dt(len(segd), 18.0, 22.0)
-    print(f"\n[放电段 18:00–22:00] 点数={len(segd)}（不含 22:00）"
+    print(f"\n[放电段 18:00–22:00] 点数={len(segd)}（含 22:00）"
           f"  Σdt={dtd.sum():.4f} h（应等于 4.0000）")
     discharge_limited = float(np.sum(segd * dtd))
     print(f"  放电（不限额时）上界 = {discharge_limited:,.3f} kWh")
