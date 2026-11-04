@@ -16,7 +16,7 @@ import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from api.routes_calc import router as calc_router
@@ -101,12 +101,17 @@ def health():
 
 
 # ── 根路径 ──────────────────────────────────────────────────
-# 用户双击 exe 后浏览器可能落在根路径上。没有这条就会看到 FastAPI 的
-# {"detail":"Not Found"} —— 一行 JSON，用户会以为程序坏了。
-# 必须定义在 app.mount("/") 之前，否则被静态挂载吃掉。
+# 这里曾经 307 跳到 /views/v1-workbench.html —— 那个页面随 web/ 一起删了，
+# 留着就成了死链接：调试时访问 8000/ 会 404，WebView2 导航到根也会撞墙。
+# 改成一个自描述的 JSON：说清「界面在哪、后端在哪」，不给 api 加行为。
 @app.get("/", include_in_schema=False)
 def root():
-    return RedirectResponse("/views/v1-workbench.html", status_code=307)
+    return {
+        "app": "LoomGrid Pro backend",
+        "note": "界面在 WinUI 3 应用中；这里是后端 API",
+        "health": "/api/health",
+        "docs": "/docs",
+    }
 
 
 @app.get("/favicon.ico", include_in_schema=False)

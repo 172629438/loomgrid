@@ -99,3 +99,6 @@ publish/
 !src/LoomGrid.UI/Assets/*.png
 !src/LoomGrid.UI/Assets/*.ico
 
+# CurveSpike 能力回归验证器的产物
+tools/CurveSpike/out/
+
