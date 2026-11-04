@@ -7516,10 +7516,21 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
 
             if success_count > 0:
                 html += "<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr>"
+                # v2.3.11fix10: 原为 startswith(资产名)。资产 `1` 会匹配
+                # `10_202601_负荷曲线.png`，报告里那一行的表号/月份/源文件全取错。
+                # 改为用同一套模板算出期望文件名再全等比较。
+                _tpl = getattr(self._thread, 'filename_template', None) or '{table_no}_{year_month}_负荷曲线'
                 for i, p in enumerate(paths, 1):
                     info = {}
+                    _base = os.path.basename(p)
                     for s in self._thread.all_summaries if self._thread else []:
-                        if os.path.basename(p).startswith(_sanitize_name(s.asset_value)):
+                        _ctx = {
+                            'year_month': s.month_str or '',
+                            'table_no': s.asset_value or '未命名',
+                            'asset': s.asset_value or '未命名',
+                            'sheet': s.sheet_name or '',
+                        }
+                        if _base == generate_filename(_tpl, _ctx):
                             info = {'asset': s.asset_value, 'month': s.month_str, 'file': os.path.basename(s.file_path)}
                             break
                     # v2.3.7fix: 文件名/资产号/源文件名都可能含 & < >（如「A&B楼负荷.xlsx」），

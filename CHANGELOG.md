@@ -294,6 +294,38 @@ header_row / delimiter，直接用即可。新增 `_group_key(summary)` 统一�
 （兼容月份/日不补零）。实测五种写法（`01-01` / `1/1` / `01.01` / 有年份 / 无年份）
 全部归到次日，NaT = 0；真非法值仍为 NaT，没把错误藏起来。
 
+### 十一、中间宽表文件名未消毒（P1）
+
+`services/export.py` 的 `export_midwide` 直接用 `summary.asset_value` 拼文件名：
+
+```python
+asset = summary.asset_value or "未命名"
+filepath = os.path.join(output_dir, f"中间宽表_{asset}_{mstr}.xlsx")
+```
+
+而资产列的值只经 `_normalize_asset`（strip + 空值替换），不做字符过滤。
+用户表里写 `A/B栋` → 路径插斜杠 → `OSError` 或文件落到意外子目录；
+含 `:` `*` `?` 直接写不进去。
+
+同一个文件里的 `plot_group` 走了 `_sanitize_name`，**只有这条漏了**——两处不一致。
+修法：`asset = _sanitize_name(summary.asset_value or "未命名")`，一行。
+
+### 十二、报告用资产名前缀反查，资产 `1` 吃掉 `10`（P1）
+
+主程序 `_generate_report` 与 `services/export.generate_report` 两份实现都用：
+
+```python
+if base.startswith(_sanitize_name(s.asset_value)):
+```
+
+资产 `1` 与 `10` 同时存在时，`"10_202602_负荷曲线.png".startswith("1")` 为真，
+那一行的**表号 / 月份 / 源文件三列全取错**（文件名列是对的）。
+用户核对时只会觉得「这张图月份不对」，很难定位是报告错而不是数据错。
+
+修法：两份实现都改成「用同一套模板算出期望文件名再全等比较」。
+`services/export.generate_report` 新增 `filename_template` 可选参数（默认 `DEFAULT_FILENAME_TEMPLATE`），
+主程序取 `self._thread.filename_template`。
+
 ### 验证
 
 - 新增 `tests/verify_month_parse.py`（22 项，含两处消费点的 AST 契约断言）
@@ -301,6 +333,7 @@ header_row / delimiter，直接用即可。新增 `_group_key(summary)` 统一�
 - 新增 `tests/verify_daily_throughput.py`（18 项：占位零对拍 + 三处消费点 AST 契约）
 - 新增 `tests/verify_to_dt_24h.py`（9 项：24:00 与无年份日期组合）
 - 新增 `tests/verify_cache_key_mapping.py`（9 项：缓存键必须含映射，含 header_row 键名）
+- 新增 `tests/verify_export_naming.py`（11 项：资产名消毒 + 资产 1 不吃 10）
 - `python tools/run_all_tests.py --core` → 全绿
 - 端到端数据流探针：11 组日期写法逐一核对分组结果
 

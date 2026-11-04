@@ -47,7 +47,12 @@ def export_midwide(summary: GroupSummary, data: dict, output_dir: str) -> str:
     """
     os.makedirs(output_dir, exist_ok=True)
     mstr = (summary.month_str or "").replace("-", "")
-    asset = summary.asset_value or "未命名"
+    # v2.3.11fix10: 资产名必须消毒。原为直接用 summary.asset_value，
+    # 而资产列的值由 _normalize_asset 处理——只 strip + 空值替换，不做字符过滤。
+    # 用户表里写 `A/B栋` 就会往路径里插斜杠（目录不存在 → OSError，
+    # 或目录恰好存在 → 文件被写到意外子目录）。plot_group 走了 _sanitize_name，
+    # 只有这条中间宽表漏了，两处不一致。
+    asset = _sanitize_name(summary.asset_value or "未命名")
     filepath = os.path.join(output_dir, f"中间宽表_{asset}_{mstr}.xlsx")
     df = pd.DataFrame(data["load_array"],
                       index=data["date_labels"],
@@ -97,7 +102,7 @@ def plot_group(summary: GroupSummary, data: dict, output_dir: str,
 
 
 def generate_report(paths: list[str], failed: list, summaries: list[GroupSummary],
-                    output_dir: str) -> str:
+                    output_dir: str, filename_template: str | None = None) -> str:
     """生成批量出图的 HTML 报告，返回文件路径。
 
     与原 MainWindow._generate_report 的逻辑一致，只是把 self.output_dir /
@@ -142,8 +147,17 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
         for i, p in enumerate(paths, 1):
             info = {}
             base = os.path.basename(p)
+            # v2.3.11fix10: 原为 base.startswith(_sanitize_name(asset))。
+            # 资产 `1` 会匹配 `10_202601_负荷曲线.png`，那一行的表号/月份/源文件全取错。
+            # 改为用同一套模板算出期望文件名再全等比较。
             for s in summaries or []:
-                if base.startswith(_sanitize_name(s.asset_value)):
+                ctx = {
+                    "year_month": s.month_str or "",
+                    "table_no": s.asset_value or "未命名",
+                    "asset": s.asset_value or "未命名",
+                    "sheet": s.sheet_name or "",
+                }
+                if base == generate_filename(filename_template or DEFAULT_FILENAME_TEMPLATE, ctx):
                     info = {"asset": s.asset_value, "month": s.month_str,
                             "file": os.path.basename(s.file_path)}
                     break
