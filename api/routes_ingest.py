@@ -519,3 +519,22 @@ def list_groups(session_id: str):
 def get_session(sid: str) -> dict | None:
     with _SESSION_LOCK:
         return _SESSIONS.get(sid)
+
+
+def put_session(sid: str, payload: dict) -> None:
+    """登记一个 session。模拟来源的 session 也走这里，与文件来源同构。"""
+    with _SESSION_LOCK:
+        _SESSIONS[sid] = payload
+
+
+def drop_sessions_where(pred) -> int:
+    """按条件删除 session，返回删了几个。
+
+    用途：同一个来源 session 下重复「应用模拟」时，先清旧的再建新的，
+    不能让旧模拟 session 泄漏在内存里（用户连点三次会遗下三份）。
+    """
+    with _SESSION_LOCK:
+        doomed = [k for k, v in _SESSIONS.items() if pred(v)]
+        for k in doomed:
+            del _SESSIONS[k]
+        return len(doomed)

@@ -18,16 +18,12 @@ import numpy as np
 from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 
-from api.routes_ingest import get_session
 from api.schemas import Envelope, ErrorBody
-from core.models import GroupSummary
-from services.provider import DataProvider
+from api.session_data import ResolveError
+from api.session_data import load_group as load_group_data
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["preview"])
-
-# 单进程内复用，避免每次请求重建缓存
-_PROVIDER = DataProvider()
 
 
 # ── 响应模型 ─────────────────────────────────────────────
@@ -76,23 +72,14 @@ def preview(session_id: str, group: int = 0, format: str = "json"):
     format=json  普通 JSON（小数据、调试用）
     format=bin   二进制：uint32 rows + uint32 cols + float32 数据，标签在响应头
     """
-    sess = get_session(session_id)
-    if not sess:
-        return _err("PREVIEW_GROUP_NOT_FOUND", f"session 不存在或已过期：{session_id}")
-
-    groups = sess.get("groups", [])
-    if not groups or group < 0 or group >= len(groups):
-        return _err("PREVIEW_GROUP_NOT_FOUND", f"分组序号越界：{group}（共 {len(groups)} 组）")
-
+    # 单入口取数：文件来源走 provider，模拟来源直接取内存里已经生成好的数组。
+    # 原实现这里自己查 session + 自己调 provider，与 routes_calc 重复了一份，
+    # 靠「两处都改」才不会漏——模拟来源引入后这种重复就会变成「预览不跟着变」。
     try:
-        gs = GroupSummary.from_dict(groups[group])
-    except Exception as e:
-        return _err("PREVIEW_NO_DATA", f"分组信息不完整：{e}")
-
-    data = _PROVIDER.get_group_data(gs)
-    if not data or data.get("load_array") is None:
-        return _err("PREVIEW_NO_DATA",
-                    _PROVIDER.get_load_error(gs) or "该分组没有可用的宽表数据")
+        gs, data = load_group_data(session_id, group)
+    except ResolveError as e:
+        code = e.code if e.code == "PREVIEW_GROUP_NOT_FOUND" else "PREVIEW_NO_DATA"
+        return _err(code, e.message)
 
     arr = np.asarray(data["load_array"], dtype=np.float32)
     date_labels = [str(x) for x in data.get("date_labels", [])]

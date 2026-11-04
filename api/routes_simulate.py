@@ -23,11 +23,13 @@ seed 语义
 from __future__ import annotations
 
 import logging
+import uuid
 
 import numpy as np
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from api.routes_ingest import drop_sessions_where, get_session, put_session
 from api.schemas import Envelope
 from services.loadsim import INDUSTRY_TEMPLATES, generate_load_profile
 
@@ -153,3 +155,126 @@ def simulate_load(req: LoadSimRequest):
         },
         "error": None,
     }
+
+
+class ApplyRequest(BaseModel):
+    """把一条已经生成好的模拟曲线存成一个 session，供 V4 / V3 使用。
+
+    为什么由前端把数组传回来：数组刚由 `/load` 生成，再生成一遍可能与预览不同
+    （除非前端把它当时的 seed 再传一次）。直接把预览那条传上来，能保证
+    「屏幕上看到的就是落地的」——比依赖 seed 对齐少一步出错机会。
+    """
+
+    original_session_id: str = Field(
+        description="被替换的真实 session。必传：用于清理同一来源的旧模拟、以及切回原始")
+    load_array: list[list[float]]
+    time_labels: list[str]
+    date_labels: list[str]
+    industry: str = Field(default="", description="行业模板名，写进 origin 供追溯")
+    seed: int | None = Field(default=None, description="生成时的 applied_seed，写进 origin")
+    asset: str | None = Field(default=None, description="展示名；缺省用行业名")
+
+
+@router.post("/apply")
+def apply_simulation(req: ApplyRequest):
+    """把模拟曲线存成内存 session。
+
+    语义（与 Fusion 一致）：
+      * 原真实 session **不动**，只新建一个模拟 session；
+      * 同一 `original_session_id` 下只保留 **一个** 模拟 session（先清旧的再建）。
+        用户连点三次「应用」不能遗下三份，否则内存泄漏且 `get_session` 里分不清哪个是当前的。
+      * 切回原始 = 前端把 current_session_id 换回 original_session_id，不是删掉模拟。
+    """
+    if not get_session(req.original_session_id):
+        return _err("SIM_ORIGINAL_NOT_FOUND",
+                    f"被替换的 session 不存在：{req.original_session_id}")
+
+    arr = np.asarray(req.load_array, dtype=float)
+    if arr.ndim != 2 or arr.size == 0:
+        return _err("SIM_INVALID_ARRAY", "load_array 必须是二维非空数组")
+    if arr.shape[1] != len(req.time_labels):
+        return _err("SIM_INVALID_ARRAY",
+                    f"列数 {arr.shape[1]} 与 time_labels 长度 {len(req.time_labels)} 不匹配")
+    if arr.shape[0] != len(req.date_labels):
+        return _err("SIM_INVALID_ARRAY",
+                    f"行数 {arr.shape[0]} 与 date_labels 长度 {len(req.date_labels)} 不匹配")
+
+    # ④ 同一来源只留一个模拟 session
+    dropped = drop_sessions_where(
+        lambda s: s.get("source") == "simulated"
+        and s.get("root_session_id") == req.original_session_id)
+
+    month_str = (req.date_labels[0][:7] if req.date_labels and len(req.date_labels[0]) >= 7
+                 else "—")
+    asset = (req.asset or req.industry or "模拟负荷")
+    sid = uuid.uuid4().hex
+
+    group = {
+        "file_path": "",
+        "sheet_name": "",
+        "asset_value": asset,
+        "month_str": month_str,
+        "date_count": int(arr.shape[0]),
+        "time_points": int(arr.shape[1]),
+        "min_val": float(np.min(arr)),
+        "max_val": float(np.max(arr)),
+        "mapping": {},
+    }
+
+    payload = {
+        "path": "",
+        "sheet": "",
+        "source": "simulated",
+        "origin": {
+            "industry": req.industry,
+            "seed": req.seed,
+            "n_days": int(arr.shape[0]),
+            "n_points": int(arr.shape[1]),
+            "original_session_id": req.original_session_id,
+        },
+        "root_session_id": req.original_session_id,
+        "mapping": {},
+        "groups": [group],
+        "simulated_data": {
+            "load_array": arr,
+            "time_labels": list(req.time_labels),
+            "date_labels": list(req.date_labels),
+            "month_str": month_str,
+            "asset": asset,
+        },
+    }
+    put_session(sid, payload)
+
+    log.info("模拟 session %s 建立：%s · %d 天 × %d 点（替换 %s，清掉旧模拟 %d 个）",
+             sid, req.industry or "未命名", arr.shape[0], arr.shape[1],
+             req.original_session_id, dropped)
+
+    return {
+        "ok": True,
+        "data": {
+            "session_id": sid,
+            "group_count": 1,
+            "month_str": month_str,
+            "asset": asset,
+            "origin": payload["origin"],
+            "dropped_previous": dropped,
+        },
+        "error": None,
+    }
+
+
+@router.post("/revert")
+def revert_simulation(body: dict):
+    """丢弃模拟、回到原始 session。
+
+    前端本来只需要把 current_session_id 换回 original 即可；这个端点存在的意义是
+    **可以回收内存**，以及让日志里留下一笔「什么时候退的」。
+    """
+    original = str(body.get("original_session_id") or "")
+    if not original:
+        return _err("SIM_ORIGINAL_REQUIRED", "original_session_id 必传")
+    dropped = drop_sessions_where(
+        lambda s: s.get("source") == "simulated" and s.get("root_session_id") == original)
+    log.info("模拟回退：original=%s，清掉 %d 个模拟 session", original, dropped)
+    return {"ok": True, "data": {"original_session_id": original,
+                             "dropped": dropped}, "error": None}

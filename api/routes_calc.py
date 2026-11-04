@@ -22,22 +22,21 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from api.routes_ingest import get_session
+from api.session_data import ResolveError
+from api.session_data import load_group as load_group_data
 from api.schemas import (
     CapacityData, DailyDemand, DailyThroughput, Envelope, SegmentDemand,
 )
-from core.models import GroupSummary, PeriodType
+from core.models import PeriodType
 from core.periods import _segment_periods
 from core.spaces import calc_days_for_capacity, compute_segmented_spaces
 from services.timeline import unify_time_resolution
 from services.capacity import (
     DemandBasis, daily_demand_series, summarize_daily_demand, throughput_breakdown,
 )
-from services.provider import DataProvider
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/calc", tags=["calc"])
-
-_PROVIDER = DataProvider()
 
 
 def _err(code: str, message: str, detail: dict | None = None) -> dict:
@@ -66,16 +65,17 @@ class SpacesRequest(BaseModel):
 
 
 def _load_group(session_id: str, group: int):
-    sess = get_session(session_id)
-    if not sess:
-        return None, None, _err("PREVIEW_GROUP_NOT_FOUND", f"session 不存在：{session_id}")
-    groups = sess.get("groups", [])
-    if not groups or group < 0 or group >= len(groups):
-        return None, None, _err("PREVIEW_GROUP_NOT_FOUND", f"分组序号越界：{group}")
-    gs = GroupSummary.from_dict(groups[group])
-    data = _PROVIDER.get_group_data(gs)
-    if not data or data.get("load_array") is None:
-        return None, None, _err("CALC_NO_DATA", "该分组没有可用数据")
+    """取数转发到 api.session_data.load_group（模拟/文件两种来源的统一入口）。
+
+    保留本函数名与返回形态：routes_plot 直接 import 了它，契约由
+    tests/verify_plot_fit_e2e.py 的 [S2] 组守着。
+    错误码仍用原来的两个，调用方（routes_plot / 本模块）不需要改。
+    """
+    try:
+        gs, data = load_group_data(session_id, group)
+    except ResolveError as e:
+        code = "CALC_NO_DATA" if e.code in ("CALC_NO_DATA", "PREVIEW_NO_DATA") else e.code
+        return None, None, _err(code, e.message)
     return gs, data, None
 
 
@@ -319,12 +319,14 @@ def monthly_spaces(req: MonthlySpacesRequest):
         sess = get_session(sid)
         if not sess:
             continue
-        for gd in sess.get("groups", []):
+        for gi, gd in enumerate(sess.get("groups", [])):
             try:
-                gs = GroupSummary.from_dict(gd)
-            except Exception:
+                # 走统一取数口：模拟 session 的数据在内存里，文件 session 走 provider。
+                # 这里不直接调 provider——否则模拟数据进不了月度表，而且不会报错。
+                gs, data = load_group_data(sid, gi)
+            except ResolveError:
                 continue
-            data = _PROVIDER.get_group_data(gs)
+            _ = gd  # 只为枚举下标；数据从统一入口取
             if not data or data.get("load_array") is None:
                 continue
             arr = np.asarray(data["load_array"], dtype=float)
