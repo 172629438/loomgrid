@@ -671,12 +671,18 @@ def _to_dt(series, fmt=None):
         needs_year = s_str.str.match(r'^\d{1,2}[-/.]\d{1,2}(\s+\d{1,2}:\d{2}(:\d{2})?)?$', na=False)
         if needs_year.any():
             series = series.copy()
-            series[needs_year] = str(datetime.now().year) + '/' + s_str[needs_year]
+            # v2.3.11fix9: 补年份时把分隔符统一成 '-'。
+            # 原来直接拼 f"{year}/" + '01-01 24:00' 得到 '2026/01-01 24:00'，
+            # 下面的 24:00 分支用 \d{4}-\d{2}-\d{2} 提取日期，混合分隔符匹配不上
+            # → NaT → 该行被 dropna 丢掉。每天最后一个采样点静默消失（实测确认）。
+            _patched = s_str[needs_year].str.replace(r'[/.]', '-', regex=True)
+            series[needs_year] = str(datetime.now().year) + '-' + _patched
     dt_series = pd.to_datetime(series, format=fmt, errors='coerce') if fmt else pd.to_datetime(series, errors='coerce')
     if isinstance(series, pd.Series):
         mask_24 = series.astype(str).str.contains(r'24:00', na=False)
         if mask_24.any():
-            date_part = series.astype(str).str.extract(r'(\d{4}-\d{2}-\d{2})')[0]
+            # v2.3.11fix9: 月份/日可能不补零（2026-1-1），正则要允许 1~2 位。
+            date_part = series.astype(str).str.extract(r'(\d{4}-\d{1,2}-\d{1,2})')[0]
             dt_24 = pd.to_datetime(date_part, errors='coerce') + pd.Timedelta(days=1)
             dt_series[mask_24] = dt_24[mask_24]
     return dt_series

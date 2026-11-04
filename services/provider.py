@@ -110,7 +110,10 @@ class DataProvider:
         date_col = mapping.get('date_col', '')
         load = mapping.get('load_col', '')
         time_col = mapping.get('time_col') or ''
-        hrow = mapping.get('hrow', 0)  # v2.3fix: 表头行加入缓存键
+        # v2.3.11fix9: 原为 mapping.get('hrow', 0)，但实际读文件用的是
+        # mapping.get('header_row', 0)（L178 / L223）。两个键名不一致，
+        # 于是「改表头行」永远不影响缓存键 → 改完仍拿到旧缓存。
+        hrow = mapping.get('header_row', mapping.get('hrow', 0))
         delimiter = mapping.get('delimiter', ',')  # v2.3fix: 分隔符加入缓存键
         if isinstance(load, list):
             load = tuple(sorted(load))
@@ -121,8 +124,20 @@ class DataProvider:
             pass
         return (fp, sheet, fmt, date_col, load, time_col, mtime, hrow, delimiter)
 
+    def _group_key(self, summary: GroupSummary):
+        """v2.3.11fix9: 分组缓存键必须包含列映射。
+
+        原键是 (文件, 工作表, 月, 资产)，不含 mapping。后果：同一个 provider
+        实例在用户改过列映射后再取同一分组，直接命中旧缓存——
+        **列换了、图不变、测算不变**，而且没有任何提示。
+
+        _cache_key 已经包含 format_type / date_col / load_col / time_col /
+        mtime / header_row / delimiter，直接复用它。
+        """
+        return self._cache_key(summary.file_path, summary.sheet_name, summary.mapping)
+
     def get_group_data(self, summary: GroupSummary):
-        key = (summary.file_path, summary.sheet_name, summary.month_str, summary.asset_value)
+        key = self._group_key(summary)
         with self._lock:
             if key in self._group_cache:
                 self._group_cache.move_to_end(key)
@@ -143,7 +158,7 @@ class DataProvider:
             return None
 
     def get_load_error(self, summary: GroupSummary):
-        key = (summary.file_path, summary.sheet_name, summary.month_str, summary.asset_value)
+        key = self._group_key(summary)
         with self._lock:
             return self._load_errors.get(key, "未知加载错误")
 

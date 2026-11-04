@@ -268,11 +268,39 @@ plotting/curves.py  dict 分支也调它
 修法：主程序 import 该函数，三处全改用它。新增 `tests/verify_daily_throughput.py`
 同时断言纯函数行为和三处消费点的 AST 契约。
 
+### 九、改列映射后仍返回旧数据（P1）
+
+`DataProvider.get_group_data` / `get_load_error` 的缓存键是
+`(file_path, sheet_name, month_str, asset_value)`——**不含 mapping**。
+用户改过列映射后再取同一分组，直接命中旧缓存：列换了、图不变、测算不变，无一提示。
+
+而 `_cache_key` 本来就含 format_type / date_col / load_col / time_col / mtime /
+header_row / delimiter，直接用即可。新增 `_group_key(summary)` 统一入口，两处都改用它。
+
+**顺带挖出键名不一致**：`_cache_key` 取 `mapping['hrow']`，而实际读文件取
+`mapping['header_row']`（provider.py L178 / L223）。于是「改表头行」永远不影响缓存键。
+这条是写测试时（“不同 header_row 应产生不同键”）现场抓到的，不修测试。
+
+### 十、无年份日期 + `24:00` 导致每天最后一点被丢（P1）
+
+`_to_dt` 补年份时拼的是 `f"{year}/" + '01-01 24:00'` = `2026/01-01 24:00`（混合分隔符）；
+而 `24:00` 分支用 `(\d{4}-\d{2}-\d{2})` 提日期——匹配不上 → `NaT` →
+该行被 `dropna(subset=['__dt__'])` 丢掉。
+
+后果：96 点变 95 点，日均值与时段边界都偏一格。而且只在「有 24:00 且日期无年份」
+这一种组合下发生，同一批文件有的正常有的丢点，很难发现。
+
+修法：补年份时把 `/` `.` 统一成 `-`，并把日期提取正则改为 `\d{4}-\d{1,2}-\d{1,2}`
+（兼容月份/日不补零）。实测五种写法（`01-01` / `1/1` / `01.01` / 有年份 / 无年份）
+全部归到次日，NaT = 0；真非法值仍为 NaT，没把错误藏起来。
+
 ### 验证
 
 - 新增 `tests/verify_month_parse.py`（22 项，含两处消费点的 AST 契约断言）
 - 新增 `tests/verify_scan_drop.py`（12 项：正常 / 「月份」写法 / 全乱码 / 空表 / 部分丢弃）
 - 新增 `tests/verify_daily_throughput.py`（18 项：占位零对拍 + 三处消费点 AST 契约）
+- 新增 `tests/verify_to_dt_24h.py`（9 项：24:00 与无年份日期组合）
+- 新增 `tests/verify_cache_key_mapping.py`（9 项：缓存键必须含映射，含 header_row 键名）
 - `python tools/run_all_tests.py --core` → 全绿
 - 端到端数据流探针：11 组日期写法逐一核对分组结果
 
