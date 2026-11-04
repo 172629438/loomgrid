@@ -1,0 +1,28 @@
+using System.Text.Json;
+
+namespace LoomGrid.Bridge;
+
+/// <summary>
+/// 测算接口封装。注意两个量纲：
+///   daily_demand.value_kwh             kWh      「电池该装多大」
+///   daily_throughput.value_kwh_per_day kWh/天   「一天能搬多少能量」
+/// **不可互换、不可相除。**
+/// </summary>
+public sealed class CalcApi
+{
+    private static readonly JsonSerializerOptions Opts = new() { PropertyNameCaseInsensitive = true };
+
+    private readonly ApiClient _api;
+
+    public CalcApi(ApiClient api) => _api = api;
+
+    public async Task<CapacityResult> CapacityAsync(CapacityRequest req, CancellationToken ct = default)
+    {
+        JsonElement data = await _api
+            .PostDataAsync(ApiPaths.CalcCapacity, req, ct)
+            .ConfigureAwait(false);
+
+        return data.Deserialize<CapacityResult>(Opts)
+               ?? throw new ApiException("容量测算返回了空数据");
+    }
+}

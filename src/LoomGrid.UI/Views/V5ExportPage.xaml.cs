@@ -369,6 +369,12 @@ public sealed partial class V5ExportPage : Page
         Frame.Navigate(typeof(V6ResultPage));
     }
 
+    private void OnCapacityClick(object sender, RoutedEventArgs e)
+    {
+        AppLog.Write("V5：进入 V4 容量测算");
+        Frame.Navigate(typeof(V4CapacityPage));
+    }
+
     private async Task ShowMessageAsync(string title, string text)
     {
         var dialog = new ContentDialog

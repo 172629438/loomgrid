@@ -253,6 +253,7 @@
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <Button Click="OnBackClick" Content="返回映射" />
+                <Button Click="OnCapacityClick" Content="容量测算" />
                 <Button
                     x:Name="RunButton"
                     Click="OnRunClick"
