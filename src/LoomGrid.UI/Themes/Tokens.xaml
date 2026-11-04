@@ -19,6 +19,9 @@
             <SolidColorBrush x:Key="SemanticErrorBrush" Color="#CF222E" />
             <SolidColorBrush x:Key="SemanticDataBrush" Color="#0969DA" />
             <SolidColorBrush x:Key="SemanticIdleBrush" Color="#6E7781" />
+            <!-- 表格：表头底与单元格网格线 -->
+            <SolidColorBrush x:Key="TableHeaderBgBrush" Color="#F6F8FA" />
+            <SolidColorBrush x:Key="TableCellBorderBrush" Color="#D0D7DE" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
             <SolidColorBrush x:Key="SemanticReadyBrush" Color="#3FB950" />
@@ -26,6 +29,8 @@
             <SolidColorBrush x:Key="SemanticErrorBrush" Color="#F85149" />
             <SolidColorBrush x:Key="SemanticDataBrush" Color="#4EA8DE" />
             <SolidColorBrush x:Key="SemanticIdleBrush" Color="#8B949E" />
+            <SolidColorBrush x:Key="TableHeaderBgBrush" Color="#1F1F1F" />
+            <SolidColorBrush x:Key="TableCellBorderBrush" Color="#30363D" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

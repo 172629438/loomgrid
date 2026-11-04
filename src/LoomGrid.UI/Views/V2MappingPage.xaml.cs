@@ -17,8 +17,17 @@ namespace LoomGrid.UI;
 /// </summary>
 public sealed partial class V2MappingPage : Page
 {
-    private static readonly SolidColorBrush HeaderBg = new(Color.FromArgb(255, 0x1F, 0x1F, 0x1F));
-    private static readonly SolidColorBrush CellBorder = new(Color.FromArgb(48, 0x80, 0x80, 0x80));
+    private static SolidColorBrush HeaderBg => Res("TableHeaderBgBrush", Microsoft.UI.Colors.Black);
+    private static SolidColorBrush CellBorder => Res("TableCellBorderBrush", Microsoft.UI.Colors.Gray);
+
+    private static SolidColorBrush Res(string key, Windows.UI.Color fallback)
+    {
+        if (Application.Current?.Resources is { } res
+            && res.TryGetValue(key, out var v)
+            && v is SolidColorBrush brush)
+            return brush;
+        return new SolidColorBrush(fallback);
+    }
 
     private WorkFile? _currentFile;
     private SheetInfo? _currentSheet;

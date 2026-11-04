@@ -441,6 +441,31 @@ verify_prod_artifact → 产物行为 == 源码行为
 
 ---
 
+## 六之三、WinUI 迁移待办（V4 时做）
+
+### 参数持久化：三个参数必须能恢复
+
+Fusion 会「恢复上次关闭时保存的参数」，只存三个：
+
+```
+pw_rated_power        额定功率
+pw_capacity_mode      容量模式（一充一放 / 两充两放）
+pw_ignore_negative    是否忽略负荷负值
+```
+
+这三项不在 24 项可视化清单里（它们是参数持久化，不是出图能力），
+但属于「功能等价」，必须做。
+
+**实现位置**：`Workspace` 或 `AppServices`，写 `%LOCALAPPDATA%\LoomGrid\settings.json`。
+**注意**：unpackaged 模式下 `ApplicationData.Current` 会抛异常，不能用它。
+
+**时机**：V4 容量测算做到这三个参数时一起做。
+
+**文件列表本身不持久化**——与 Fusion 一致（它只存那三个参数，不存文件清单）。
+所以「重启后 Workspace 清空」是等价行为，不是缺陷。
+
+---
+
 ## 七、提交信息写法
 
 ```

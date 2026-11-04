@@ -22,9 +22,20 @@ public sealed partial class V1WorkbenchPage : Page
     private static readonly string[] SupportedExtensions =
         { ".xlsx", ".xlsm", ".xls", ".xlsb", ".csv" };
 
-    private static readonly SolidColorBrush NormalBorder = new(Colors.Transparent);
-    private static readonly SolidColorBrush HoverBorder = new(Color.FromArgb(255, 0x4E, 0xA8, 0xDE));
-    private static readonly SolidColorBrush RejectBorder = new(Color.FromArgb(255, 0xD1, 0x34, 0x38));
+    private static readonly SolidColorBrush NormalBorder = new(Microsoft.UI.Colors.Transparent);
+    private static SolidColorBrush HoverBorder => Res("SemanticDataBrush", Microsoft.UI.Colors.DodgerBlue);
+    private static SolidColorBrush RejectBorder => Res("SemanticErrorBrush", Microsoft.UI.Colors.Red);
+
+    /// <summary>颜色一律从令牌字典取。之前这里写死了 #4EA8DE（与数据青同值）与 #D13438，
+    /// 同一个颜色两处定义，改主题时必漏。</summary>
+    private static SolidColorBrush Res(string key, Windows.UI.Color fallback)
+    {
+        if (Application.Current?.Resources is { } res
+            && res.TryGetValue(key, out var v)
+            && v is SolidColorBrush brush)
+            return brush;
+        return new SolidColorBrush(fallback);
+    }
 
     private readonly List<WorkFile> Files = Workspace.Current.Files;
     private readonly SemaphoreSlim _inspectGate = new(3);

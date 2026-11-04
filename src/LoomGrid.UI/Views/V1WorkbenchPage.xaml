@@ -109,7 +109,7 @@
                         <ColumnDefinition Width="78" />
                         <ColumnDefinition Width="104" />
                         <ColumnDefinition Width="104" />
-                        <ColumnDefinition Width="118" />
+                        <ColumnDefinition Width="136" />
                     </Grid.ColumnDefinitions>
 
                     <Button Grid.Column="0" Click="OnSortFileName" Style="{StaticResource TableHeaderButtonStyle}" Content="源文件" />
@@ -167,7 +167,7 @@
                                     <ColumnDefinition Width="78" />
                                     <ColumnDefinition Width="104" />
                                     <ColumnDefinition Width="104" />
-                                    <ColumnDefinition Width="118" />
+                                    <ColumnDefinition Width="136" />
                                 </Grid.ColumnDefinitions>
 
                                 <StackPanel Grid.Column="0" Spacing="1">
