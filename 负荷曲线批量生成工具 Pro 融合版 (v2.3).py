@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.11（2026-11-04 修复：「2026年7月份」整表静默丢弃、只有表头时伪造列名、空 CSV 抛未捕获异常）
+发布版本：LoomGrid Fusion v2.3.8（2026-11-04 合并原 v2.3.8~v2.3.11：三个 P0 与五条数据正确性修复）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -99,7 +99,7 @@ from core.ingest import (  # noqa: E402
 )
 from services.config import Config, _validate_config_schema  # noqa: E402
 from services.provider import DataProvider, MemoryLimitedCache  # noqa: E402
-# v2.3.11fix8: 逐日吞吐量的唯一实现。主程序原先三处各自算「逐段配对 min」，
+# v2.3.8fix: 逐日吞吐量的唯一实现。主程序原先三处各自算「逐段配对 min」，
 # 而同一索引的充段与放段是不同时段，配对 min 必然被占位零或错位压成 0。
 from services.capacity import daily_throughput_series  # noqa: E402
 from ui.window_state import (  # noqa: E402
@@ -218,7 +218,7 @@ def _check_and_install_dependencies():
 # v2.3.6fix(K5): 版本号只能有一个来源。
 # 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
 # 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
-FUSION_VERSION = "2.3.11"
+FUSION_VERSION = "2.3.8"
 FUSION_APP_NAME = "LoomGrid Fusion"
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
 _SUPPORTED_EXTS_SET = frozenset(SUPPORTED_EXTS)  # v2.3.4fix(J6): O(1) 成员查找
@@ -4562,7 +4562,7 @@ class ProfessionalWindow(QMainWindow):
                     month_billing = mb
             month_num = _parse_month_num(month_str)
             if month_num is None:
-                # v2.3.10fix: 原代码 int(month_str) 无保护，月份为「未知月份」时
+                # v2.3.8fix: 原代码 int(month_str) 无保护，月份为「未知月份」时
                 # ValueError 直接抽穿 __init__，专业分析窗口根本打不开。
                 # 跳过该月并在日志里点名，比崩掉或猜一个月份都正确。
                 log.error(f"[_recalc_spaces] 月份无法识别({month_str!r})，跳过该月测算；请检查文件名或数据内日期列")
@@ -4930,7 +4930,7 @@ class ProfessionalWindow(QMainWindow):
                 if d_segs:
                     selected_d = [d_segs[0]]
 
-        # v2.3.10fix: 剔除全零段（占位零）。
+        # v2.3.8fix: 剔除全零段（占位零）。
         # compute_segmented_spaces 返回的四个平行列表里，每个段在**非本方向**那一侧
         # 是占位零（充电段在放电侧为 0，放电段在充电侧为 0），目的是让四个列表等长。
         # 但下游取 min / 取 max(min(配对)) 时，占位零会把结果直接压成 0：
@@ -4960,7 +4960,7 @@ class ProfessionalWindow(QMainWindow):
             n_days = len(c_arrs[0]) if c_arrs else (len(d_arrs[0]) if d_arrs else 0)
             if n_days == 0:
                 continue
-            # v2.3.11fix8: 满载分支把「逐段配对 min」改成「当日总充与总放取瓶颈」。
+            # v2.3.8fix: 满载分支把「逐段配对 min」改成「当日总充与总放取瓶颈」。
             # 剔除占位零后 c_arrs[i] 与 d_arrs[i] 仍是不同时段的两段，配对无意义。
             _tp = None if use_min else daily_throughput_series(c_arrs, d_arrs)
             for d in range(n_days):
@@ -4977,7 +4977,7 @@ class ProfessionalWindow(QMainWindow):
     def _check_day_satisfied(self, month, day_index, cap):
         """v3.2fix: 按充放配对判断——应用DOD折算可用容量后比较
 
-        v2.3.11fix8: 原来要求「同一索引 i 的充段与放段同时 >= 可用容量」。
+        v2.3.8fix: 原来要求「同一索引 i 的充段与放段同时 >= 可用容量」。
         剔除占位零后两个列表已不再逐位对应，这条判据几乎恒假：
         容量 > 0 时「满足天数」全是 0，容量 = 0 时又全真（0 >= 0）。
         两端都错，且都看起来合理。改为当日吞吐量（总充与总放取瓶颈）>= 可用容量。
@@ -5165,7 +5165,7 @@ class ProfessionalWindow(QMainWindow):
         self.daily_table.setHorizontalHeaderLabels(col_labels)
         n_days = len(dates)
         self.daily_table.setRowCount(n_days)
-        # v2.3.11fix8: 满载口径改为「当日总充与总放取瓶颈」，
+        # v2.3.8fix: 满载口径改为「当日总充与总放取瓶颈」，
         # 唯一实现见 services/capacity.daily_throughput_series。
         # 原逐段配对 min 因占位零/错位，整列恒为 0.000。
         _thr = daily_throughput_series(c_segs, d_segs)
@@ -6217,7 +6217,7 @@ class ProcessingThread(threading.Thread):
                 if self.stop_event.is_set():
                     return
                 if time.time() - _wait_start > _map_timeout:
-                    # v2.3.11fix7: 原行为是 break 后 continue，跳过该文件继续下一个。
+                    # v2.3.8fix: 原行为是 break 后 continue，跳过该文件继续下一个。
                     # 但 UI 线程还阻塞在第一个 dlg.exec() 里，用户随后的「确定」会
                     # 唤醒**下一个文件**的等待（set_mapping_result 没有代次校验），
                     # 于是 b 文件用了 a 文件的列映射——列名对得上就用错列算错数据，
@@ -6304,7 +6304,7 @@ class ProcessingThread(threading.Thread):
                         friendly = _translate_error(None, res['error'])
                         self.signals.log.emit(f"扫描错误: {friendly}")
                     elif isinstance(res, dict) and res.get('skipped'):
-                        # v2.3.11fix5: 扫描层现在会把「整表没拿到有效数据」明确报上来。
+                        # v2.3.8fix: 扫描层现在会把「整表没拿到有效数据」明确报上来。
                         # 以前这些情况返回空列表，界面与「这个文件本来就没有数据」无法区分。
                         _why = {
                             'empty_sheet': '工作表无数据行（只有表头或完全为空）',
@@ -6314,7 +6314,7 @@ class ProcessingThread(threading.Thread):
                         self.signals.log.emit(f"跳过 {os.path.basename(fp)} / {sheet}：{_why}{_extra}")
                     elif isinstance(res, list):
                         for item in res:
-                            # v2.3.11fix5: 原为 GroupSummary(**item)。
+                            # v2.3.8fix: 原为 GroupSummary(**item)。
                             # core.models.GroupSummary 是 __slots__ 定长结构，注释里写明
                             # 「统一从 from_dict 构造，而不是各处写 **d」——但这里没跟上。
                             # 后果：扫描层一旦在 dict 里多带一个字段（如 dropped_rows），
@@ -7516,7 +7516,7 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
 
             if success_count > 0:
                 html += "<h2>成功列表</h2><table><tr><th>序号</th><th>文件名</th><th>表号</th><th>月份</th><th>源文件</th></tr>"
-                # v2.3.11fix10: 原为 startswith(资产名)。资产 `1` 会匹配
+                # v2.3.8fix: 原为 startswith(资产名)。资产 `1` 会匹配
                 # `10_202601_负荷曲线.png`，报告里那一行的表号/月份/源文件全取错。
                 # 改为用同一套模板算出期望文件名再全等比较。
                 _tpl = getattr(self._thread, 'filename_template', None) or '{table_no}_{year_month}_负荷曲线'

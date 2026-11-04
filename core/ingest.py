@@ -140,7 +140,7 @@ def _looks_yearless(raw) -> bool:
 def _extract_ym(d):
     """从任意日期表示里取 YYYY-MM。
 
-    v2.3.11fix: 数字要先判 Excel 序列号，不能直接丢给 pd.to_datetime ——
+    v2.3.8fix: 数字要先判 Excel 序列号，不能直接丢给 pd.to_datetime ——
     后者把数字当纳秒，任何数字都会落到 1970-01（epoch）。
     用户看到的「未找到月份 '1970-01'」就是这么来的。
 
@@ -148,7 +148,7 @@ def _extract_ym(d):
     0 与空值一律返回「未知月份」，不再伪造出一个 1970-01。
     """
     raw = str(d).strip()
-    # v2.3.11fix2: 原来是 \d{5}，4 位数（如户号 1002）会漏到 pd.to_datetime，
+    # v2.3.8fix: 原来是 \d{5}，4 位数（如户号 1002）会漏到 pd.to_datetime，
     # 被宽松解析成「公元 1002 年 1 月」。改为任意纯数字都先走区间判断：
     # 只有 20000~80000 才是合法 Excel 序列号，其余一律未知月份。
     if re.fullmatch(r"\d+(?:\.\d+)?", raw):
@@ -191,7 +191,7 @@ def _extract_ym(d):
     # C8：中文年月日 / 无年份日期。
     # 这三种格式此前全部落到 pd.to_datetime 并被解析成公元 1 年（0001-01），
     # 看起来像个日期，比直接报错更糟。
-    # v2.3.11fix4: 「份」是中文里最常见的月份写法（“2026 年 7 月份”），
+    # v2.3.8fix: 「份」是中文里最常见的月份写法（“2026 年 7 月份”），
     # 原正则只认「月」不认「月份」，整表会返回「未知月份」→ 扫描层 continue →
     # 整月数据静默消失（实测：同样五组日期写法，只有带「份」的被丢）。
     _cn = re.match(r"^(\d{4})\s*年\s*(\d{1,2})\s*月\s*(?:份)?\s*(?:\d{1,2}\s*日?)?$", raw)
@@ -526,7 +526,7 @@ def get_columns_fast(fp, sheet=None, hrow=0, enc=None, delimiter=','):
         try:
             df = pd.read_csv(fp, encoding=e, nrows=hrow+1, header=hrow, sep=delimiter, engine='python')
         except Exception:
-            # v2.3.11fix: 回退分支原来没有 try。空文件在 sep=None 时招 pandas
+            # v2.3.8fix: 回退分支原来没有 try。空文件在 sep=None 时招 pandas
             # `_csv.Error: Could not determine delimiter`，直接逃到 UI 的「无法读取列名」。
             # 现在统一返回空列表，让调用方走「未能识别任何列名」的明确分支。
             try:
@@ -541,7 +541,7 @@ def get_columns_fast(fp, sheet=None, hrow=0, enc=None, delimiter=','):
         except Exception as _e:
             log.error(f"Excel列名读取失败({fp}): {_e}")
             return [f"列{i+1}" for i in range(10)]  # 兜底列名
-    # v2.3.11fix: 0 行 ≠ 没有列名。
+    # v2.3.8fix: 0 行 ≠ 没有列名。
     # 原判据是 `df is None or df.empty`，而「只有表头、没有数据行」的表格
     # df.empty 为 True 但列名完全有效——旧代码会把真实列名丢掉、伪造「列1..列10」，
     # 用户在映射界面看到 10 个不存在的列，手选后必然对不上。
@@ -671,7 +671,7 @@ def _to_dt(series, fmt=None):
         needs_year = s_str.str.match(r'^\d{1,2}[-/.]\d{1,2}(\s+\d{1,2}:\d{2}(:\d{2})?)?$', na=False)
         if needs_year.any():
             series = series.copy()
-            # v2.3.11fix9: 补年份时把分隔符统一成 '-'。
+            # v2.3.8fix: 补年份时把分隔符统一成 '-'。
             # 原来直接拼 f"{year}/" + '01-01 24:00' 得到 '2026/01-01 24:00'，
             # 下面的 24:00 分支用 \d{4}-\d{2}-\d{2} 提取日期，混合分隔符匹配不上
             # → NaT → 该行被 dropna 丢掉。每天最后一个采样点静默消失（实测确认）。
@@ -681,7 +681,7 @@ def _to_dt(series, fmt=None):
     if isinstance(series, pd.Series):
         mask_24 = series.astype(str).str.contains(r'24:00', na=False)
         if mask_24.any():
-            # v2.3.11fix9: 月份/日可能不补零（2026-1-1），正则要允许 1~2 位。
+            # v2.3.8fix: 月份/日可能不补零（2026-1-1），正则要允许 1~2 位。
             date_part = series.astype(str).str.extract(r'(\d{4}-\d{1,2}-\d{1,2})')[0]
             dt_24 = pd.to_datetime(date_part, errors='coerce') + pd.Timedelta(days=1)
             dt_series[mask_24] = dt_24[mask_24]
@@ -736,7 +736,7 @@ def _detect_wide_matrix(df: pd.DataFrame, cols, max_sample=100):
     load_candidates = [tc[0] for tc in time_cols[best_start:best_start+best_len]]
     left_idx = cols.index(load_candidates[0]) - 1
     date_col = None
-    # v2.3.11fix3: 原先用 .apply(_extract_ym).notna().any() 判断。
+    # v2.3.8fix: 原先用 .apply(_extract_ym).notna().any() 判断。
     # _extract_ym 现在对无效值返回字符串「未知月份」而不是 NaN，
     # 字符串的 .notna() 恒为 True —— 任何列都会通过，包括「户号」。
     # 改为「抽样里至少 60% 能解析出真实年月」。
@@ -888,7 +888,7 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
         else:
             wdate, wload = _detect_wide_matrix(sample_df, cols, max_sample)
             if wdate and wload:
-                # v2.3.11fix2: 抽样验证 wdate 真的是日期列再覆盖。
+                # v2.3.8fix: 抽样验证 wdate 真的是日期列再覆盖。
                 # 词表已正确识别出「日期」时，宽表检测仍可能把「户号」这种
                 # 能解析成日期的数值列覆上来（1002 曾被解析成公元 1002 年 1 月），
                 # 而且 confidence 还给 1.0 —— 错得很有把握，最难发现。
@@ -1009,7 +1009,7 @@ def _scan_wide_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
     for idx, ym in yms.items():
         if cancel_event and cancel_event.is_set():
             return
-        # v2.3.11fix5: 丢弃的行必须可计数。
+        # v2.3.8fix: 丢弃的行必须可计数。
         # 原来这三处 continue 把无法识别月份 / 无有效时间列 / 空数组的行
         # 默默丢掉，调用方拿到的只是「少了几个月」，不知道丢了多少。
         if pd.isna(ym) or ym == '' or ym == '未知月份':
@@ -1173,7 +1173,7 @@ def _scan_file_worker(args):
         if cancel_event.is_set():
             return {'cancelled': True}
         # v3.0fix: 空工作表跳过——0行数据无需扫描,节省列映射时间
-        # v2.3.11fix5: 但「跳过」不能等于「静默」。返回可识别的 skipped，
+        # v2.3.8fix: 但「跳过」不能等于「静默」。返回可识别的 skipped，
         # 由调用方向用户说明，否则用户只知道「少了这个 sheet」。
         if df is not None and len(df) == 0:
             return {'skipped': 'empty_sheet'}

@@ -58,6 +58,16 @@ def post_json(base, path, payload):
         return json.loads(r.read())
 
 
+# v2.3.8fix: Web 版已于 2026-11-04 从仓库下架（dist/LoomGrid-Fusion 已删除），
+# 本脚本测的就是那个产物。产物不在时直接跳过，不报红——否则全套测试会
+# 一直挂一个“找不到文件”的假失败。
+if not os.path.exists(EXE):
+    print(f"[SKIP] 未找到 Web 版产物：{EXE}")
+    print("       Web 版已下架，本脚本仅在产物存在时运行。")
+    print("       （桌面版产物请用 tools/verify_exe_window.py 验窗口标题）")
+    print("\n结果：PASS 0   FAIL 0   SKIP 1")
+    sys.exit(0)
+
 proc = subprocess.Popen([EXE], cwd=os.path.dirname(EXE),
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                         text=True, encoding="utf-8", errors="replace")

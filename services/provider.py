@@ -110,7 +110,7 @@ class DataProvider:
         date_col = mapping.get('date_col', '')
         load = mapping.get('load_col', '')
         time_col = mapping.get('time_col') or ''
-        # v2.3.11fix9: 原为 mapping.get('hrow', 0)，但实际读文件用的是
+        # v2.3.8fix: 原为 mapping.get('hrow', 0)，但实际读文件用的是
         # mapping.get('header_row', 0)（L178 / L223）。两个键名不一致，
         # 于是「改表头行」永远不影响缓存键 → 改完仍拿到旧缓存。
         hrow = mapping.get('header_row', mapping.get('hrow', 0))
@@ -125,7 +125,7 @@ class DataProvider:
         return (fp, sheet, fmt, date_col, load, time_col, mtime, hrow, delimiter)
 
     def _group_key(self, summary: GroupSummary):
-        """v2.3.11fix9: 分组缓存键必须包含列映射。
+        """v2.3.8fix: 分组缓存键必须包含列映射。
 
         原键是 (文件, 工作表, 月, 资产)，不含 mapping。后果：同一个 provider
         实例在用户改过列映射后再取同一分组，直接命中旧缓存——

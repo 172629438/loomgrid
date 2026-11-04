@@ -109,7 +109,7 @@ class PlotOptions:
     def from_dict(cls, d):
         """从 dict 还原；未知键忽略，缺失键用默认值。
 
-        v2.3.11fix6: 阶段 1 把 PlotOptions 搬进本模块时只搬了 to_dict，
+        v2.3.8fix: 阶段 1 把 PlotOptions 搬进本模块时只搬了 to_dict，
         from_dict 丢了——而它本来就是既有契约，两个消费方都依赖它：
 
           主程序 ProfessionalWindow.__init__ / update_asset_summaries

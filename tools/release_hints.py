@@ -48,14 +48,14 @@ MARK_VER = "<!-- ver-guide -->"
 
 # 当前生产版本：改版时只改这里
 # 2026-11-03：Fusion 推至 v2.3.7（公司那台发的）、Ultra 推至 v3.2.9。
-PROD_FUSION = "fusion-v2.3.11"
+PROD_FUSION = "fusion-v2.3.8"
 PROD_ULTRA = "ultra-v3.2.9"
 
 
 def download_hint(zip_name: str, zip_mb: float) -> str:
     """顶部：告诉用户点哪个文件。
 
-    v2.3.11fix: 原来直接把 zip 名去掉 `.zip` 当目录名与 exe 名。
+    v2.3.8fix: 原来直接把 zip 名去掉 `.zip` 当目录名与 exe 名。
     而 pack_release.py 的产物目录用的是 tag（不带 -win64）：
         zip   LoomGrid-Fusion-v2.3.11-win64.zip
         目录  LoomGrid-Fusion-v2.3.11\\

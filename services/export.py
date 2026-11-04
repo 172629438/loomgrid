@@ -47,7 +47,7 @@ def export_midwide(summary: GroupSummary, data: dict, output_dir: str) -> str:
     """
     os.makedirs(output_dir, exist_ok=True)
     mstr = (summary.month_str or "").replace("-", "")
-    # v2.3.11fix10: 资产名必须消毒。原为直接用 summary.asset_value，
+    # v2.3.8fix: 资产名必须消毒。原为直接用 summary.asset_value，
     # 而资产列的值由 _normalize_asset 处理——只 strip + 空值替换，不做字符过滤。
     # 用户表里写 `A/B栋` 就会往路径里插斜杠（目录不存在 → OSError，
     # 或目录恰好存在 → 文件被写到意外子目录）。plot_group 走了 _sanitize_name，
@@ -147,7 +147,7 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
         for i, p in enumerate(paths, 1):
             info = {}
             base = os.path.basename(p)
-            # v2.3.11fix10: 原为 base.startswith(_sanitize_name(asset))。
+            # v2.3.8fix: 原为 base.startswith(_sanitize_name(asset))。
             # 资产 `1` 会匹配 `10_202601_负荷曲线.png`，那一行的表号/月份/源文件全取错。
             # 改为用同一套模板算出期望文件名再全等比较。
             for s in summaries or []:

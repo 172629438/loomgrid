@@ -148,7 +148,20 @@ cx_Freeze 实测可用，所以保持现状不改，但换打包器时先验这�
 
 ---
 
-## v2.3.11 — 2026-11-04（Fusion）
+## v2.3.8 — 2026-11-04（Fusion，合并原 v2.3.8 ~ v2.3.11）
+
+> **版本号说明（2026-11-04）**
+>
+> 上一个实际发布到 Release 的版本是 **v2.3.7**。之后代码里继续用过
+> v2.3.8 / v2.3.9 / v2.3.10 / v2.3.11 四个号，但都**没有发布过 Release**——
+> 它们只存在于注释与 CHANGELOG 里。为让版本序列与 Release 连续，
+> 这四个号统一并入 **v2.3.8**，内容一条不删。
+>
+> 下文第一部分是本轮（2026-11-04）的修复；第二部分起是原 v2.3.9 / v2.3.8 的原文，
+> 仅移动位置，未改一字。
+
+---
+
 
 > 数据接入层的静默失败清理。本版包含此前已入代码但未发版、未入 CHANGELOG 的
 > `v2.3.11fix` 系列（Excel 序列号与 4 位数字判定、日期列抽样验证），以及本轮三项修复。
@@ -326,31 +339,13 @@ if base.startswith(_sanitize_name(s.asset_value)):
 `services/export.generate_report` 新增 `filename_template` 可选参数（默认 `DEFAULT_FILENAME_TEMPLATE`），
 主程序取 `self._thread.filename_template`。
 
-### 验证
-
-- 新增 `tests/verify_month_parse.py`（22 项，含两处消费点的 AST 契约断言）
-- 新增 `tests/verify_scan_drop.py`（12 项：正常 / 「月份」写法 / 全乱码 / 空表 / 部分丢弃）
-- 新增 `tests/verify_daily_throughput.py`（18 项：占位零对拍 + 三处消费点 AST 契约）
-- 新增 `tests/verify_to_dt_24h.py`（9 项：24:00 与无年份日期组合）
-- 新增 `tests/verify_cache_key_mapping.py`（9 项：缓存键必须含映射，含 header_row 键名）
-- 新增 `tests/verify_export_naming.py`（11 项：资产名消毒 + 资产 1 不吃 10）
-- `python tools/run_all_tests.py --core` → 全绿
-- 端到端数据流探针：11 组日期写法逐一核对分组结果
-
-### 下一批（已定位，未动）
-
-- `_detect_file_format_type` 检测失败默认返回 `'long'`，宽表会被当长表读取
-- `_detect_transposed_wide` 内部有两处静默 `pass`，可能让转置判定漏报
 
 ---
 
-## v2.3.10 — 2026-11-04（Fusion，已并入 v2.3.11）
-
-> 本号未单独发版。内容（月份解析统一入口）已并入 v2.3.11 第四节。
+> 以下为原 **v2.3.9** 与 **v2.3.8** 的条目原文（未发版，并入本版）。
 
 ---
 
-## v2.3.9 — 2026-11-03（Fusion）
 
 > 两处修复。第一条是阶段 0 采基线时暴露的静默错误，第二条是 v2.3.7 我自己引入的回归。
 
@@ -417,7 +412,13 @@ re.compile(r"&(?!(?:amp|lt|gt|quot|#x27|#\d+|\w+);)")
 
 ---
 
-## v2.3.8 — 2026-11-03（Fusion）
+
+---
+
+> 以下为原 **v2.3.8** 的条目原文。
+
+---
+
 
 > v2.3.7 之后的一轮全面深度审查（静态扫描 + 算法边界动态验证），三处修复。
 
@@ -484,6 +485,25 @@ except Exception as e:
 |---|---|
 | C7 | `24h_belongs_current_month` —— 配了个不生效的开关：有默认值、有 setter、变量零读取、UI 无控件 |
 | C8 | `_parse_date_flexible` 日期无年份时默认今年 —— 明确决策，但跨年数据会串 |
+
+---
+
+
+### 验证
+
+- 新增 `tests/verify_month_parse.py`（22 项，含两处消费点的 AST 契约断言）
+- 新增 `tests/verify_scan_drop.py`（12 项：正常 / 「月份」写法 / 全乱码 / 空表 / 部分丢弃）
+- 新增 `tests/verify_daily_throughput.py`（18 项：占位零对拍 + 三处消费点 AST 契约）
+- 新增 `tests/verify_to_dt_24h.py`（9 项：24:00 与无年份日期组合）
+- 新增 `tests/verify_cache_key_mapping.py`（9 项：缓存键必须含映射，含 header_row 键名）
+- 新增 `tests/verify_export_naming.py`（11 项：资产名消毒 + 资产 1 不吃 10）
+- `python tools/run_all_tests.py --core` → 全绿
+- 端到端数据流探针：11 组日期写法逐一核对分组结果
+
+### 下一批（已定位，未动）
+
+- `_detect_file_format_type` 检测失败默认返回 `'long'`，宽表会被当长表读取
+- `_detect_transposed_wide` 内部有两处静默 `pass`，可能让转置判定漏报
 
 ---
 

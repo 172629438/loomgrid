@@ -25,7 +25,7 @@ REPO = os.path.dirname(HERE)
 
 # 需要 HTTP 服务或真实窗口的脚本：故意不进 CI，跑不动时标 ENV 而不是 FAIL
 NEEDS_ENV = {
-    # v2.3.11fix11: verify_prod_artifact.py 会启动 dist/LoomGrid-Fusion 下的
+    # v2.3.8fix: verify_prod_artifact.py 会启动 dist/LoomGrid-Fusion 下的
     # **Web 版** exe（它起 FastAPI 并打印 127.0.0.1:端口），启动时会弹出浏览器页面。
     # 它测的不是桌面版产物，--core 不应包含它。
     "verify_prod_artifact.py",
