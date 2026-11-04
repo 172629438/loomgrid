@@ -85,7 +85,7 @@ check("cap=200 dod=95 时 280 >= 190（满足）", 280.0 >= 200 * 95 / 100.0)
 check("旧口径日需求 0 会判为不满足（复现缺陷）", not (0.0 >= 200 * 95 / 100.0))
 
 # ── ② AST 契约 ──────────────────────────────────────────────
-MAIN = os.path.join(REPO, "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
+MAIN = os.path.join(REPO, "apps", "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
 tree = ast.parse(io.open(MAIN, encoding="utf-8", errors="replace").read())
 
 

@@ -41,7 +41,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-ULTRA = os.path.join(ROOT, "负荷曲线批量生成Ultra.py")
+ULTRA = os.path.join(ROOT, "apps", "负荷曲线批量生成Ultra.py")
 ALG_DIR = os.path.join(ROOT, "algorithms")
 sys.path.insert(0, ALG_DIR)
 

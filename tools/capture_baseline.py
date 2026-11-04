@@ -51,7 +51,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DEFAULT_OUT = os.path.join(ROOT, "baseline")
-FUSION = os.path.join(ROOT, "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
+FUSION = os.path.join(ROOT, "apps", "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
 INPUT_ROOT = os.path.join(DEFAULT_OUT, "_inputs")
 
 sys.path.insert(0, HERE)

@@ -16,8 +16,8 @@
 
 | 内容 | 位置 |
 |---|---|
-| Fusion 主程序（生产推荐） | `负荷曲线批量生成工具 Pro 融合版 (v2.3).py`（仓库根） |
-| Ultra 主程序（功能最全） | `负荷曲线批量生成Ultra.py`（仓库根） |
+| Fusion 主程序（生产推荐） | `apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py` |
+| Ultra 主程序（功能最全） | `apps/负荷曲线批量生成Ultra.py` |
 | 算法模块（可独立 import） | `algorithms/` |
 | 站点与在线介绍页 | `docs/`（GitHub Pages 源目录） |
 | 变更记录 | `CHANGELOG.md` |
@@ -46,7 +46,7 @@ git log --oneline HEAD..origin/main    # 有输出 = 你落后了，先 rebase
 改完代码**当场**做完这三步，不要攒：
 
 ```bash
-git add "负荷曲线批量生成工具 Pro 融合版 (v2.3).py" CHANGELOG.md
+git add "apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py" CHANGELOG.md
 git commit -m "fix(fusion): <一句话说清改了什么>"
 git push origin main
 ```
@@ -56,8 +56,8 @@ git push origin main
 不能只看 `git push` 的成功提示——要确认远端文件真的变了。
 
 ```bash
-git ls-tree origin/main -- "负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
-git hash-object "负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
+git ls-tree origin/main -- "apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
+git hash-object "apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
 ```
 
 两行输出的 blob hash 必须一致。

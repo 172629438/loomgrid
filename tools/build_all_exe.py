@@ -51,10 +51,10 @@ EXCLUDES = [
 
 GROUPS = {
     "ultra": [
-        ("负荷曲线批量生成Ultra.py", "LoomGrid-Ultra-v3.2"),
+        ("apps/负荷曲线批量生成Ultra.py", "LoomGrid-Ultra-v3.2"),
     ],
     "fusion": [
-        ("负荷曲线批量生成工具 Pro 融合版 (v2.3).py", "LoomGrid-Fusion-v2.3"),
+        ("apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py", "LoomGrid-Fusion-v2.3"),
     ],
     "legacy": [
         ("legacy/LoomGrid-Fusion-v1.1.py", "LoomGrid-Fusion-v1.1"),
@@ -66,8 +66,8 @@ GROUPS = {
         ("legacy/LoomGrid-Fusion-v2.2.py", "LoomGrid-Fusion-v2.2"),
     ],
     "refs": [
-        ("备份程序.py", "LoomGrid-Backup-v2.29"),
-        ("参考程序.py", "LoomGrid-Reference-v2.29"),
+        ("legacy/备份程序.py", "LoomGrid-Backup-v2.29"),
+        ("legacy/参考程序.py", "LoomGrid-Reference-v2.29"),
     ],
 }
 

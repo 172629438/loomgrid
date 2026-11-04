@@ -6,12 +6,14 @@ import sys
 
 from cx_Freeze import setup, Executable
 
-ROOT = r"C:\Users\Administrator\.hanako\repos\172629438__loomgrid"
+# 仓库根目录：本文件在 tools/ 下，上跳一层。
+# 原来写死 C:\Users\Administrator\...，换一台机器直接跑不了。
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
 
 SRC = "loomgrid_fusion_dbg.py"
 OUT = "dist/fusion-debug"
-shutil.copyfile("负荷曲线批量生成工具 Pro 融合版 (v2.3).py", SRC)
+shutil.copyfile("apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py", SRC)
 if os.path.exists(OUT):
     shutil.rmtree(OUT)
 

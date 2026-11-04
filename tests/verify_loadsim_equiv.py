@@ -25,7 +25,7 @@ sys.path.insert(0, ROOT)
 
 from services import loadsim  # noqa: E402
 
-FUSION = os.path.join(ROOT, "参考程序.py")
+FUSION = os.path.join(ROOT, "legacy", "参考程序.py")
 
 PASS = []
 FAIL = []

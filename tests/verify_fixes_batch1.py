@@ -5,7 +5,7 @@ _ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
 import importlib.util, sys, types, py_compile, io, contextlib
 import numpy as np
 
-TARGET = _os.path.join(_ROOT, "负荷曲线批量生成Ultra.py")
+TARGET = _os.path.join(_ROOT, "apps", "负荷曲线批量生成Ultra.py")
 results = []
 
 

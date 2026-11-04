@@ -105,7 +105,7 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 
 > 一个储能工程师，为解放自己的重复劳动写出来的桌面工具。读进客户的用电曲线和当地分时电价，算清楚「装多大、怎么充放、能省多少、几年回本」。
 
-不是演示 Demo。3.6 万行 Python + PySide6，96 个类。**不优雅，但真实**——包括走得通的路和绕过的弯。
+不是演示 Demo。3.6 万行 Python + PySide6，99 个类。**不优雅，但真实**——包括走得通的路和绕过的弯。
 
 ### 你可能需要它，如果：
 
@@ -162,19 +162,19 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 
 | 你的情况 | 用这个 |
 |---|---|
-| 明天要交方案，要稳 | **[Fusion v2.3.7](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.7)** |
-| 功能越多越好 | **[Ultra v3.2.2](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.2)** |
-| 想读源码，10k 行比 36k 行好读 | **[Fusion v2.3.7](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.7)** |
+| 明天要交方案，要稳 | **[Fusion v2.3.8](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.8)** |
+| 功能越多越好 | **[Ultra v3.2.9](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.9)** |
+| 想读源码，8k 行比 36k 行好读 | **[Fusion v2.3.8](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.8)** |
 | 想研究三层叠加引擎的完整实现 | **[Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0)** |
 | 想看看真实项目的弯路长什么样 | **[Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0)** |
 | 想看某个功能最早怎么写的 | **[Fusion v1.1 ~ v2.3.0](https://github.com/172629438/loomgrid/releases)** |
 
 两个现役版本不是「新旧」，是**两条路线**：
 
-| | **Fusion v2.3.7** | **Ultra v3.2.2** |
+| | **Fusion v2.3.8** | **Ultra v3.2.9** |
 |---|---|---|
 | 定位 | **生产推荐** | 功能最全 |
-| 代码量 | 10,584 行 | 36,175 行 |
+| 代码量 | 7,995 行 | 36,245 行 |
 | 架构 | 另写一遍，流式处理 | 单文件全功能 |
 | 吞吐 | Ultra 的三成 | 基准 |
 | 内存占用 | 低 | 高 |
@@ -185,7 +185,7 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 | 13 个动效组件 | — | ✓ |
 | 稳定性 | 高（跑得久） | 中（功能密度超过测试覆盖） |
 
-> **关于版本号**：2026-10-28 做过一次版本序列重整。原 v3.2.2~v3.2.8 与 v2.3.1~v2.3.3 那些中间版本，源码从未提交进仓库、Release 上的包又打不开，按「每个版本必须有源码、必须有能打开的 exe」的标准撤销了版本号，最终代码统一重新发布为 **Ultra v3.2.2** 与 **Fusion v2.3.1**。原各版本的更新说明全部合并进新版本条目，逐条见 [CHANGELOG](CHANGELOG.md)。
+> **关于版本号**：2026-10-28 做过一次版本序列重整。原 v3.2.2~v3.2.8 与 v2.3.1~v2.3.3 那些中间版本，源码从未提交进仓库、Release 上的包又打不开，按「每个版本必须有源码、必须有能打开的 exe」的标准撤销了版本号，最终代码统一重新发布为 **Ultra v3.2.2** 与 **Fusion v2.3.1**。原各版本的更新说明全部合并进新版本条目，逐条见 [CHANGELOG](CHANGELOG.md)。重整之后两条线继续迭代，现役为 **Fusion v2.3.8** 与 **Ultra v3.2.9**。
 
 > **为什么稳定版推荐的是行数少的那个**：Ultra 功能密度更高——MILP、四目标 Pareto、13 步诊断、13 个动效组件、三层引擎回填都在里面，能力上限高，路径也多。Fusion 是另写一遍的轻量路线，吞吐是 Ultra 的三成但内存低、跑得久。这不是谁更好，是你要「稳」还是要「全」。
 
@@ -203,8 +203,8 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 
 | 版本 | 适合 | 包体 |
 |---|---|---|
-| [**Fusion v2.3.7**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.7) | **正式做方案**，稳定优先选它 | 114 MB（解压 286 MB） |
-| [**Ultra v3.2.2**](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.2) | 功能最全，要 MILP / Pareto / 诊断就上 | 274 MB（解压 675 MB） |
+| [**Fusion v2.3.8**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.8) | **正式做方案**，稳定优先选它 | 135 MB |
+| [**Ultra v3.2.9**](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.9) | 功能最全，要 MILP / Pareto / 诊断就上 | 273 MB |
 | [Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0) | Ultra 历史快照，含三层叠加引擎原文 | 139 MB |
 | [Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0) | 早期分支，含占位方法，**不要做正式方案** | 267 MB |
 | [Fusion v1.1 ~ v2.3.0](https://github.com/172629438/loomgrid/releases) | 考古、版本对比 | 各 135 MB |
@@ -221,7 +221,7 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 ```bash
 pip install PySide6 numpy pandas scipy \
             matplotlib openpyxl ortools
-python "负荷曲线批量生成Ultra.py"
+python "apps/负荷曲线批量生成Ultra.py"
 ```
 
 按 `F1` 查看内置手册。
@@ -564,14 +564,14 @@ Fusion 是「稳定优先」那条线：原生控件、无装饰，把力气全�
 
 | 文件 | 内部版本 | 行数 | 定位 | 状态 |
 |---|---|---:|---|---|
-| `负荷曲线批量生成工具 Pro 融合版 (v2.3).py` | v2.3.7 | ~10.4k | **生产推荐**，要结果稳就选它 | 稳定 |
-| `负荷曲线批量生成Ultra.py` | v3.2.2 | ~36.2k | 功能最全（MILP / Pareto / 13 步诊断） | 稳定 |
+| `apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py` | v2.3.8 | 7,995 | **生产推荐**，要结果稳就选它 | 稳定 |
+| `apps/负荷曲线批量生成Ultra.py` | v3.2.9 | 36,245 | 功能最全（MILP / Pareto / 13 步诊断） | 稳定 |
 
 > **为什么稳定版推荐的是行数少的那个？**
 >
 > Ultra 是功能最全的一条线：MILP 全局规划、四目标 Pareto、13 步诊断、13 个动效组件、三层叠加引擎回填。功能密度高，路径也多——GUI 点击路径至今没有自动化回归，交付前只做过靶向断言和抽样启动测试。
 >
-> Fusion 是另写一遍的轻量路线，只有 10,400 行，功能是 Ultra 的子集，但每条路径都跑了很久。二选一的时候：要「稳」选 Fusion，要「全」选 Ultra。
+> Fusion 是另写一遍的轻量路线，只有 7,995 行，功能是 Ultra 的子集，但每条路径都跑了很久。二选一的时候：要「稳」选 Fusion，要「全」选 Ultra。
 >
 > Ultra 的问题不是设计错了，是还没打磨完。想一起打磨，非常欢迎——这正是这个仓库开源的意义。
 
@@ -579,8 +579,8 @@ Fusion 是「稳定优先」那条线：原生控件、无装饰，把力气全�
 
 | 文件 | 版本 | 说明 |
 |---|---|---|
-| `备份程序.py` | v2.29+ | Ultra 历史快照，**保有三层叠加引擎原文**，主线丢了这功能时从它回填 |
-| `参考程序.py` | v2.29 | 更早分支，含一批未实现的占位方法（见已知边界） |
+| `legacy/备份程序.py` | v2.29+ | Ultra 历史快照，**保有三层叠加引擎原文**，主线丢了这功能时从它回填 |
+| `legacy/参考程序.py` | v2.29 | 更早分支，含一批未实现的占位方法（见已知边界） |
 | `legacy/` 下 12 个源文件 | v1.1 ~ v2.3 · Ultra v3.2.0/3.2.1/3.2.7/3.2.8 | 融合版 8 个版本的完整演进史，外加 4 份 Ultra 历史快照 |
 
 <details>
@@ -695,7 +695,7 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 | 优化求解 | OR-Tools | 可选，缺了自动降级到快速排序法 |
 | 打包 | PyInstaller | 只在需要重新出 exe 时用 |
 
-**不装 Python 也能用**：Releases 里的包自带完整运行时（Python + 全部依赖），解压即用——Fusion 解压后 309 MB，Ultra 675 MB。
+**不装 Python 也能用**：Releases 里的包自带完整运行时（Python + 全部依赖），解压即用——Fusion 压缩包 135 MB，Ultra 273 MB。
 
 **只想跑算法部分**：`pip install loomgrid-algos`，或用源码：numpy / pandas / scipy 三个就够，不用装 Qt。`examples/quickstart.py` 和 `examples/algorithms_demo.py` 都只需要这三个。
 
@@ -706,7 +706,7 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 | 现役代码 | 算法模块 | 历史快照 | 已修缺陷 | 验证断言 |
 |:---:|:---:|:---:|:---:|:---:|
 | **110,767** 行 | **8** 个 | **12** 个 | **31** 条 | **433** 项 |
-| Ultra 36,175 / Backup 32,215<br>Reference 31,793 / Fusion 10,584 | 3,384 行<br>均不依赖 GUI | v1.1 ~ v2.3.1<br>仅做考古 | 致命 5 / 高危 9<br>中危 11 / 低危 6 | 16 套测试<br>含 12 项手算对拍 |
+| Ultra 36,245 / Backup 32,215<br>Reference 31,793 / Fusion 7,995 | 3,384 行<br>均不依赖 GUI | v1.1 ~ v2.3.1<br>仅做考古 | 致命 5 / 高危 9<br>中危 11 / 低危 6 | 16 套测试<br>含 12 项手算对拍 |
 
 </div>
 
@@ -714,11 +714,11 @@ Hana 是本地运行的 AI Agent 平台：能直接读写工作目录的文件�
 
 ## 已知边界
 
-- **`参考程序.py` 里有一批未实现的占位方法**。例如月度结算里的 `有储能电费 = 无储能电费 × 0.85`、快速测算里的 `投资 = 容量 × 750`。这些常数是当年为了先跑通界面拍的，不是测算结果。Ultra 里未采纳这些方法。
+- **`legacy/参考程序.py` 里有一批未实现的占位方法**。例如月度结算里的 `有储能电费 = 无储能电费 × 0.85`、快速测算里的 `投资 = 容量 × 750`。这些常数是当年为了先跑通界面拍的，不是测算结果。Ultra 里未采纳这些方法。
 - **单文件 3.6 万行**，没有单元测试框架，验证靠脚本巡检（16 套 433 项断言，含 12 项算法手算对拍，见 [`tests/`](tests/) 与[缺陷修复报告](docs/缺陷修复报告.md)）。
 - **测算依赖输入质量**。工具不校验外部数据真实性，列映射选错会一路错到底。
 - **GUI 交互流程没有自动化回归测试**。核心算法有，界面点击路径靠人工。
-- **Ultra v3.2.2 功能最全，但路径也多**。MILP、Pareto、13 步诊断、13 个动效组件都在里面，稳定性不如 Fusion v2.3.7。正式交付优先用 Fusion。
+- **Ultra v3.2.9 功能最全，但路径也多**。MILP、Pareto、13 步诊断、13 个动效组件都在里面，稳定性不如 Fusion v2.3.8。正式交付优先用 Fusion。
 - **`legacy/` 里的历史版本仅供考古**，配置格式与现役版本不兼容，不建议使用。
 
 ---
@@ -846,9 +846,9 @@ python tests/verify_algorithms_math.py
 
 一半强迫症（天秤座），一半实用——拷一个 `.py` 到装了 Python 的机器就能跑。代价写在[架构与设计](#架构与设计)里，不掩饰：35.8k 行没有模块边界，IDE 跳转慢。
 
-**为什么 exe 有 164 MB？**
+**为什么 exe 有 135 MB？**
 
-Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，Fusion 解压后 309 MB、Ultra 675 MB。这是 Python 打包程序的固有成本，不是塞了多余东西。
+Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，压成 zip 就是 135 MB（Ultra 因为多带 MILP 与 Pareto 求解链，273 MB）。这是 Python 打包程序的固有成本，不是塞了多余东西。
 
 **为什么 SOC 下限定在 5%，不是 0% 或 10%？**
 
@@ -864,7 +864,7 @@ Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，Fusion �
 
 **启动要好几秒，正常吗？**
 
-正常。首次启动要把 Python 运行时和依赖加载进内存，3–8 秒。如果超过 30 秒还没反应，大概率是杀软在扫 `lib\` 里的三千多个文件。
+正常。首次启动要把 Python 运行时和依赖加载进内存，3–8 秒。如果超过 30 秒还没反应，大概率是杀软在扫 `_internal\` 里的几千个文件。
 
 **界面中文显示成方框，或者导出的 CSV 乱码？**
 
@@ -872,7 +872,7 @@ Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，Fusion �
 
 **双击 exe 提示找不到模块？**
 
-`lib\` 目录必须和 exe 在同一层。只把 exe 复制到别处是跑不起来的。
+`_internal\` 目录必须和 exe 在同一层。只把 exe 复制到别处是跑不起来的。
 
 **程序会把我的数据传出去吗？**
 
@@ -880,7 +880,7 @@ Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，Fusion �
 
 **为什么 Fusion 版功能比 Ultra 少？**
 
-因为它是**另写一遍**，不是裁剪。10,584 行对 36,175 行，流式处理、内存占用低、启动快，代价是吞吐只有 Ultra 三成、部分高级分析没实现。想读主流程代码的话，它比 Ultra 好读得多。
+因为它是**另写一遍**，不是裁剪。7,995 行对 36,245 行，流式处理、内存占用低、启动快，代价是吞吐只有 Ultra 三成、部分高级分析没实现。想读主流程代码的话，它比 Ultra 好读得多。
 
 **为什么有些历史版本反而是「坏」的？**
 

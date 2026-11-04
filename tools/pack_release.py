@@ -41,13 +41,13 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 TARGETS = {
     "ultra": {
-        "src": "负荷曲线批量生成Ultra.py",
+        "src": "apps/负荷曲线批量生成Ultra.py",
         "stem": "LoomGrid-Ultra",
         "entry": "loomgrid_ultra",
         "exclude_fonts": False,
     },
     "fusion": {
-        "src": "负荷曲线批量生成工具 Pro 融合版 (v2.3).py",
+        "src": "apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py",
         "stem": "LoomGrid-Fusion",
         "entry": "loomgrid_fusion",
         "exclude_fonts": False,

@@ -52,8 +52,8 @@ sys.path.insert(0, REPO)
 
 import numpy as np  # noqa: E402
 
-ULTRA = os.path.join(REPO, "负荷曲线批量生成Ultra.py")
-FUSION = os.path.join(REPO, "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
+ULTRA = os.path.join(REPO, "apps", "负荷曲线批量生成Ultra.py")
+FUSION = os.path.join(REPO, "apps", "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
 
 WIN_FONTS = r"C:\Windows\Fonts"
 _FONT_FILES = ["msyh.ttc", "msyhbd.ttc", "simhei.ttf", "simsun.ttc",

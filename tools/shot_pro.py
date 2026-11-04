@@ -13,7 +13,7 @@ import sys
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 os.environ["QT_OPENGL"] = "software"
 
-SRC = r"C:\Users\LENOVO\.hanako\repos\172629438__loomgrid\负荷曲线批量生成Ultra.py"
+SRC = r"C:\Users\LENOVO\.hanako\repos\172629438__loomgrid\apps\负荷曲线批量生成Ultra.py"
 OUT_DIR = r"C:\Users\LENOVO\.hanako\repos\172629438__loomgrid\assets\screenshots"
 
 

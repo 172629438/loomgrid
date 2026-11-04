@@ -5,13 +5,13 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoomGrid.UI", "src\LoomGrid.UI\LoomGrid.UI.csproj", "{4E97FE29-BF5A-4CC2-BE16-FF59756D6B94}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoomGrid.UI", "..\src\LoomGrid.UI\LoomGrid.UI.csproj", "{4E97FE29-BF5A-4CC2-BE16-FF59756D6B94}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoomGrid.Bridge", "src\LoomGrid.Bridge\LoomGrid.Bridge.csproj", "{6D6770E2-8034-45D8-8A80-D6F415A83FF0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoomGrid.Bridge", "..\src\LoomGrid.Bridge\LoomGrid.Bridge.csproj", "{6D6770E2-8034-45D8-8A80-D6F415A83FF0}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "python-core", "python-core", "{9F455BC0-53F5-0CB5-3253-0FABDDC94B32}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoomGrid.PythonCore", "python-core\LoomGrid.PythonCore.csproj", "{452908EA-EC36-456C-A8DB-14A4E2FC2B40}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoomGrid.PythonCore", "..\python-core\LoomGrid.PythonCore.csproj", "{452908EA-EC36-456C-A8DB-14A4E2FC2B40}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

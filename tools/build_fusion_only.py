@@ -16,7 +16,7 @@ from cx_Freeze import setup, Executable
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
 
-SRC_REAL = "负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
+SRC_REAL = "apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
 # 版本号从程序真正使用的那个常量读，不从 docstring 读。
 # docstring 是给人看的说明，FUSION_VERSION 是程序标题/弹窗实际引用的值；
 # 两者分开写就会不同步——2026-11-03 就出过一次：docstring 写了 v2.3.7，

@@ -9,7 +9,7 @@ import numpy as np
 
 faulthandler.dump_traceback_later(120, exit=True)
 
-TARGET = _os.path.join(_ROOT, "负荷曲线批量生成Ultra.py")
+TARGET = _os.path.join(_ROOT, "apps", "负荷曲线批量生成Ultra.py")
 results = []
 
 

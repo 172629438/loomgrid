@@ -20,7 +20,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-MAIN = os.path.join(REPO, "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
+MAIN = os.path.join(REPO, "apps", "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
 
 _p = 0
 _f = 0

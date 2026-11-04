@@ -21,7 +21,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.stdout.reconfigure(encoding="utf-8")
 
-MAIN = os.path.join(ROOT, "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
+MAIN = os.path.join(ROOT, "apps", "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
 
 PASS = FAIL = 0
 

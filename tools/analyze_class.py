@@ -34,7 +34,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-FUSION = os.path.join(ROOT, "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
+FUSION = os.path.join(ROOT, "apps", "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
 
 sys.path.insert(0, HERE)
 from analyze_deps import Program, QT_RE, STDLIB, THIRD_PARTY  # noqa: E402

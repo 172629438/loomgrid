@@ -39,7 +39,7 @@ from PySide6.QtWidgets import QApplication, QComboBox  # noqa: E402
 
 from services.capacity import DemandBasis, daily_demand_series  # noqa: E402
 
-FUSION = os.path.join(ROOT, "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
+FUSION = os.path.join(ROOT, "apps", "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
 spec = importlib.util.spec_from_file_location("lg_segfilter", FUSION)
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)

@@ -30,10 +30,10 @@ REMOTE = "172629438/loomgrid"
 
 # 需要纳入版本管理的源码（发版前必须有提交）
 TRACKED = [
-    "负荷曲线批量生成Ultra.py",
-    "负荷曲线批量生成工具 Pro 融合版 (v2.3).py",
-    "参考程序.py",
-    "备份程序.py",
+    "apps/负荷曲线批量生成Ultra.py",
+    "apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py",
+    "legacy/参考程序.py",
+    "legacy/备份程序.py",
 ]
 
 

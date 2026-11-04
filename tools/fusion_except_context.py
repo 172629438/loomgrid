@@ -31,7 +31,7 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-TARGETS = [("MAIN", os.path.join(REPO, "负荷曲线批量生成工具 Pro 融合版 (v2.3).py"))]
+TARGETS = [("MAIN", os.path.join(REPO, "apps", "负荷曲线批量生成工具 Pro 融合版 (v2.3).py"))]
 for pkg in ("core", "algorithms", "services", "plotting", "ui"):
     d = os.path.join(REPO, pkg)
     if os.path.isdir(d):

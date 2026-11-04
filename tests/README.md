@@ -82,7 +82,7 @@ PY
 `.github/workflows/ci.yml` 跑上表「纯算法」那 3 个，两个 Python 版本
 （3.10 / 3.12）各一遍，外加一个 wheel 构建与内容检查 job。
 
-剩下 13 个**不进 CI**。理由不是懒：主程序 `负荷曲线批量生成Ultra.py`
+剩下 13 个**不进 CI**。理由不是懒：主程序 `apps/负荷曲线批量生成Ultra.py`
 顶层（第 601 行）就 `from PySide6.QtCore import ...`，任何用
 `importlib.exec_module` 加载它的脚本在无显示器的 ubuntu runner 上必然挂。
 硬装 PySide6 + 系统图形库能试，但一个因环境差异而飘红的 CI，

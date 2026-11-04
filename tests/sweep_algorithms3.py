@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 warnings.filterwarnings("ignore")
-TARGET = _os.path.join(_ROOT, "负荷曲线批量生成Ultra.py")
+TARGET = _os.path.join(_ROOT, "apps", "负荷曲线批量生成Ultra.py")
 R = []
 
 

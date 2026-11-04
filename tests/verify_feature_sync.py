@@ -6,7 +6,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import importlib.util, sys, io, contextlib, ast, traceback
 
-TARGET = _os.path.join(_ROOT, "负荷曲线批量生成Ultra.py")
+TARGET = _os.path.join(_ROOT, "apps", "负荷曲线批量生成Ultra.py")
 results = []
 
 

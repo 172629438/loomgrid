@@ -24,7 +24,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-FUSION_REL = "负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
+FUSION_REL = "apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py"
 
 
 def load_source(text_or_path: str) -> str:

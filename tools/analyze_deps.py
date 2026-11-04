@@ -39,7 +39,7 @@ import sys
 
 HERE = __import__("os").path.dirname(__import__("os").path.abspath(__file__))
 ROOT = __import__("os").path.dirname(HERE)
-FUSION = __import__("os").path.join(ROOT, "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
+FUSION = __import__("os").path.join(ROOT, "apps", "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
 
 QT_RE = re.compile(r"^(Q[A-Z][A-Za-z0-9_]*|pyqtSignal|pyqtSlot|Qt)$")
 STDLIB = {

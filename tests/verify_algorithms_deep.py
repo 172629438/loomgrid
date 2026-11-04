@@ -29,7 +29,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-ULTRA = os.path.join(ROOT, "负荷曲线批量生成Ultra.py")
+ULTRA = os.path.join(ROOT, "apps", "负荷曲线批量生成Ultra.py")
 
 VERBOSE = "-v" in sys.argv
 PASS = FAIL = 0

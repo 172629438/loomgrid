@@ -17,10 +17,10 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 中文名 → 英文副本（cx_Freeze 对中文源文件名不稳）
 COPIES = {
-    "负荷曲线批量生成Ultra.py":              "loomgrid_ultra_main.py",
-    "负荷曲线批量生成工具 Pro 融合版 (v2.3).py": "loomgrid_fusion_main.py",
-    "备份程序.py":                            "loomgrid_backup_main.py",
-    "参考程序.py":                            "loomgrid_reference_main.py",
+    "apps/负荷曲线批量生成Ultra.py":              "loomgrid_ultra_main.py",
+    "apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py": "loomgrid_fusion_main.py",
+    "legacy/备份程序.py":                            "loomgrid_backup_main.py",
+    "legacy/参考程序.py":                            "loomgrid_reference_main.py",
 }
 for src, dst in COPIES.items():
     if os.path.exists(src):
