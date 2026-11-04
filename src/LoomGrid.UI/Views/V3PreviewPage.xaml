@@ -109,7 +109,37 @@
                 </StackPanel>
             </Grid>
 
-            <scott:WinUIPlot x:Name="PlotView" Grid.Column="1" />
+            <!-- 图 + 探针浮层。
+                 探针用 XAML 浮层而不是 plot.Add.Text：后者每次鼠标移动都重绘整个 Plot
+                 （96 点 × N 天的曲线，每秒几十次），必然卡。浮层只改 Canvas 位置，
+                 ScottPlot 一次不重绘。IsHitTestVisible=False 让浮层不吃鼠标事件。 -->
+            <Grid Grid.Column="1" PointerMoved="OnPointerMoved" PointerExited="OnPointerExited">
+                <scott:WinUIPlot x:Name="PlotView" />
+                <Border
+                    x:Name="Probe"
+                    Padding="8,5"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed">
+                    <StackPanel Spacing="1">
+                        <TextBlock
+                            x:Name="ProbeTime"
+                            FontSize="{StaticResource FsCaption}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="" />
+                        <TextBlock
+                            x:Name="ProbeValue"
+                            FontFamily="{StaticResource MonoFamily}"
+                            FontSize="13"
+                            Text="" />
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Grid>
 
         <Grid Grid.Row="2" Padding="28,8,28,12" ColumnSpacing="8">

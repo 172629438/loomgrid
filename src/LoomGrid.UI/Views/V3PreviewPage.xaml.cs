@@ -43,6 +43,7 @@ public sealed partial class V3PreviewPage : Page
         Loaded += OnLoaded;
         KeyDown += OnKeyDown;
         PlotView.PointerWheelChanged += OnPointerWheelChanged;
+        Probe.RenderTransform = new Microsoft.UI.Xaml.Media.TranslateTransform();
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -189,6 +190,60 @@ public sealed partial class V3PreviewPage : Page
             ? $"只看 {_data.DateLabels[_selectedDay]}（再点同一格回全部）"
             : $"{_groups[_index].Display} · 全部 {_data.DateLabels.Count} 天";
     }
+
+    /// <summary>
+    /// 探针：鼠标在图上移动 → 读数该时刻的负荷。
+    /// 用 XAML 浮层而不是 plot.Add.Text：浮层只改 Canvas 位置，ScottPlot 不重绘；
+    /// 画在图上则是每次移动重绘整张图，会卡。IsHitTestVisible=False 让浮层不吃事件。
+    /// 读数取「当前显示的那一天」：单日模式看那天，否则看最后一天。
+    /// 注：Fusion 曲线上原本没有鼠标交互（主程序无 mouseMoveEvent），探针是新增能力。
+    /// </summary>
+    private void OnPointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_data is null) return;
+
+        var px = e.GetCurrentPoint(PlotView).Position;
+        if (px.X < 0 || px.Y < 0) return;
+
+        int nPts = _data.TimeLabels.Count;
+        if (nPts == 0) return;
+
+        ScottPlot.Coordinates c;
+        try
+        {
+            c = PlotView.Plot.GetCoordinates(new Pixel(px.X, px.Y));
+        }
+        catch { return; }
+
+        int idx = (int)Math.Round(c.X);
+        if (idx < 0 || idx >= nPts) { Probe.Visibility = Visibility.Collapsed; return; }
+
+        int day = _selectedDay >= 0 ? _selectedDay : _data.LoadArray.Count - 1;
+        if (day < 0 || day >= _data.LoadArray.Count) return;
+        var row = _data.LoadArray[day];
+        if (idx >= row.Count) return;
+
+        string dateLabel = day < _data.DateLabels.Count ? _data.DateLabels[day] : $"第 {day + 1} 天";
+        ProbeTime.Text = $"{dateLabel} {_data.TimeLabels[idx]}";
+        ProbeValue.Text = $"{row[idx]:N1} kW";
+
+        // 贴鼠标右下，靠边时翻到另一侧——避免浮层被窗口边界裁掉。
+        // 注意：Probe 的父容器是 Grid，Canvas.SetLeft/Top 在这里**不生效**
+        // （那是 Canvas 的附加属性），必须用 TranslateTransform。
+        double left = px.X + 14;
+        double top = px.Y - 44;
+        if (left + 170 > PlotView.ActualWidth) left = px.X - 170;
+        if (top < 4) top = px.Y + 18;
+        if (Probe.RenderTransform is Microsoft.UI.Xaml.Media.TranslateTransform tt)
+        {
+            tt.X = left;
+            tt.Y = top;
+        }
+        Probe.Visibility = Visibility.Visible;
+    }
+
+    private void OnPointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        => Probe.Visibility = Visibility.Collapsed;
 
     /// <summary>Shift+滚轮 或 滚轮 = 缩放 X 轴；这是 V3 的 P1 交互之一。</summary>
     private void OnPointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
