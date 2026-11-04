@@ -141,7 +141,18 @@ internal static class AutoE2E
             AppLog.Write($"E2E：④ 恢复原始 · 分组来源={(ws.IsSimulated ? "模拟(异常!)" : "文件")} · " +
                          $"日需求={demandBack:F1} kWh");
 
-            // ⑤ 判定
+            // ⑤ 光伏返送：验的是 C# 侧的调用链（端点已被 tests/verify_pv_feedback.py 覆盖）
+            var pv = await calc.PvFeedbackAsync(new PvFeedbackRequest
+            {
+                SessionId = ws.SessionId!,
+                Group = 0,
+                Multiplier = 1.0,
+            }).ConfigureAwait(false);
+            AppLog.Write($"E2E：⑤ 光伏返送（当前来源）返送 {pv.TotalEnergyKwh:F1} kWh · " +
+                         $"最大 {pv.MaxPowerKw:F1} kW · 负值点 {pv.NegativePoints} 个 · " +
+                         $"has_negative={pv.HasNegative}");
+
+            // ⑥ 判定
             bool switched = Math.Abs(demandSim - demandOriginal) > 1.0;
             bool reverted = Math.Abs(demandBack - demandOriginal) < 0.05;
             bool flagOk = ws.SimulatedSessionId is not null;
