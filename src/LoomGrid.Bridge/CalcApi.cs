@@ -25,4 +25,15 @@ public sealed class CalcApi
         return data.Deserialize<CapacityResult>(Opts)
                ?? throw new ApiException("容量测算返回了空数据");
     }
+
+    /// <summary>逐日充放空间。date_labels 是真实日期（如 2026-01-01），不是索引。</summary>
+    public async Task<SpacesResult> SpacesAsync(CapacityRequest req, CancellationToken ct = default)
+    {
+        JsonElement data = await _api
+            .PostDataAsync(ApiPaths.CalcSpaces, req, ct)
+            .ConfigureAwait(false);
+
+        return data.Deserialize<SpacesResult>(Opts)
+               ?? throw new ApiException("充放空间返回了空数据");
+    }
 }

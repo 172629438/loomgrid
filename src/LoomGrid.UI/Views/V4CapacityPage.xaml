@@ -194,6 +194,9 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
@@ -201,7 +204,7 @@
                     <ListView
                         x:Name="SegmentList"
                         Grid.Row="1"
-                        MaxHeight="200"
+                        MaxHeight="140"
                         Padding="0"
                         SelectionMode="None">
                         <ListView.ItemContainerStyle>
@@ -219,6 +222,32 @@
                         Style="{StaticResource TextCaption}"
                         Text=""
                         TextWrapping="Wrap" />
+
+                    <StackPanel Grid.Row="3" Spacing="2" Margin="0,10,0,0">
+                        <TextBlock Style="{StaticResource TextCaption}" Text="每日明细" />
+                        <TextBlock
+                            x:Name="DailySubText"
+                            Style="{StaticResource TextCaption}"
+                            Text="日期 · 充电空间 · 放电空间 · 最小段空间（月口径同：min 各段充+放）"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <Grid Grid.Row="4" Padding="4,4,4,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Style="{StaticResource TextCaption}" Text="日期" />
+                        <TextBlock Grid.Column="1" HorizontalTextAlignment="Right" Style="{StaticResource TextCaption}" Text="充电" />
+                        <TextBlock Grid.Column="2" HorizontalTextAlignment="Right" Style="{StaticResource TextCaption}" Text="放电" />
+                        <TextBlock Grid.Column="3" HorizontalTextAlignment="Right" Style="{StaticResource TextCaption}" Text="最小段" />
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="5" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <Grid x:Name="DailyGrid" Padding="4,0,4,4" />
+                    </ScrollViewer>
                 </Grid>
             </Grid>
         </Grid>

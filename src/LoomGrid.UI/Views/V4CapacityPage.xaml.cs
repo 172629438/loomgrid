@@ -195,6 +195,18 @@ public sealed partial class V4CapacityPage : Page
             var api = new CalcApi(services.Api);
             var r = await api.CapacityAsync(req);
             Render(r, segs);
+
+            // 每日表另拉一次 /spaces：它返回逐日数组与真实日期标签
+            try
+            {
+                var sp = await api.SpacesAsync(req);
+                RenderDaily(sp);
+            }
+            catch (ApiException ex)
+            {
+                AppLog.Write($"V4：每日表获取失败 {ex.Code} {ex.Message}");
+                DailySubText.Text = $"每日明细不可用：{ex.Message}";
+            }
         }
         catch (ApiException ex)
         {
@@ -234,6 +246,84 @@ public sealed partial class V4CapacityPage : Page
         AppLog.Write($"V4：{ModeKey}/{BasisKey} → 日需求 {r.DailyDemand.ValueKwh:N1} kWh，" +
                      $"日吞吐 {r.DailyThroughput.ValueKwhPerDay:N1} kWh/天，" +
                      $"建议装机 {r.CapacitySuggestionInstalledKwh?.ToString("N1") ?? "—"} kWh");
+    }
+
+    // ── 每日明细 ───────────────────────────────────────────
+
+    private void RenderDaily(SpacesResult sp)
+    {
+        DailyGrid.Children.Clear();
+        DailyGrid.ColumnDefinitions.Clear();
+        DailyGrid.RowDefinitions.Clear();
+
+        if (sp.DateLabels.Count == 0)
+        {
+            DailySubText.Text = "没有逐日数据";
+            return;
+        }
+
+        for (int c = 0; c < 4; c++)
+        {
+            DailyGrid.ColumnDefinitions.Add(new ColumnDefinition
+            {
+                Width = c == 0 ? new GridLength(112) : new GridLength(1, GridUnitType.Star),
+            });
+        }
+        for (int r = 0; r < sp.DateLabels.Count; r++)
+            DailyGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        for (int d = 0; d < sp.DateLabels.Count; d++)
+        {
+            double charge = 0, discharge = 0;
+            double minSeg = double.MaxValue;
+            foreach (var seg in sp.Segments)
+            {
+                double cv = d < seg.Charge.Count ? seg.Charge[d] : 0;
+                double dv = d < seg.Discharge.Count ? seg.Discharge[d] : 0;
+                charge += cv;
+                discharge += dv;
+                // 与月度表同口径：min(各段的 充+放)
+                minSeg = Math.Min(minSeg, cv + dv);
+            }
+            if (minSeg == double.MaxValue) minSeg = 0;
+
+            AddDailyCell(sp.DateLabels[d], 0, d, false);
+            AddDailyCell(charge.ToString("N1"), 1, d, true);
+            AddDailyCell(discharge.ToString("N1"), 2, d, true);
+            AddDailyCell(minSeg.ToString("N1"), 3, d, true);
+        }
+
+        // 判据：日期列必须是真实日期（2026-01-01 这种），不是数组索引
+        string first = sp.DateLabels.FirstOrDefault() ?? "";
+        DailySubText.Text = $"{sp.DateLabels.Count} 天 · 首行 {first} · 最小段口径同月度表（min 各段充+放）";
+        AppLog.Write($"V4：每日表 {sp.DateLabels.Count} 行，首行日期 = {first}");
+    }
+
+    private void AddDailyCell(string text, int column, int row, bool mono)
+    {
+        var tb = new TextBlock
+        {
+            Text = text,
+            FontSize = 12,
+            Padding = new Thickness(4, 3, 4, 3),
+            TextAlignment = mono ? TextAlignment.Right : TextAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        // FontFamily 不能赋 null（WinUI 会抛异常）——非数值列不设，保留默认字体
+        if (mono)
+        {
+            tb.FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)
+                Application.Current.Resources["MonoFamily"];
+        }
+        else
+        {
+            tb.Foreground = (Microsoft.UI.Xaml.Media.Brush)
+                Application.Current.Resources["TextFillColorSecondaryBrush"];
+        }
+
+        Grid.SetColumn(tb, column);
+        Grid.SetRow(tb, row);
+        DailyGrid.Children.Add(tb);
     }
 
     private static string BasisLabel(string basis) => basis switch

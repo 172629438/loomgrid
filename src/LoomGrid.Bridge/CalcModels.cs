@@ -59,6 +59,28 @@ public sealed record DailyThroughputDto
     [JsonPropertyName("per_day")] public List<double> PerDay { get; init; } = new();
 }
 
+/// <summary>逐日充放空间（/api/calc/spaces 的返回）。</summary>
+public sealed record SpacesSegmentDto
+{
+    [JsonPropertyName("label")] public string Label { get; init; } = "";
+    [JsonPropertyName("type")] public string Type { get; init; } = "";
+    [JsonPropertyName("charge")] public List<double> Charge { get; init; } = new();
+    [JsonPropertyName("discharge")] public List<double> Discharge { get; init; } = new();
+}
+
+public sealed record SpacesGroupDto
+{
+    [JsonPropertyName("asset")] public string Asset { get; init; } = "";
+    [JsonPropertyName("month")] public string Month { get; init; } = "";
+}
+
+public sealed record SpacesResult
+{
+    [JsonPropertyName("group")] public SpacesGroupDto Group { get; init; } = new();
+    [JsonPropertyName("date_labels")] public List<string> DateLabels { get; init; } = new();
+    [JsonPropertyName("segments")] public List<SpacesSegmentDto> Segments { get; init; } = new();
+}
+
 public sealed record CapacityResult
 {
     [JsonPropertyName("daily_demand")] public DailyDemandDto DailyDemand { get; init; } = new();
