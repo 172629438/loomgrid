@@ -7,10 +7,11 @@
 公式（mode A · 需量模式）：
     充电 = Σ max(容量线 − 负荷, 0) × dt
 
-**梯形权重**（最容易算错的地方）：
-    96 点数据，时段 0:00–8:00 = 32 个点（索引 0..31）
-    首尾两点各算半格，中间点算整格
-    dt 总和 = (32 − 2) × 0.25 + 2 × 0.125 = 7.75 h     ← 不是 8 h
+**梯形权重/中点法**（最容易算错的地方）：
+    时段**含左不含右**：0:00–8:00 取 0:00、0:15 … 7:45，共 32 点
+    本实现是**中点法 + 两端补齐**（首点 0.125 / 中间 0.25 / 末点 0.375）
+    **Σseg_dt 恒等于时段长度**：8h → 8.0000 h，4h → 4.0000 h
+    ⚠️ 曾经按「32 点 × 首尾半格」推成 7.75 h —— 那是错的，以实测为准。
 
 用法：
     python tests/verify_v4_handcalc.py
@@ -39,12 +40,22 @@ CHARGE_HOURS = (0, 8)
 DISCHARGE_HOURS = (18, 22)
 
 
-def seg_dt(n_points: int, n_per_hour: int) -> np.ndarray:
-    """梯形权重：首尾各半格，中间整格。n_per_hour=4（96 点）。"""
-    full = 1.0 / n_per_hour
-    w = np.full(n_points, full)
-    w[0] = full / 2
-    w[-1] = full / 2
+def mid_dt(n_points: int, s_start: float, s_end: float, step: float = 0.25) -> np.ndarray:
+    """中点法 + 两端补齐（照抄 core/spaces.py 的权重逻辑）。
+
+    seg_dt[0]  = (sub[0] + sub[1]) / 2 - s_start     # 首点
+    seg_dt[-1] = s_end - (sub[-1] + sub[-2]) / 2     # 末点
+    seg_dt[i]  = (sub[i+1] - sub[i-1]) / 2.0         # 中间
+
+    推论：Σ = s_end - s_start（恒等，不会少一格）。
+    """
+    sub = np.arange(n_points) * step
+    w = np.full(n_points, step)
+    if n_points >= 2:
+        w[0] = (sub[0] + sub[1]) / 2 - s_start
+        w[-1] = s_end - (sub[-1] + sub[-2]) / 2
+        for i in range(1, n_points - 1):
+            w[i] = (sub[i + 1] - sub[i - 1]) / 2.0
     return w
 
 
@@ -66,27 +77,28 @@ def main() -> int:
     def idx_of(hhmm: str) -> int:
         return tl.index(hhmm)
 
+    # 时段**含左不含右**：0:00–8:00 取 0:00…7:45，共 32 点（不含 8:00）
     i0, i1 = idx_of("00:00"), idx_of("08:00")
     j0, j1 = idx_of("18:00"), idx_of("22:00")
 
     day0 = arr[0]
 
     # ── 手算：充电段（mode A） ──
-    seg = day0[i0:i1 + 1]
-    dt = seg_dt(len(seg), 4)
-    print(f"\n[充电段 00:00–08:00] 点数={len(seg)}  dt 总和={dt.sum():.4f} h"
-          f"（{(len(seg)-2)*0.25 + 0.25:.4f} 手算）")
+    seg = day0[i0:i1]
+    dt = mid_dt(len(seg), 0.0, 8.0)
+    print(f"\n[充电段 00:00–08:00] 点数={len(seg)}（不含 08:00）"
+          f"  Σdt={dt.sum():.4f} h（应等于 8.0000）")
     charge = float(np.sum(np.maximum(CAP_LINE - seg, 0.0) * dt))
     print(f"  充电空间 手算 = {charge:,.3f} kWh")
     print(f"  该段负荷范围 = {seg.min():.1f} … {seg.max():.1f}")
 
-    # ── 手算：放电段（受负荷限制，不需要额定功率时按负荷） ──
-    segd = day0[j0:j1 + 1]
-    dtd = seg_dt(len(segd), 4)
-    print(f"\n[放电段 18:00–22:00] 点数={len(segd)}  dt 总和={dtd.sum():.4f} h")
-    # 未传 rated_power 时放电 = Σ load × dt（受负荷限制）
-    discharge_limited = float(np.sum(np.minimum(segd, 1e9) * dtd))
-    print(f"  放电（受负荷也不受限时）上界 = {discharge_limited:,.3f} kWh")
+    # ── 手算：放电段 ──
+    segd = day0[j0:j1]
+    dtd = mid_dt(len(segd), 18.0, 22.0)
+    print(f"\n[放电段 18:00–22:00] 点数={len(segd)}（不含 22:00）"
+          f"  Σdt={dtd.sum():.4f} h（应等于 4.0000）")
+    discharge_limited = float(np.sum(segd * dtd))
+    print(f"  放电（不限额时）上界 = {discharge_limited:,.3f} kWh")
     print(f"  该段负荷范围 = {segd.min():.1f} … {segd.max():.1f}")
 
     # ── 与后端 API 比对（同一口径） ──

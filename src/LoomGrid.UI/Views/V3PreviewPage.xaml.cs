@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 using LoomGrid.Bridge;
 using ScottPlot;
@@ -247,6 +248,38 @@ public sealed partial class V3PreviewPage : Page
 
     private void OnPointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         => Probe.Visibility = Visibility.Collapsed;
+
+    /// <summary>
+    /// F12 自检：取 X 轴中心位置，走一遍「坐标 → 索引 → 数值」并打日志。
+    /// <para><b>边界</b>：它只验证换算链（GetCoordinates / 索引取整 / 数组取值）。</para>
+    /// <para>它**不验证** PointerMoved 是否触发——那条要靠真实鼠标移动。</para>
+    /// <para>两者都过，探针才算可用；只有 F12 过只说明公式对。</para>
+    /// </summary>
+    private void OnDebugProbe(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        if (_data is null) { AppLog.Write("V3 探针自检：数据为空"); return; }
+
+        var plot = PlotView.Plot;
+        var range = plot.Axes.Bottom.Range;
+        double cx = range.Min + (range.Max - range.Min) / 2;
+        int idx = (int)Math.Round(cx);
+        int nPts = _data.TimeLabels.Count;
+        if (idx < 0 || idx >= nPts)
+        {
+            AppLog.Write($"V3 探针自检：x={cx:F2} 超出范围 (0..{nPts - 1})");
+            return;
+        }
+
+        int day = _selectedDay >= 0 ? _selectedDay : _data.LoadArray.Count - 1;
+        if (day < 0 || day >= _data.LoadArray.Count) { AppLog.Write("V3 探针自检：无可用行"); return; }
+        var row = _data.LoadArray[day];
+        if (idx >= row.Count) { AppLog.Write($"V3 探针自检：idx={idx} 超出该行长度 {row.Count}"); return; }
+
+        string date = day < _data.DateLabels.Count ? _data.DateLabels[day] : $"第{day + 1}天";
+        AppLog.Write($"V3 探针自检：x={cx:F2} idx={idx} time={_data.TimeLabels[idx]} " +
+                     $"date={date} load={row[idx]:F1}（仅验换算链，不验事件）");
+    }
 
     /// <summary>Shift+滚轮 或 滚轮 = 缩放 X 轴；这是 V3 的 P1 交互之一。</summary>
     private void OnPointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)

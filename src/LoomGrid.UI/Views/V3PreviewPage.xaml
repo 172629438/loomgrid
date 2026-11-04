@@ -9,6 +9,13 @@
     Background="Transparent"
     mc:Ignorable="d">
 
+    <Page.KeyboardAccelerators>
+        <!-- F12 自检：只验证「坐标 → 索引 → 数值」这条换算链。
+             它不验证 PointerMoved 是否触发——那条要靠真实鼠标移动。
+             两者都过，探针才算可用。 -->
+        <KeyboardAccelerator Key="F12" Invoked="OnDebugProbe" />
+    </Page.KeyboardAccelerators>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
