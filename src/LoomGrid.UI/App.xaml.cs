@@ -47,18 +47,6 @@ public partial class App : Application
     {
         _window = new MainWindow();
         MainWindowRef = _window;
-
-        // 仅开发期自测浅色主题用，不是产品功能：
-        //   生产环境不设此变量，界面跟随系统主题（WinUI 原生行为）。
-        //   设 LGM_UI_THEME=light 可强制浅色，便于在不动桌面设置的情况下截图对比。
-        string? forced = Environment.GetEnvironmentVariable("LGM_UI_THEME");
-        if (_window.Content is FrameworkElement root &&
-            (forced == "light" || forced == "dark"))
-        {
-            root.RequestedTheme = forced == "light" ? ElementTheme.Light : ElementTheme.Dark;
-            AppLog.Write($"界面主题：强制 {forced}（仅开发自测，生产跟随系统）");
-        }
-
         _window.Activate();
     }
 }
