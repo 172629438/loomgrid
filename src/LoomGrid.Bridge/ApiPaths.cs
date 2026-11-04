@@ -9,6 +9,7 @@ public static class ApiPaths
     public const string Health = "api/health";
 
     public const string IngestInspect = "api/ingest/inspect";
+    public const string IngestAllow = "api/ingest/allow";
     public const string IngestMapping = "api/ingest/mapping";
     public const string Preview = "api/preview";
     public const string CalcSpaces = "api/calc/spaces";

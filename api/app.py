@@ -94,7 +94,7 @@ def health():
         "modules": ["core.ingest", "services.config", "services.provider", "services.capacity"],
         "demand_basis": [b.value for b in DemandBasis],
         "endpoints": [
-            "POST /api/ingest/inspect", "POST /api/ingest/mapping",
+            "POST /api/ingest/allow", "POST /api/ingest/inspect", "POST /api/ingest/mapping",
             "GET /api/preview", "POST /api/calc/spaces", "POST /api/calc/capacity",
             "POST /api/plot/fit",
             "POST /api/export/run", "GET /api/export/status", "GET /api/export/report",

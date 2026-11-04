@@ -19,7 +19,7 @@ public sealed partial class MainWindow : Window
 
         AppWindow.Resize(new SizeInt32(1440, 920));
 
-        RootFrame.Navigate(typeof(MainPage));
+        RootFrame.Navigate(typeof(V1WorkbenchPage));
 
         Closed += OnClosed;
     }

@@ -27,6 +27,9 @@ public sealed record PythonHostOptions
 
     /// <summary>额外环境变量（例如 LGM_WEB_DIR）。</summary>
     public IReadOnlyDictionary<string, string>? Environment { get; init; }
+
+    /// <summary>启动过程的分阶段追溯（定位启动失败用）。null 表示不追溯。</summary>
+    public Action<string>? Trace { get; init; }
 }
 
 /// <summary>Python 后端相关的可读错误。</summary>
@@ -101,7 +104,9 @@ public sealed class PythonHost : IAsyncDisposable
         string exe;
         try
         {
+            options.Trace?.Invoke("trace: 开始定位 python");
             exe = PythonRuntimeLocator.Resolve(options.PythonExecutable);
+            options.Trace?.Invoke($"trace: python = {exe}");
         }
         catch (PythonHostException)
         {
@@ -118,10 +123,13 @@ public sealed class PythonHost : IAsyncDisposable
         for (int attempt = 0; attempt < 2; attempt++)
         {
             int port = PortFinder.FindFree(startPort, options.MaxPortProbe);
+            options.Trace?.Invoke($"trace: 选中端口 {port}（尝试 {attempt + 1}）");
             var host = Begin(exe, workDir, port, options);
+            options.Trace?.Invoke($"trace: 进程已启动 pid={host.ProcessId}");
             try
             {
                 await host.WaitReadyAsync(options.StartupTimeout, ct).ConfigureAwait(false);
+                options.Trace?.Invoke("trace: 健康检查通过");
                 return host;
             }
             catch (PythonHostException ex)

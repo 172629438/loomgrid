@@ -22,9 +22,16 @@ public sealed class AppServices : IAsyncDisposable
     /// <summary>
     /// 启动后端。进度同时写启动日志与界面（两条通道都要有：
     /// 界面给人看，日志给验证工具看）。
+    ///
+    /// **必须在后台线程跑**：探测解释器、拉起进程、等健康检查都会同步阻塞，
+    /// 在 UI 线程上做这些会让 XAML 渲染管线卡住——实测过启动即崩（0xc000027b）。
     /// </summary>
-    public static async Task<AppServices> StartAsync(
+    public static Task<AppServices> StartAsync(
         Action<string>? log = null, CancellationToken ct = default)
+        => Task.Run(() => StartCoreAsync(log, ct), ct);
+
+    private static async Task<AppServices> StartCoreAsync(
+        Action<string>? log, CancellationToken ct)
     {
         void Sink(string line)
         {
@@ -46,6 +53,7 @@ public sealed class AppServices : IAsyncDisposable
         var options = new PythonHostOptions
         {
             WorkingDirectory = coreRoot,
+            Trace = line => AppLog.Write(line),
         };
 
         var host = await PythonHost.StartAsync(options, ct).ConfigureAwait(false);

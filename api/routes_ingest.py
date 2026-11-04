@@ -178,22 +178,95 @@ async def upload(file: UploadFile = File(...)):
 # 额外的可信根用环境变量显式声明，默认空。
 _EXTRA_ROOTS = [p for p in (os.environ.get("LGM_ALLOW_ROOTS") or "").split(os.pathsep) if p.strip()]
 
+# 用户显式选择/拖入的文件。
+# 桌面壳在调 /inspect 之前先登记——「用户选中这个文件」本身就是授权动作，
+# 但它只授权这一个文件：不授权所在目录，不授权整个盘，系统目录一律拒绝。
+# 只存在进程内存，后端重启即失效（下次再选重新授权）。
+_ALLOWED_FILES: set[str] = set()
+_ALLOWED_LOCK = threading.Lock()
+
+
+def _norm(path: str) -> str:
+    try:
+        return os.path.normcase(os.path.realpath(path))
+    except Exception:
+        return ""
+
+
+def _forbidden_roots() -> list[str]:
+    out = []
+    for key in ("SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramData"):
+        v = os.environ.get(key)
+        if v:
+            out.append(v)
+    return out
+
 
 def _path_allowed(path: str) -> bool:
     """文件路径是否在允许的根内。"""
-    try:
-        real = os.path.realpath(path)
-    except Exception:
+    real = _norm(path)
+    if not real:
         return False
+
+    with _ALLOWED_LOCK:
+        if real in _ALLOWED_FILES:
+            return True
+
     roots = [_UPLOAD_DIR] + _EXTRA_ROOTS
     for r in roots:
-        try:
-            rr = os.path.realpath(r)
-        except Exception:
+        rr = _norm(r)
+        if not rr:
             continue
         if real == rr or real.startswith(rr + os.sep):
             return True
     return False
+
+@router.post("/allow", response_model=Envelope,
+             description=(
+                 "登记「用户显式选择/拖入」的文件路径。\n\n"
+                 "桌面壳在调 /inspect 之前先调这里。理由：桌面程序里「用户选中这个文件」"
+                 "本身就是授权动作，而浏览器上传那套白名单在本地应用里会把用户自己的文件拦在外面。\n\n"
+                 "**授权粒度是单个文件**：不授权所在目录、不授权整个盘；"
+                 "只收存在的文件（不收目录），系统目录与程序目录一律拒绝。\n\n"
+                 "登记只存在进程内存，后端重启即失效。"
+             ))
+def allow_paths(payload: dict):
+    """把用户选中的文件加入本次进程的可读白名单。"""
+    raw_list = (payload or {}).get("paths") or []
+    if not isinstance(raw_list, list):
+        return _err("INGEST_ALLOW_INVALID", "paths 必须是字符串数组")
+
+    added: list[str] = []
+    existing: list[str] = []
+    rejected: list[str] = []
+    forbidden = [_norm(f) for f in _forbidden_roots() if _norm(f)]
+
+    for raw in raw_list:
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        real = _norm(raw)
+        if not real or not os.path.exists(real):
+            rejected.append(raw)
+            continue
+        if not os.path.isfile(real):
+            rejected.append(raw)
+            continue
+        if any(real == f or real.startswith(f + os.sep) for f in forbidden):
+            rejected.append(raw)
+            continue
+
+        with _ALLOWED_LOCK:
+            if real in _ALLOWED_FILES:
+                existing.append(raw)
+            else:
+                _ALLOWED_FILES.add(real)
+                added.append(raw)
+
+    log.info("allow: added=%d existing=%d rejected=%d", len(added), len(existing), len(rejected))
+    return Envelope(ok=True, data={
+        "added": added, "existing": existing, "rejected": rejected,
+    }).model_dump()
+
 
 @router.post("/inspect", response_model=Envelope,
              description=(

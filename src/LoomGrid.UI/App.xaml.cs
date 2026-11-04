@@ -15,6 +15,18 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+
+        // 一级异常日志：WinUI 的 fail-fast（0xc000027b）往往不经过 UnhandledException，
+        // 但会先冒一次 first-chance。只记「将来会致命」的类型，不刷屏。
+        AppDomain.CurrentDomain.FirstChanceException += (_, e) =>
+        {
+            var ex = e.Exception;
+            if (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
+                return;
+            try { AppLog.Write($"[first-chance] {ex.GetType().FullName}: {ex.Message}"); }
+            catch { }
+        };
+
         UnhandledException += (_, e) =>
         {
             // 未处理异常不留空白窗口：写进日志后让进程正常结束
