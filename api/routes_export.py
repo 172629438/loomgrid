@@ -28,7 +28,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from api.routes_ingest import get_session
+from api.routes_ingest import _forbidden_roots, _norm, get_session
 from api.schemas import Envelope
 from core.models import GroupSummary
 from services.export import (
@@ -271,6 +271,77 @@ def preview(req: PreviewRequest):
         })
 
     return Envelope(ok=True, data={"items": items, "total": len(items)}).model_dump()
+
+
+# ── 开发工具：从已有目录反推结果（默认不注册）─────────────
+# 用途：V6 调样式时反复重跑导出又慢又不稳定，adopt 把已有产物读成一个 task。
+# 定位：它是「识别已有产物的读取器」，**不伪造导出结果**——adopted 标记就是为这个。
+# 门控：LGM_DEV_TOOLS=1 才注册；没设时这个路由**根本不存在**（不是返回 403）。
+# 这样生产包被试探时是 404，而不是一个能扫描磁盘的隐藏端点。
+if os.environ.get("LGM_DEV_TOOLS") == "1":
+
+    @router.post("/adopt", response_model=Envelope,
+                 description=(
+                     "【开发工具，需 LGM_DEV_TOOLS=1 才注册】\n\n"
+                     "扫描一个已有输出目录，把里面的 png / xlsx 读成一个 status=done 的临时 task。\n\n"
+                     "**它会扫描目录，所以和 /api/ingest/allow 同级**：\n"
+                     "系统目录与程序目录一律拒绝。\n\n"
+                     "返回的 result 带 `adopted: true` —— 调用方必须让用户知道\n"
+                     "「这是从目录读的，不是本次导出的结果」。"
+                 ))
+    def adopt(payload: dict):
+        raw = (payload or {}).get("output_dir")
+        if not raw:
+            return _err("EXPORT_ADOPT_INVALID", "缺少 output_dir")
+
+        real = os.path.realpath(raw)
+        if not os.path.isdir(real):
+            return _err("EXPORT_ADOPT_INVALID", f"不是目录：{raw}")
+
+        forbidden = [_norm(f) for f in _forbidden_roots() if _norm(f)]
+        real_n = os.path.normcase(real)
+        if any(real_n == f or real_n.startswith(f + os.sep) for f in forbidden):
+            return _err("EXPORT_ADOPT_FORBIDDEN", "不能在系统目录或程序目录里扫描",
+                        {"path": real})
+
+        artifacts: list[dict] = []
+        files: list[str] = []
+        report_name = None
+        for name in sorted(os.listdir(real)):
+            p = os.path.join(real, name)
+            if not os.path.isfile(p):
+                continue
+            low = name.lower()
+            if low.endswith(".png"):
+                kind = "chart"
+            elif low.endswith(".xlsx"):
+                kind = "midwide"
+            elif low.endswith(".html"):
+                report_name = name
+                continue
+            else:
+                continue
+            files.append(name)
+            artifacts.append({"name": name, "kind": kind})
+
+        tid = TASK_STORE.create("export")
+        result = {
+            "adopted": True,
+            "task_id": tid,
+            "total": len(files),
+            "succeeded": len(files),
+            "failed": [],
+            "files": files,
+            "artifacts": artifacts,
+            "output_dir": real,
+            "report": report_name,
+        }
+        TASK_STORE.finish(tid, result)
+        log.info("adopt: %s → %d 个产物（%d chart / %d midwide）",
+                 real, len(artifacts),
+                 sum(1 for a in artifacts if a["kind"] == "chart"),
+                 sum(1 for a in artifacts if a["kind"] == "midwide"))
+        return Envelope(ok=True, data=result).model_dump()
 
 
 @router.post("/run", response_model=Envelope,
