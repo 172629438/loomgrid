@@ -26,7 +26,7 @@ from api.schemas import (
 )
 from core.models import GroupSummary, PeriodType
 from core.periods import _segment_periods
-from core.spaces import compute_segmented_spaces
+from core.spaces import calc_days_for_capacity, compute_segmented_spaces
 from services.capacity import (
     DemandBasis, daily_demand_series, summarize_daily_demand, throughput_breakdown,
 )
@@ -163,6 +163,112 @@ class CapacityCalcRequest(BaseModel):
                        description="min_feasible（最小可行容量）或 full_load（满载利用率）")
     target_days: int | None = None
     dod_percent: float = 95.0
+
+
+class SatisfiedDaysRequest(BaseModel):
+    session_id: str
+    group: int = 0
+    segments: list[Segment] | None = None
+    periods: list[dict] | None = None
+    billing: dict | None = None
+    mode: str = "A"
+    rated_power: float | None = None
+    ignore_negative: bool = False
+    capacity_kwh: float = Field(description="安装容量（kWh）")
+    dod_percent: float = 95.0
+
+
+@router.post("/satisfied-days", response_model=Envelope,
+             description=(
+                 "给定安装容量，算能满足多少天。\n\n"
+                 "**两套口径都返回，因为它们本来就不是同一个算法**：\n\n"
+                 "· `satisfied_days` —— 与 Fusion 界面一致：\n"
+                 "  先按 DOD 折算可用容量（cap×DOD），再**逐对**判定：\n"
+                 "  任一对充放段的当日空间都 ≥ 可用容量，这一天就算满足。\n\n"
+                 "· `satisfied_days_core` —— core.calc_days_for_capacity 的结果：\n"
+                 "  **不折算 DOD**，把各段当日空间相加后与安装容量比。\n\n"
+                 "两者可能差很多（前者严、后者松）。需要哪个由调用方定，\n"
+                 "不要拿一个的语义去解释另一个的数。\n\n"
+                 "`equivalent_days = int(satisfied × 365 / total_days)`，\n"
+                 "total_days 是**有数据的天数**，不是日历天数。"
+             ))
+def satisfied_days(req: SatisfiedDaysRequest):
+    sp = SpacesRequest(session_id=req.session_id, group=req.group,
+                       segments=req.segments, periods=req.periods,
+                       billing=req.billing, mode=req.mode,
+                       rated_power=req.rated_power, ignore_negative=req.ignore_negative)
+    segs = _to_internal_segments(sp)
+    if not segs:
+        return _err("CALC_INVALID_SEGMENT", "没有有效时段，请传 segments 或 periods")
+
+    gs, data, err = _load_group(req.session_id, req.group)
+    if err:
+        return err
+
+    load = np.asarray(data["load_array"], dtype=float)
+    labels = [str(x) for x in data["time_labels"]]
+    try:
+        ch, dis, cl, dl = compute_segmented_spaces(
+            load, labels, segs, billing=req.billing, mode=req.mode,
+            rated_power=req.rated_power, ignore_negative=req.ignore_negative)
+    except Exception as e:
+        return _err("CALC_INVALID_SEGMENT", f"测算失败：{e}", {"type": type(e).__name__})
+
+    n_days = len(ch[0]) if ch else (len(dis[0]) if dis else 0)
+    if n_days == 0:
+        return _err("CALC_NO_DATA", "没有可用的逐日数据")
+
+    # ⚠️ 必须先剔除占位零段（与 Fusion 的 `_get_relevant_segments_for_month`
+    # 里的 `_drop_zero_segments` 一致）：
+    # compute_segmented_spaces 返回的四个列表里，每个段在非本方向那一侧是占位零。
+    # 不过滤的话「同一对里 cv 和 dv 都 ≥ 容量」永远不成立（总有一侧是 0），
+    # 满足天数恒为 0——这正是实测到的那个 0。
+    ch_nz = [np.asarray(a, dtype=float) for a in ch if float(np.nansum(a)) != 0.0]
+    dis_nz = [np.asarray(a, dtype=float) for a in dis if float(np.nansum(a)) != 0.0]
+
+    dod = req.dod_percent if req.dod_percent and req.dod_percent > 0 else 95.0
+    usable_cap = req.capacity_kwh * dod / 100.0
+
+    # 口径①：与 Fusion 界面一致（DOD 折算 + 逐对；任一对充放都够就算这天满足）
+    satisfied = 0
+    n_pairs = max(len(ch_nz), len(dis_nz))
+    for d in range(n_days):
+        day_ok = False
+        for i in range(n_pairs):
+            cv = float(ch_nz[i][d]) if i < len(ch_nz) and d < len(ch_nz[i]) else float("inf")
+            dv = float(dis_nz[i][d]) if i < len(dis_nz) and d < len(dis_nz[i]) else float("inf")
+            if cv >= usable_cap and dv >= usable_cap:
+                day_ok = True
+                break
+        if day_ok:
+            satisfied += 1
+
+    # 口径②：core 的 calc_days_for_capacity（不折算，各段当日相加后比安装容量）
+    try:
+        charge_daily = (np.sum(np.vstack(ch_nz), axis=0) if ch_nz
+                        else np.zeros(n_days, dtype=float))
+        discharge_daily = (np.sum(np.vstack(dis_nz), axis=0) if dis_nz
+                           else np.zeros(n_days, dtype=float))
+        satisfied_core = int(calc_days_for_capacity(
+            req.capacity_kwh, charge_daily, discharge_daily))
+    except Exception:
+        satisfied_core = -1
+
+    equivalent = int(satisfied * 365.0 / n_days) if n_days > 0 else 0
+
+    return Envelope(ok=True, data={
+        "capacity_kwh": req.capacity_kwh,
+        "usable_kwh": round(usable_cap, 3),
+        "dod_percent": dod,
+        "satisfied_days": satisfied,
+        "satisfied_days_core": satisfied_core,
+        "total_days": n_days,
+        "equivalent_days": equivalent,
+        "by_month": [{"month": gs.month_str or "—",
+                       "satisfied": satisfied, "total": n_days}],
+        "note": "satisfied_days 按 DOD 折算+逐对判定（同界面）；"
+                "satisfied_days_core 不折算、各段相加后再比（同 core）。两者语义不同。",
+    }).model_dump()
 
 
 @router.post("/capacity", response_model=Envelope,
