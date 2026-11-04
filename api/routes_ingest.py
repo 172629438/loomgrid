@@ -82,6 +82,19 @@ def assess_confidence(mapping: dict, df: pd.DataFrame) -> Confidence:
                            "可能有表头或说明行混在数据里")
 
     score = min(score, 1.0)
+
+    # 时刻点数量：15 分钟粒度应该是 96 点。48 点意味着 30 分钟粒度 ——
+    # 系统能算（seg_dt 按实际时刻算，数值是对的），但用户不知道自己这份数据
+    # 被当成了 30 分钟一粒。这是「静默降精度」：没丢数据，精度变了，一声不响。
+    # 不扣分（能算就是能算），但必须说出来。
+    if lc:
+        pts = len(lc)
+        if pts != 96:
+            step = round(1440 / pts) if pts else 0
+            reasons.append(
+                "时刻点 %d 个（约 %d 分钟粒度），非标准 15 分钟（96 个）。"
+                "测算按实际粒度进行，结果与 15 分钟数据不可直接比较。" % (pts, step))
+
     if score >= 0.85:
         reasons.append("识别结果看起来可靠")
     elif score < 0.6:
@@ -215,13 +228,25 @@ def inspect(payload: dict):
         return _err("INGEST_READ_FAILED", f"读工作表列表失败：{e}")
 
     out: list[SheetInfo] = []
+    _fname = os.path.basename(path)
     for sh in sheets:
-        sheet_name = sh or "CSV文件"
+        # 对 CSV 用「CSV文件」当虚拟表名；对 Excel 不能这么叫——
+        # 用户的文件叫「假.xlsx」，提示却说「读 CSV文件 失败」，他会以为程序
+        # 认错了文件类型（虽然从内容上看它确实不是 xlsx）。
+        sheet_name = sh or ("CSV文件" if ext == ".csv" else "工作表")
         try:
             df = _read_file_full(path, None if ext == ".csv" else sh)
         except Exception as e:
-            return _err("INGEST_READ_FAILED", f"读 {sheet_name} 失败：{e}",
-                        {"sheet": sheet_name})
+            # 带文件名：用户一次拖十个文件时要知道是哪个坏了。
+            # 底层异常原话保留（排障要看原话），但补一句人话在前。
+            _raw = str(e)
+            if "Cannot detect file format" in _raw or "format cannot be determined" in _raw:
+                _msg = (f"读「{_fname}」失败：文件格式无法识别。"
+                        "可能是文件损坏，或扩展名与实际内容不符（比如把文本文件改名成 .xlsx）。")
+            else:
+                _msg = f"读「{_fname}」失败：{_raw}"
+            return _err("INGEST_READ_FAILED", _msg,
+                        {"sheet": sheet_name, "file": _fname, "raw": _raw})
         if df is None or len(df) == 0:
             continue
         cols = [str(c) for c in df.columns]
