@@ -87,6 +87,20 @@ public sealed partial class V3PreviewPage : Page
         }
 
         await SelectAsync(0);
+
+        // 版式自检：三行（未实现汇总 / 对比状态 / 状态栏）不能重叠。
+        // 为什么要量 ActualOffset：截图看着分开 ≠ 实际分开（同 FontName 那类骗局）。
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                AppLog.Write($"V3 版式：missing.Y={MissingText.ActualOffset.Y:F1} h={MissingText.ActualHeight:F1} | " +
+                             $"compare.Y={CompareText.ActualOffset.Y:F1} h={CompareText.ActualHeight:F1} | " +
+                             $"status.Y={StatusText.ActualOffset.Y:F1} h={StatusText.ActualHeight:F1} | " +
+                             $"win={ActualHeight:F1}");
+            }
+            catch (Exception ex) { AppLog.Write($"V3 版式自检失败：{ex.GetType().Name}"); }
+        });
     }
 
     private async Task SelectAsync(int idx)
