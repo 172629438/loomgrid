@@ -7,7 +7,7 @@
   「负荷1 找不到 → 用负荷2」，静默算错。阈值提到 0.85 并升级日志。
 - P2-15 宽表列名是纯数字 1..96 时，`_parse_min("1")~"24"` 能过，
   25..96 全部 INVALID，于是只有前 24 列被当成时刻列，曲线静默只剩 6 小时。
-  整组纯数字且最大 >24 时全部剔除，让下游明确报「没有有效的时间列」。
+  整组纯数字且最大 >24 时识别为采样点序号（标签生成见 verify_point_sequence.py）。
 - P2-8 扫描阶段 `drop_duplicates` 只留首条，加载阶段却用 groupby mean，
   同一份数据的统计口径不一致。改为均值聚合并记录丢弃条数。
 
@@ -47,7 +47,8 @@ def check(name, cond, detail=""):
 
 # ── P2-15：纯数字序号列不再被当时刻列 ────────────────────────
 seq96 = [str(i) for i in range(1, 97)]
-check("纯数字 1..96 列名全部剔除", _valid_time_cols(seq96) == [], _valid_time_cols(seq96))
+check("纯数字 1..96 列名识别为 96 点序号", len(_valid_time_cols(seq96)) == 96,
+      len(_valid_time_cols(seq96)))
 
 seq24 = [str(i) for i in range(1, 25)]
 check("纯数字 1..24 保持原行为（24 列当小时）", len(_valid_time_cols(seq24)) == 24)

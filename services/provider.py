@@ -27,7 +27,7 @@ import pandas as pd
 
 from core.ingest import (
     _extract_asset_from_name, _extract_ym, _mapping_is_long_shape, _normalize_asset,
-    _parse_long_to_standard, _read_file_full, _valid_time_cols,
+    _parse_long_to_standard, _read_file_full, _time_labels_for_cols, _valid_time_cols,
     _wide_row_accumulated_to_power,
 )
 from core.models import GroupSummary
@@ -264,12 +264,19 @@ class DataProvider:
                         return None, f"未找到月份 '{s.month_str}' 的数据"
                     dates = list(df_trans.index[idxs])
                     ldf = df_trans[vcols].apply(pd.to_numeric, errors='coerce').values[idxs]
+                    _tl_cols = list(vcols)   # v2.3.9fix(P2-15): 差分前的列，用于推算标签
                     if mapping.get('format_type') == 'accumulated':
                         ldf_df = pd.DataFrame(ldf, index=dates, columns=vcols)
                         ldf_df = _wide_row_accumulated_to_power(ldf_df, vcols)
                         vcols = list(ldf_df.columns)
                         ldf = ldf_df.values
-                    time_labels = [_fmt_time(t) for t in vcols]
+                    # v2.3.9fix(P2-15): 点序号列名（1..96）按 24h/点数 推算标签；
+                    # 除不尽时返回明确错误，不再让下游报「日期无法识别」。
+                    time_labels, _tl_err = _time_labels_for_cols(_tl_cols)
+                    if _tl_err:
+                        return None, _tl_err
+                    if len(time_labels) > len(vcols):
+                        time_labels = time_labels[-len(vcols):]
                     return {'date_labels': dates, 'load_array': ldf, 'time_labels': time_labels,
                             'month_str': s.month_str, 'table_no': s.asset_value or '未命名',
                             'asset': s.asset_value, 'sheet': s.sheet_name}, None
@@ -280,6 +287,7 @@ class DataProvider:
                         return None, f"缺少列: {missing}"
                     dser = _clean_series(df[date_col])
                     sub_df = df[load_cols].copy().apply(pd.to_numeric, errors='coerce')
+                    _tl_cols = list(load_cols)   # v2.3.9fix(P2-15): 差分前的列，用于推算标签
                     if mapping.get('format_type') == 'accumulated':
                         sub_df = _wide_row_accumulated_to_power(sub_df, load_cols)
                         load_cols = list(sub_df.columns)
@@ -302,7 +310,11 @@ class DataProvider:
                     vcols = _valid_time_cols(sub.columns)
                     if not vcols:
                         return None, "没有有效的时间列（无法识别 HH:MM 格式的列头）"
-                    time_labels = [_fmt_time(t) for t in vcols]
+                    time_labels, _tl_err = _time_labels_for_cols(_tl_cols)
+                    if _tl_err:
+                        return None, _tl_err
+                    if len(time_labels) > len(vcols):
+                        time_labels = time_labels[-len(vcols):]
                     arr = sub[vcols].values
                     return {'date_labels': dates, 'load_array': arr, 'time_labels': time_labels,
                             'month_str': s.month_str, 'table_no': s.asset_value or '未命名',

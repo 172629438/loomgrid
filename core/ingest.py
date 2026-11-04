@@ -35,7 +35,7 @@ import pandas as pd
 log = logging.getLogger(__name__)
 
 from core.timegrid import (
-    INVALID_MINUTES, _clean_series, _normalize_fullwidth_chars,
+    INVALID_MINUTES, _clean_series, _fmt_time, _normalize_fullwidth_chars,
     _normalize_time_column_name, _parse_min,
 )
 
@@ -47,7 +47,7 @@ __all__ = [
     "_detect_csv_delimiter", "_detect_enc", "_detect_file_format_type",
     "_parse_file_meta_worker", "_extract_asset_from_name", "_mapping_is_long_shape",
     "_normalize_mapping", "_safe_read_excel", "_safe_excel_sheets",
-    "get_columns_fast", "_valid_time_cols",
+    "get_columns_fast", "_valid_time_cols", "_is_point_sequence", "_time_labels_for_cols",
 ]
 
 DEFAULT_ENCODING_LIST = ['utf-8-sig', 'utf-8', 'gb18030', 'gbk', 'gb2312', 'latin1']
@@ -698,15 +698,49 @@ def _to_dt(series, fmt=None):
             dt_series[mask_24] = dt_24[mask_24]
     return dt_series
 
+def _is_point_sequence(cols):
+    """整组列名都是纯数字且最大 >24：判定为采样点序号（1..N）。
+
+    v2.3.9fix(P2-15): 一天不可能有超过 24 个「小时」，所以 1..96 / 1..288
+    这类列名必然是点位序号，不是时刻。判定放在一处，
+    `_valid_time_cols` / `_time_labels_for_cols` / 累积示数差分共用。
+    """
+    nums = []
+    for c in cols:
+        s = str(c).strip()
+        if not re.fullmatch(r'\d+', s):
+            return False
+        nums.append(int(s))
+    return len(nums) >= 2 and max(nums) > 24
+
+
+def _time_labels_for_cols(cols):
+    """把时刻列名转成 HH:MM 标签，返回 (labels, error)。
+
+    v2.3.9fix(P2-15): 采样点序号（1..96 / 1..48 / 1..288）按 24h/点数 推算粒度；
+    除不尽时返回明确错误，不再让下游报「日期无法识别」——那个文案会把人
+    引去查日期格式，而真正的问题在列名。
+    """
+    if _is_point_sequence(cols):
+        n = len(cols)
+        lo = min(int(str(c).strip()) for c in cols)
+        hi = max(int(str(c).strip()) for c in cols)
+        if n == 0 or 1440 % n != 0:
+            return None, (
+                f"列名看起来是采样点序号（{lo}..{hi}），但 {n} 点无法均分 24 小时，"
+                f"请改用 HH:MM 格式的列名")
+        step = 1440 // n
+        return [f"{(i * step) // 60:02d}:{(i * step) % 60:02d}" for i in range(n)], None
+    return [_fmt_time(t) for t in cols], None
+
+
 def _valid_time_cols(cols):
-    # v2.3.9fix(P2-15): 纯数字列名（1,2,...,96）更像采样点序号而不是时刻。
-    # _parse_min("1")~"24" 能过，于是 96 列宽表只有前 24 列被当成时刻列，
-    # 曲线静默只剩 6 小时。整组纯数字且最大 >24 时全部剔除，
-    # 让下游明确报「没有有效的时间列」，而不是悄悄截断。
-    _num = [int(str(c).strip()) for c in cols
-            if re.fullmatch(r'\d+', str(c).strip())]
-    if len(_num) >= 2 and max(_num) > 24:
-        cols = [c for c in cols if not re.fullmatch(r'\d+', str(c).strip())]
+    # v2.3.9fix(P2-15): 整组纯数字且最大 >24 → 采样点序号（1..96）。
+    # 按数值排序返回，让数据能全部取到；标签由 _time_labels_for_cols 推算。
+    # 注意：不是剔除。剔除会让「以前能出图」的表变成完全不能用，
+    # 而且错误会被归到「日期无法识别」上。
+    if _is_point_sequence(cols):
+        return sorted(cols, key=lambda c: int(str(c).strip()))
     valid = []
     for c in cols:
         normalized = _normalize_time_column_name(str(c))
@@ -817,11 +851,20 @@ def _detect_transposed_wide(df: pd.DataFrame, cols, max_sample=100):
 
 def _wide_row_accumulated_to_power(df, time_cols):
     col_times = {}
-    for col in time_cols:
-        norm_col = _normalize_time_column_name(str(col))
-        mins = _parse_min(norm_col)
-        if mins != INVALID_MINUTES:
-            col_times[col] = mins / 60.0
+    if _is_point_sequence(time_cols):
+        # v2.3.9fix(P2-15): 点序号列名（1..96）按 24h/点数 推算每个点的小时位置。
+        # 否则 _parse_min("25") 以后全是 INVALID，累加示数只能差出前 24 列。
+        n = len(time_cols)
+        if n and 1440 % n == 0:
+            step_h = 24.0 / n
+            for i, c in enumerate(sorted(time_cols, key=lambda x: int(str(x).strip()))):
+                col_times[c] = i * step_h
+    else:
+        for col in time_cols:
+            norm_col = _normalize_time_column_name(str(col))
+            mins = _parse_min(norm_col)
+            if mins != INVALID_MINUTES:
+                col_times[col] = mins / 60.0
     if len(col_times) < 2:
         return pd.DataFrame(index=df.index)
     sorted_cols = sorted(col_times.keys(), key=lambda c: col_times[c])
