@@ -445,8 +445,27 @@ verify_prod_artifact → 产物行为 == 源码行为
 | ScottPlot 字体 | 中文渲染成方块；`FontName` 设了、读回也对 | 必须 `Fonts.AddFontFile(名, 文件路径)` + `plot.Font.Set(名)`，逐 Label 设无效 |
 | `Canvas.SetLeft` 用于 Grid 子元素 | 属性存在但**不生效**（那是 Canvas 的附加属性） | 用 `RenderTransform = TranslateTransform` 改 X/Y |
 | `Window.Frame.GoBack()` | 返回后页面重建，列表显示 0 条 | 在 `Loaded` 里重新 `RefreshList()` |
+| `PointerPressed` 不释捕获 | **首点正常，后续点击与 hover 全部卡在同一个坐标**（不同屏幕位置点两下，PlotView 坐标完全相同） | 处理完调 `ReleasePointerCaptures()`；这是真 bug，不是测试环境问题 |
 
-### 探针（V3 曲线读数）：**两次未验成，可能是环境限制**
+### 探针与双点对比（V3）：**已验证**（2026-11-04 收口）
+
+结论推翻前面“环境限制”的假设：
+
+```
+20:59:30  V3 探针：PointerMoved (229,122) data=ok
+20:59:30  V3 探针浮层：pos=(243,78) vis=Visible text="2026-01-19 03:30" / "470.4 kW"
+```
+
+三件事同时被证明：**事件到达 / 浮层可见 / 内容正确**。
+之前的失败全是验证方法问题（窗口非前台、坐标估算、只读半截日志），不是代码。
+
+**浮层看不见不代表没显示**：它是叠在 ScottPlot SwapChainPanel 上的 XAML Border，
+`PrintWindow` 和 pillow 截屏都抓不到。**判浮层只能读 `Visibility`，不能看截图。**
+
+后来还拎出一个真 bug：`OnPointerPressed` 没调 `ReleasePointerCaptures()`，
+导致首点之后所有指针事件坐标被锁死在按下点（详见隐性规矩表）。
+
+#### 历史记录（保留，别再重复踩）
 
 ```
 第 1 次   PointerMoved 绑 scott:WinUIPlot     → 浮层不出现（猜，无证据）
@@ -585,6 +604,8 @@ sum(segs[0]["charge"])   # 全月合计（5 天时就差 5 倍）
 | 用截图判断界面状态 | 截图看着对 ≠ 实际对（PrintWindow 抓不到 Mica / 某些合成层）；截图看着错 ≠ 实际错（最小化时是黑块） | 视觉判断用截图；**状态判断走 API**（`ActualTheme` / `SystemBackdrop` 类型 / DOM 属性） |
 | 只读了一半日志 | 看到 A 有日志、B 没日志，就判「B 无效」；实际是「B 未观测」 | 判无效必须证明「它的日志没出现」，不是「另一件事的日志出现了」 |
 | 跑旧二进制 | 改完代码没效果，因为启动的是另一个 build 目录 | 先核对「跑的是不是刚编的那个 exe」（Debug vs Release、bin 路径） |
+| DPI 缩放与坐标不同源 | 系统 175% 缩放下，UI Tree 坐标、`GetWindowRect` 物理像素、mcp `click` 的 loc 三套数字不相等；同一位置点两次可能得到不同结果 | 用 `displayinventory` 先确认 scale；用一次**已知成功的点击**反推「屏幕→控件内」映射，再用相对偏移推第二个点 |
+| 双击间隔内的连点 | 短时间内同位置连点会被归为双击，`PointerPressed` 不再触发 | 点第二下前换位置或等 500ms |
 
 ### 三种坐标的定义（混用必错）
 

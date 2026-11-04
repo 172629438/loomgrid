@@ -168,7 +168,7 @@
                 Grid.ColumnSpan="2"
                 Margin="0,0,0,6"
                 Style="{StaticResource TextCaption}"
-                Text="本版本暂未实现：时段编辑 · 省份策略 · 模板管理 · 配色自定义 · 策略管理 · 双点对比"
+                Text="本版本暂未实现：时段编辑 · 省份策略 · 模板管理 · 配色自定义 · 策略管理"
                 TextWrapping="Wrap" />
 
             <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnSpacing="10" Margin="0,0,0,4">

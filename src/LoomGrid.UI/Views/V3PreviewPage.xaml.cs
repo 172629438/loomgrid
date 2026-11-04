@@ -94,10 +94,20 @@ public sealed partial class V3PreviewPage : Page
         {
             try
             {
-                AppLog.Write($"V3 版式：missing.Y={MissingText.ActualOffset.Y:F1} h={MissingText.ActualHeight:F1} | " +
-                             $"compare.Y={CompareText.ActualOffset.Y:F1} h={CompareText.ActualHeight:F1} | " +
-                             $"status.Y={StatusText.ActualOffset.Y:F1} h={StatusText.ActualHeight:F1} | " +
-                             $"win={ActualHeight:F1}");
+                // 必须用 TransformToVisual(null) 转成窗口坐标再比。
+                // 直接读 ActualOffset.Y 是相对各自父容器的，两个不同父容器下的值不可比
+                // （犯过：missing.Y=8.0 / compare.Y=0.0 看似重叠，实际参照系不同）。
+                var pm = MissingText.TransformToVisual(null).TransformPoint(new Windows.Foundation.Point(0, 0));
+                var pc = CompareText.TransformToVisual(null).TransformPoint(new Windows.Foundation.Point(0, 0));
+                var ps = StatusText.TransformToVisual(null).TransformPoint(new Windows.Foundation.Point(0, 0));
+                double mBot = pm.Y + MissingText.ActualHeight;
+                double cBot = pc.Y + CompareText.ActualHeight;
+                double sBot = ps.Y + StatusText.ActualHeight;
+                bool overlap1 = cBot > pm.Y && pc.Y < mBot;
+                bool overlap2 = sBot > pc.Y && ps.Y < cBot;
+                AppLog.Write($"V3 版式（窗口坐标）：missing={pm.Y:F1}~{mBot:F1} | " +
+                             $"compare={pc.Y:F1}~{cBot:F1} | status={ps.Y:F1}~{sBot:F1} | " +
+                             $"重叠={overlap1 || overlap2}");
             }
             catch (Exception ex) { AppLog.Write($"V3 版式自检失败：{ex.GetType().Name}"); }
         });
@@ -283,25 +293,39 @@ public sealed partial class V3PreviewPage : Page
     /// </summary>
     private void OnPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
-        if (_data is null || _index < 0 || _index >= _groups.Count) return;
+        // 诊断：这个方法之前一行日志都没有 —— 「事件没到」和「到了但提前 return」分不开。
+        // 每个 return 分支都留痕，禁止再出现静默 return。
+        if (_data is null || _index < 0 || _index >= _groups.Count)
+        { AppLog.Write($"V3 对比：PointerPressed 忽略（data={(_data is null ? "null" : "ok")} index={_index} n={_groups.Count}）"); return; }
 
         var px = e.GetCurrentPoint(PlotView).Position;
         ScottPlot.Coordinates c;
         try { c = PlotView.Plot.GetCoordinates(new Pixel(px.X, px.Y)); }
-        catch { return; }
+        catch (Exception ex)
+        { AppLog.Write($"V3 对比：GetCoordinates 抛异常 {ex.GetType().Name}: {ex.Message}"); return; }
 
         int nPts = _data.TimeLabels.Count;
         int idx = (int)Math.Round(c.X);
-        if (idx < 0 || idx >= nPts) return;
+        if (idx < 0 || idx >= nPts)
+        { AppLog.Write($"V3 对比：索引越界 idx={idx} nPts={nPts} c.X={c.X:F2}"); return; }
 
         int day = _selectedDay >= 0 ? _selectedDay : _data.LoadArray.Count - 1;
-        if (day < 0 || day >= _data.LoadArray.Count) return;
-        if (idx >= _data.LoadArray[day].Count) return;
+        if (day < 0 || day >= _data.LoadArray.Count)
+        { AppLog.Write($"V3 对比：日索引越界 day={day} nDays={_data.LoadArray.Count}"); return; }
+        if (idx >= _data.LoadArray[day].Count)
+        { AppLog.Write($"V3 对比：该行点数不足 idx={idx} rowLen={_data.LoadArray[day].Count}"); return; }
 
         // 三下循环
-        if (_pointA is null) { _pointA = (day, idx); }
-        else if (_pointB is null) { _pointB = (day, idx); }
-        else { _pointA = (day, idx); _pointB = null; }
+        string step;
+        if (_pointA is null) { _pointA = (day, idx); step = "落 A"; }
+        else if (_pointB is null) { _pointB = (day, idx); step = "落 B"; }
+        else { _pointA = (day, idx); _pointB = null; step = "重置（A 换新落点）"; }
+        AppLog.Write($"V3 对比：PointerPressed ({px.X:0},{px.Y:0}) c.X={c.X:F2} → {step} day={day} idx={idx} 值={_data.LoadArray[day][idx]:F1}");
+
+        // 关键：释放指针捕获。WinUI 在 PointerPressed 后如果未释放，后续 PointerMoved/Pressed
+        // 会持续报到按下那一刻的位置（实测：不同屏幕位置的两下点击，PlotView 坐标恒为同一个）。
+        // 症状极隐蔽——首点正常，之后 hover 和后续点击全部"卡"在旧位置，日志看不出异常。
+        (sender as UIElement)?.ReleasePointerCaptures();
 
         RedrawCompare();
         e.Handled = true;
@@ -397,7 +421,9 @@ public sealed partial class V3PreviewPage : Page
         }
         else
         {
-            CompareText.Text = $"{lineA}　{lineB}　{diff}";
+            // 两行排：A/B 一行，Δ/Δt 一行。单行时异号文案（「A、B 异号，不计百分比」）
+            // 会把一行撑爆，自动折行后与下方状态栏贴在一起——显式换行比靠 Wrap 拼运气可控。
+            CompareText.Text = $"{lineA}　{lineB}\n{diff}";
             CompareHint.Text = "再点一次重新开始 · Esc 清除";
         }
 
