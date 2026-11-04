@@ -35,12 +35,13 @@
                 Text="0 / 0" />
         </Grid>
 
-        <Grid Grid.Row="1" Padding="28,0,28,12" ColumnSpacing="14">
+        <Grid Grid.Row="1" Padding="28,0,28,12" ColumnSpacing="18">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="470" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
+            <!-- 左：清单 -->
             <Grid Grid.Column="0" RowSpacing="6">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -137,59 +138,96 @@
                 </ListView>
             </Grid>
 
-            <StackPanel Grid.Column="1" Spacing="12">
-                <TextBlock Style="{StaticResource TextCaption}" Text="输出目录" />
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock
-                        x:Name="OutputDirText"
-                        Grid.Column="0"
-                        VerticalAlignment="Center"
-                        FontFamily="{StaticResource MonoFamily}"
-                        FontSize="{StaticResource FsCaption}"
-                        Text="（未选择）"
-                        TextTrimming="CharacterEllipsis" />
-                    <Button Grid.Column="1" Click="OnPickOutputDir" Content="选择…" />
-                    <Button Grid.Column="2" Click="OnOpenOutputDir" Content="打开" />
-                </Grid>
+            <!-- 右：配置（不用 Border 卡片，用两列 Grid + 分隔线；外层可滚动） -->
+            <ScrollViewer
+                Grid.Column="1"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="10" Margin="0,0,8,0">
 
-                <TextBlock Style="{StaticResource TextCaption}" Text="命名模板（占位符 {table_no} {year_month} {asset} {sheet}）" />
-                <TextBox x:Name="TitleBox" Header="标题" />
-                <TextBox x:Name="FileBox" Header="文件名" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Click="OnRefreshPreview" Content="刷新预览" />
+                    <TextBlock Style="{StaticResource TextCaption}" Text="输出目录" />
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Name="OutputDirText"
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource MonoFamily}"
+                            FontSize="{StaticResource FsCaption}"
+                            Text="（未选择）"
+                            TextTrimming="CharacterEllipsis" />
+                        <Button Grid.Column="1" Click="OnPickOutputDir" Content="选择…" />
+                        <Button Grid.Column="2" Click="OnOpenOutputDir" Content="打开" />
+                    </Grid>
+
+                    <Rectangle
+                        Height="1"
+                        HorizontalAlignment="Stretch"
+                        Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                    <TextBlock Style="{StaticResource TextCaption}" Text="命名模板" />
+                    <TextBox x:Name="TitleBox" Header="标题" />
+                    <TextBox x:Name="FileBox" Header="文件名" />
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Click="OnRefreshPreview" Content="刷新预览" />
+                        <TextBlock
+                            x:Name="PreviewText"
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource MonoFamily}"
+                            FontSize="{StaticResource FsCaption}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="—"
+                            TextTrimming="CharacterEllipsis" />
+                    </Grid>
                     <TextBlock
-                        x:Name="PreviewText"
-                        VerticalAlignment="Center"
-                        FontFamily="{StaticResource MonoFamily}"
-                        FontSize="{StaticResource FsCaption}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Text="—" />
+                        Style="{StaticResource TextCaption}"
+                        Text="占位符：{table_no} {year_month} {asset} {sheet}；文件名清洗由后端完成"
+                        TextWrapping="Wrap" />
+
+                    <Rectangle
+                        Height="1"
+                        HorizontalAlignment="Stretch"
+                        Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                    <TextBlock Style="{StaticResource TextCaption}" Text="参数" />
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock Style="{StaticResource TextCaption}" Text="全局倍率" />
+                            <TextBox x:Name="GlobalMultiplierBox" FontFamily="{StaticResource MonoFamily}" Text="1.0" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock Style="{StaticResource TextCaption}" Text="高亮模式" />
+                            <ComboBox x:Name="HighlightCombo" HorizontalAlignment="Stretch" />
+                        </StackPanel>
+                    </Grid>
+
+                    <CheckBox x:Name="DarkThemeCheck" Content="深色图表" IsChecked="True" />
+                    <CheckBox x:Name="MidwideCheck" Content="同时导出中间宽表（xlsx）" />
+
+                    <Rectangle
+                        Height="1"
+                        HorizontalAlignment="Stretch"
+                        Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                    <TextBlock
+                        Style="{StaticResource TextCaption}"
+                        Text="逐行倍率：在左侧每行填数字即覆盖全局值；留空用全局。"
+                        TextWrapping="Wrap" />
                 </StackPanel>
-
-                <TextBlock Style="{StaticResource TextCaption}" Text="参数" />
-                <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Spacing="4">
-                        <TextBlock Style="{StaticResource TextCaption}" Text="全局倍率" />
-                        <TextBox x:Name="GlobalMultiplierBox" FontFamily="{StaticResource MonoFamily}" Text="1.0" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Spacing="4">
-                        <TextBlock Style="{StaticResource TextCaption}" Text="高亮模式" />
-                        <ComboBox x:Name="HighlightCombo" HorizontalAlignment="Stretch" />
-                    </StackPanel>
-                </Grid>
-
-                <CheckBox x:Name="DarkThemeCheck" Content="深色图表" IsChecked="True" />
-                <CheckBox x:Name="MidwideCheck" Content="同时导出中间宽表（xlsx）" />
-            </StackPanel>
+            </ScrollViewer>
         </Grid>
 
         <Grid
