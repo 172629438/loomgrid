@@ -266,6 +266,13 @@
                     FontSize="{StaticResource FsCaption}"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     Text="后端：启动中…" />
+                <!-- 关于：自述版本与未实现项。用户拿到程序第一个问题是
+                     「和以前那个有什么区别」，让程序自己回答。 -->
+                <Button
+                    Padding="8,2"
+                    Click="OnAboutClick"
+                    Content="关于"
+                    FontSize="{StaticResource FsCaption}" />
             </StackPanel>
         </Grid>
     </Grid>

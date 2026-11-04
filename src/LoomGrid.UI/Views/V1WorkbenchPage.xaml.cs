@@ -386,6 +386,51 @@ public sealed partial class V1WorkbenchPage : Page
         _ => $"{bytes / 1024.0 / 1024.0:F1} MB",
     };
 
+    /// <summary>
+    /// 关于：版本自述 + 未实现清单。
+    /// 每一项都写了「在界面上哪里能找到那个灰按钮」——用户能自己核对，
+    /// 而不是只能看到一句「部分功能未实现」。
+    /// </summary>
+    private void OnAboutClick(object sender, RoutedEventArgs e)
+    {
+        const string body =
+            "基于 LoomGrid Fusion v2.3.9 重构，算法层零改动（基线 703 项零差异）。\n\n" +
+            "功能等价：约 82%\n" +
+            "　六屏全部可用；V3 的部分高级功能与 V4 的模拟功能待实现。\n\n" +
+            "未实现的功能（括号内是界面上能找到它的位置）：\n" +
+            "　V3 · 时段编辑　　（V3 左下栏「时段编辑」灰按钮）\n" +
+            "　V3 · 配色自定义　（V3 左下栏「配色」灰按钮）\n" +
+            "　V3 · 模板管理　　（V3 左下栏「模板」灰按钮）\n" +
+            "　V3 · 策略管理　　（V3 左下栏「策略管理」灰按钮）\n" +
+            "　V3 · 省份策略　　（属时段编辑的一部分，同上）\n" +
+            "　V4 · 负荷模拟　　（V4 左侧「负荷模拟…」灰按钮）\n" +
+            "　V4 · 光伏返送详情（V4 左侧「光伏返送详情…」灰按钮）\n" +
+            "　V4 · 恢复原始　　（V4 左侧「恢复原始数据」灰按钮）\n" +
+            "　V3 · 曲线探针　　（鼠标悬停在曲线上应出现读数，待验）\n" +
+            "　V3 · 双点对比　　（新增能力，原 Fusion 也没有）\n\n" +
+            "上述按钮在界面上均为禁用状态（灰），hover 有说明。\n" +
+            "它们不是 bug，是本版未实现。";
+
+        var dlg = new ContentDialog
+        {
+            Title = "LoomGrid Pro v1.0.0",
+            Content = new ScrollViewer
+            {
+                MaxHeight = 420,
+                Content = new TextBlock
+                {
+                    Text = body,
+                    TextWrapping = TextWrapping.Wrap,
+                    FontSize = 12.5,
+                    LineHeight = 22,
+                },
+            },
+            CloseButtonText = "知道了",
+            XamlRoot = XamlRoot,
+        };
+        _ = dlg.ShowAsync();
+    }
+
     private void ShowNotice(string text)
     {
         NoticeText.Text = text;
