@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    python-core：Python 算法层在解决方案里的落点。
+    本机不编译 C#，也不自己复制文件 —— 源码只有一份（仓库根的 core/ services/ plotting/ api/），
+    复制动作由 LoomGrid.UI 的 Content 项声明，构建时落到输出目录 python-core\。
+    这个项目负责的是「构建期校验」：Python 源码不齐时直接报错，不让半截代码进产物。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AssemblyName>LoomGrid.PythonCore</AssemblyName>
+    <RootNamespace>LoomGrid.PythonCore</RootNamespace>
+    <NoWarn>$(NoWarn);CS2008</NoWarn>
+    <Nullable>enable</Nullable>
+    <Platforms>x86;x64;ARM64</Platforms>
+  </PropertyGroup>
+
+  <Target Name="VerifyPythonCore" BeforeTargets="Build">
+    <Error Condition="!Exists('..\core\ingest.py')" Text="Python 源码不完整：缺少 core\ingest.py" />
+    <Error Condition="!Exists('..\services\config.py')" Text="Python 源码不完整：缺少 services\config.py" />
+    <Error Condition="!Exists('..\plotting\curves.py')" Text="Python 源码不完整：缺少 plotting\curves.py" />
+    <Error Condition="!Exists('..\api\app.py')" Text="Python 源码不完整：缺少 api\app.py" />
+    <Message Importance="high" Text="Python 源码校验通过：core / services / plotting / api 齐全" />
+  </Target>
+
+</Project>

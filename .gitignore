@@ -86,3 +86,16 @@ build_release/
 assets/demo.png
 tools/demo_anim/demo_data.js
 
+# .NET / WinUI 3 构建产物（LoomGrid.sln）
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+*.pubxml
+publish/
+
+# WinUI 应用的图标资源必须入库（上面的 *.png 排除是挡生成图片的）
+!src/LoomGrid.UI/Assets/*.png
+!src/LoomGrid.UI/Assets/*.ico
+
