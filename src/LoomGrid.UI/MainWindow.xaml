@@ -13,6 +13,11 @@
     </Window.SystemBackdrop>
 
     <Grid x:Name="RootGrid">
+        <Grid.KeyboardAccelerators>
+            <!-- F11：坐标自检。本机 175% 缩放下，UI 自动化工具报的坐标与物理坐标差一个
+                 scale，导致「看得见按钮但点不中」。按一下就打全四个值，不靠推算。 -->
+            <KeyboardAccelerator Key="F11" Invoked="OnCoordProbe" />
+        </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
