@@ -643,6 +643,97 @@ public sealed partial class V4CapacityPage : Page
         Frame.Navigate(typeof(V4SimPage));
     }
 
+    /// <summary>
+    /// 光伏返送详情。数据走 /api/calc/pv-feedback（与 /preview 同一个取数口，模拟 session 也算）。
+    /// 倍率固定传 1.0：V4 没有倍率参数（倍率在 V5），为它造一个会让人以为这里能调。
+    /// </summary>
+    private async void OnPvClick(object sender, RoutedEventArgs e)
+    {
+        var services = AppServices.Current;
+        var ws = Workspace.Current;
+        if (services is null || ws.SessionId is null)
+        {
+            ShowNotice("还没有可查询的 session——请先在映射页完成至少一个文件");
+            return;
+        }
+
+        int gi = _groups.Count > 0 && GroupCombo.SelectedIndex >= 0 ? GroupCombo.SelectedIndex : 0;
+        string sessionId = _groups.Count > gi ? _groups[gi].SessionId : ws.SessionId!;
+
+        try
+        {
+            var api = new CalcApi(services.Api);
+            var r = await api.PvFeedbackAsync(new PvFeedbackRequest
+            {
+                SessionId = sessionId,
+                Group = _groups.Count > gi ? _groups[gi].GroupIndex : 0,
+                Multiplier = 1.0,
+            });
+
+            AppLog.Write($"V4 光伏返送：返送 {r.TotalEnergyKwh:F1} kWh · " +
+                         $"最大 {r.MaxPowerKw:F1} kW · 负值点 {r.NegativePoints} 个 · {r.Daily.Count} 天");
+
+            await ShowPvDialogAsync(r);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("V4 光伏返送：失败 " + ex.Message);
+            ShowNotice("查询失败：" + ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 用等宽文本拼表格，不用表格控件：
+    /// 一是本项目的 XamlCompiler 在复杂嵌套上崩过两次，二是等宽对齐能直接看出列错位。
+    /// </summary>
+    private async Task ShowPvDialogAsync(PvFeedbackResult r)
+    {
+        string head = r.HasNegative
+            ? $"本月总返送电量 {r.TotalEnergyKwh:N1} kWh，最大返送功率 {r.MaxPowerKw:N1} kW"
+            : "本月无返送（负荷全为正值，没有倒送）";
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(head);
+        sb.AppendLine();
+
+        if (r.HasNegative)
+        {
+            sb.AppendLine($"{"日期",-12}{"返送电量 kWh",14}{"最大返送功率 kW",18}");
+            sb.AppendLine(new string('—', 46));
+            int idle = 0;
+            foreach (var d in r.Daily)
+            {
+                if (d.EnergyKwh <= 0) { idle++; continue; }   // 没返送的天不占行，避免一屏全是 0
+                sb.AppendLine($"{d.Date,-12}{d.EnergyKwh,14:N1}{d.MaxPowerKw,18:N1}");
+            }
+            if (idle > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"另有 {idle} 天没有返送，未列出。");
+            }
+        }
+
+        var dlg = new ContentDialog
+        {
+            Title = "光伏返送详情",
+            Content = new ScrollViewer
+            {
+                MaxHeight = 420,
+                Content = new TextBlock
+                {
+                    Text = sb.ToString(),
+                    FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                    FontSize = 12.5,
+                    LineHeight = 21,
+                    TextWrapping = TextWrapping.NoWrap,
+                },
+            },
+            CloseButtonText = "知道了",
+            XamlRoot = XamlRoot,
+        };
+        await dlg.ShowAsync();
+    }
+
     private async void ShowNotice(string text)
     {
         var dlg = new ContentDialog

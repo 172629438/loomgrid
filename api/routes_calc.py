@@ -31,6 +31,7 @@ from core.models import PeriodType
 from core.periods import _segment_periods
 from core.spaces import calc_days_for_capacity, compute_segmented_spaces
 from services.timeline import unify_time_resolution
+from services.pvfeedback import pv_feedback
 from services.capacity import (
     DemandBasis, daily_demand_series, summarize_daily_demand, throughput_breakdown,
 )
@@ -520,4 +521,49 @@ def capacity(req: CapacityCalcRequest):
         "group": {"asset": gs.asset_value, "month": gs.month_str},
         "days": int(series.size),
         "note": summary.get("note", ""),
+    }).model_dump()
+
+
+class PvFeedbackRequest(BaseModel):
+    """光伏返送详情请求。
+
+    ⚠️ `multiplier` 必传且**先乘再算**（与 Fusion 一致）：用户把倍率从 1.0 调到 2.0，
+    负荷翻倍，返送量也该翻倍。漏乘会让数字停在旧值，而且不报错。
+    """
+
+    session_id: str
+    group: int = 0
+    multiplier: float = Field(default=1.0, gt=0,
+                              description="倍率，先乘负荷再统计。与 Fusion 一致")
+
+
+@router.post("/pv-feedback", response_model=Envelope,
+             description=(
+                 "逐日光伏返送（负荷为负 = 倒送）电量与最大返送功率。\n\n"
+                 "**时间权重是 PV 专用的整格差分，与 spaces 的 seg_dt 不同**：\n"
+                 "dt[0]=h1-h0、dt[-1]=h[-1]-h[-2]、中间=中点差；\n"
+                 "seg_dt 是首尾靠时段边界补齐的半格。两者对同一天会差半格。\n\n"
+                 "**没有「可存电量」字段** —— Fusion 也没有；它只回答倒送了多少、峰值多大。\n\n"
+                 "`negative_points=0` 时 `has_negative=false`，界面应直说「本月无返送」而不是画空表。"
+             ))
+def pv_feedback_endpoint(req: PvFeedbackRequest):
+    """逐日返送统计。数据来源与 /preview、/calc 一致（含模拟 session）。"""
+    try:
+        gs, data = load_group_data(req.session_id, req.group)
+    except ResolveError as e:
+        code = e.code if e.code == "PREVIEW_GROUP_NOT_FOUND" else "CALC_NO_DATA"
+        return _err(code, e.message)
+
+    try:
+        res = pv_feedback(data["load_array"],
+                          [str(x) for x in data.get("time_labels", [])],
+                          [str(x) for x in data.get("date_labels", [])],
+                          multiplier=req.multiplier)
+    except ValueError as exc:
+        return _err("CALC_PV_INVALID", f"返送统计失败：{exc}")
+
+    return Envelope(ok=True, data={
+        **res,
+        "group": {"asset": gs.asset_value, "month": gs.month_str},
+        "multiplier": req.multiplier,
     }).model_dump()

@@ -56,6 +56,10 @@
                             Content="负荷模拟…" Click="OnSimulateClick"
                             ToolTipService.ToolTip="快捷键 Alt+S。用行业模板生成一条模拟负荷曲线（25 个模板）；模拟后本章测算与 V3 预览都改用模拟数据，可随时切回原始。" />
 
+                    <Button x:Name="PvBtn" AccessKey="P" HorizontalAlignment="Stretch"
+                            Content="光伏返送详情…" Click="OnPvClick"
+                            ToolTipService.ToolTip="快捷键 Alt+P。逐日查看倒送（负荷为负）的电量与最大返送功率；数据全为正值时直说「本月无返送」。" />
+
                     <TextBlock Style="{StaticResource TextCaption}" Text="分组" />
                     <ComboBox x:Name="GroupCombo" HorizontalAlignment="Stretch" SelectionChanged="OnParamChanged" />
 
@@ -199,16 +203,10 @@
                         <TextBlock Style="{StaticResource TextCaption}" Text="暂不可用（原 Fusion 有，WinUI 版未实现）" />
                         <Button
                             HorizontalAlignment="Stretch"
-                            Content="光伏返送详情…"
-                            IsEnabled="False"
-                            Opacity="0.5"
-                            ToolTipService.ToolTip="WinUI 版尚未实现。原 Fusion 可查看倒送时段、倒送量与可存电量明细。" />
-                        <Button
-                            HorizontalAlignment="Stretch"
                             Content="园区负荷模拟（多资产组合）"
                             IsEnabled="False"
                             Opacity="0.5"
-                            ToolTipService.ToolTip="WinUI 版尚未实现。原 Fusion 可添加多个资产（各自选行业与功率）后相加得到园区总负荷，「负荷模拟…」目前只支持单行业。" />
+                            ToolTipService.ToolTip="WinUI 版尚未实现。原 Fusion 可添加多个资产（各自选行业与功率）后相加得到园区总负荷，「负荷模拟」目前只支持单行业。" />
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>

@@ -26,6 +26,20 @@ public sealed class CalcApi
                ?? throw new ApiException("容量测算返回了空数据");
     }
 
+    /// <summary>
+    /// 逐日光伏返送统计。数据来源与 /preview 一致（含模拟 session）。
+    /// 返回的 <c>HasNegative=false</c> 时界面应直说「本月无返送」。
+    /// </summary>
+    public async Task<PvFeedbackResult> PvFeedbackAsync(PvFeedbackRequest req, CancellationToken ct = default)
+    {
+        JsonElement data = await _api
+            .PostDataAsync(ApiPaths.CalcPvFeedback, req, ct)
+            .ConfigureAwait(false);
+
+        return data.Deserialize<PvFeedbackResult>(Opts)
+               ?? throw new ApiException("光伏返送详情返回了空数据");
+    }
+
     /// <summary>逐日充放空间。date_labels 是真实日期（如 2026-01-01），不是索引。</summary>
     public async Task<SpacesResult> SpacesAsync(CapacityRequest req, CancellationToken ct = default)
     {
