@@ -963,7 +963,11 @@ def _extract_asset_from_name(file_path, sheet_name):
     if m:
         cand = m.group(1)
         is_year_like = len(cand) == 4 and 1900 <= int(cand) <= 2100
-        if not is_year_like:
+        # v2.3.9fix(P2-6): 8 位纯数字日期（20261101）不是表号。
+        # 「20261101_负荷.xlsx」原来会被当成表号 '20261101'，图表标题与报告都跟着错。
+        is_date_like = (len(cand) == 8 and cand.isdigit()
+                        and 19000101 <= int(cand) <= 21001231)
+        if not is_year_like and not is_date_like:
             return cand
     return '未命名'
 
@@ -1000,7 +1004,11 @@ def _scan_wide_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
         yms = pd.Series(df_temp.index).apply(_extract_ym)
         # 转置表的日期在 index 里（没有 date_col 变量）——
         # 统一成 date_values，下游循环不必区分分支。
-        date_values = pd.Series(df_temp.index, index=df_temp.index)
+        # v2.3.9fix(P2-5): index 必须与 yms 同为 RangeIndex。原写法
+        # `pd.Series(df_temp.index, index=df_temp.index)` 把 index 设成了日期字符串，
+        # 而循环里 idx 是整数，date_values.get(idx) 永远取不到，
+        # yearless_samples 恒为空，“有 N 个日期没年份”的提示永远不出现。
+        date_values = pd.Series(df_temp.index)
         raw_vals = None
     else:
         existing = [c for c in load_cols if c in df.columns]
