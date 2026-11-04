@@ -23,6 +23,49 @@ public sealed class Workspace
     /// <summary>上次导出结果（V5 写完，V6 读）。</summary>
     public List<ExportRunSummary> LastRuns { get; } = new();
 
+    // ── 负荷模拟（V4）──────────────────────────────────────
+    // 语义是「切换」不是「替换」：原真实 session 一直不动，只多存一个模拟 session 的 id。
+    // 所以「恢复原始」= 把 SessionId 改回 OriginalSessionId，**不能删模拟 session** ——
+    // 删了用户就再回不到那条模拟曲线了（Fusion 也是这么做的）。
+
+    /// <summary>进入模拟前的真实 session。第一次应用模拟时记录，之后不再改。</summary>
+    public string? OriginalSessionId { get; set; }
+
+    /// <summary>当前生效的模拟 session。为 null 表示没用模拟。</summary>
+    public string? SimulatedSessionId { get; set; }
+
+    public string? SimOriginIndustry { get; set; }
+
+    /// <summary>生成时的 applied_seed。界面上以 #424242 形式常态显示，不藏 tooltip。</summary>
+    public int? SimOriginSeed { get; set; }
+
+    // 模拟分组的元信息：V4 的分组列表原来只从 Files 构建，模拟 session 不在 Files 里，
+    // 所以这几个字段是 V4 能把「模拟」当成一个分组显示出来的唯一依据。
+    public string? SimAsset { get; set; }
+    public string? SimMonth { get; set; }
+    public int SimDays { get; set; }
+    public int SimPoints { get; set; }
+
+    /// <summary>当前是否用的是模拟数据。</summary>
+    public bool IsSimulated =>
+        SimulatedSessionId is not null && SessionId == SimulatedSessionId;
+
+    /// <summary>切回原始数据（模拟 session 保留，可再切回来）。</summary>
+    public bool RevertToOriginal()
+    {
+        if (OriginalSessionId is null) return false;
+        SessionId = OriginalSessionId;
+        return true;
+    }
+
+    /// <summary>再切回模拟数据（「恢复原始」之后想回头时用）。</summary>
+    public bool ReuseSimulation()
+    {
+        if (SimulatedSessionId is null) return false;
+        SessionId = SimulatedSessionId;
+        return true;
+    }
+
     /// <summary>已完成映射的文件数（V2 底部进度用）。</summary>
     public int MappedCount => Files.Count(f => f.SessionId is not null);
 
@@ -33,5 +76,13 @@ public sealed class Workspace
         Files.Clear();
         SessionId = null;
         Groups.Clear();
+        OriginalSessionId = null;
+        SimulatedSessionId = null;
+        SimOriginIndustry = null;
+        SimOriginSeed = null;
+        SimAsset = null;
+        SimMonth = null;
+        SimDays = 0;
+        SimPoints = 0;
     }
 }

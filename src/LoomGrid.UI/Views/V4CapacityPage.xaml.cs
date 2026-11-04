@@ -34,7 +34,22 @@ public sealed partial class V4CapacityPage : Page
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (_loaded) return;
+        if (_loaded)
+        {
+            // 从「负荷模拟」页返回时会走到这里（页面实例被复用）。
+            // **必须重建分组**：模拟应用/恢复原始都改变了「分组从哪来」，
+            // 只刷新数据源不重建分组，下拉框里还是旧的分组，算出来的也是旧数据。
+            BuildGroups();
+            _suppressAuto = true;
+            GroupCombo.ItemsSource = null;
+            GroupCombo.ItemsSource = _groups;
+            GroupCombo.DisplayMemberPath = nameof(V4GroupItem.Display);
+            GroupCombo.SelectedIndex = _groups.Count > 0 ? 0 : -1;
+            _suppressAuto = false;
+            RefreshSourceBar();
+            ScheduleCalc();
+            return;
+        }
         _loaded = true;
         AppLog.Write("V4 容量测算页已加载");
 
@@ -47,6 +62,7 @@ public sealed partial class V4CapacityPage : Page
         }
 
         _suppressAuto = true;
+        RefreshSourceBar();
         GroupCombo.ItemsSource = _groups;
         GroupCombo.DisplayMemberPath = nameof(V4GroupItem.Display);
         GroupCombo.SelectedIndex = 0;
@@ -75,7 +91,25 @@ public sealed partial class V4CapacityPage : Page
     private void BuildGroups()
     {
         _groups.Clear();
-        foreach (var f in Workspace.Current.Files)
+        var ws = Workspace.Current;
+
+        // 模拟来源单独一条分支：V4 原来只从 Files[].SessionId 取数，
+        // 而模拟 session 不在 Files 里 —— 不补这条分支，「应用模拟」会返回成功、
+        // 日志写着换了 session，但 V4 算的仍是原始数据，**数字一个不变且不报错**。
+        if (ws.IsSimulated)
+        {
+            _groups.Add(new V4GroupItem
+            {
+                SessionId = ws.SimulatedSessionId!,
+                GroupIndex = 0,
+                Asset = string.IsNullOrWhiteSpace(ws.SimAsset) ? "模拟负荷" : ws.SimAsset!,
+                Month = string.IsNullOrWhiteSpace(ws.SimMonth) ? "—" : ws.SimMonth!,
+                TimePoints = ws.SimPoints,
+            });
+            return;
+        }
+
+        foreach (var f in ws.Files)
         {
             if (f.SessionId is null) continue;
             for (int i = 0; i < f.Groups.Count; i++)
@@ -96,6 +130,10 @@ public sealed partial class V4CapacityPage : Page
         var distinct = _groups.Select(g => g.TimePoints).Distinct().ToList();
         if (distinct.Count > 1)
             AppLog.Write($"V4：警告 —— 分组粒度不一致 {string.Join("/", distinct)}，跨组对比不可直接比较");
+
+        // 一行可核日志：分组到底从哪来。之前「应用模拟后 V4 数字不变」就是靠这个缺口躲过去的 ——
+        // 日志里写着换了 session，但分组仍来自 Files，两套信息各说各话。
+        AppLog.Write($"V4：分组来源={(ws.IsSimulated ? "模拟" : "文件")}，共 {_groups.Count} 个");
     }
 
     // ── 口径说明（进界面，不进 tooltip）──────────────────────
@@ -558,5 +596,62 @@ public sealed partial class V4CapacityPage : Page
     {
         if (Frame.CanGoBack) Frame.GoBack();
         else Frame.Navigate(typeof(V5ExportPage));
+    }
+
+    /// <summary>
+    /// 数据来源条：常态显示，不靠 tooltip。
+    /// 真实数据时整条隐藏（不给用户看「来源：文件」这种赘述）；
+    /// 模拟时显示「模拟 · 电解铝 · #424242」，并在右侧出现「恢复原始数据」。
+    /// </summary>
+    private void RefreshSourceBar()
+    {
+        var ws = Workspace.Current;
+        if (!ws.IsSimulated)
+        {
+            SourceBar.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        SourceBar.Visibility = Visibility.Visible;
+        string industry = string.IsNullOrWhiteSpace(ws.SimOriginIndustry)
+            ? "未命名" : ws.SimOriginIndustry;
+        string seed = ws.SimOriginSeed is int s ? $" · #{s}" : "";
+        SourceText.Text = $"模拟 · {industry}{seed}";
+        RevertBtn.Visibility = Visibility.Visible;
+    }
+
+    private async void OnRevertClick(object sender, RoutedEventArgs e)
+    {
+        if (!Workspace.Current.RevertToOriginal())
+        {
+            ShowNotice("没有可恢复的原始数据");
+            return;
+        }
+        AppLog.Write("V4：恢复原始数据，session 切回 " + Workspace.Current.SessionId);
+        RefreshSourceBar();
+        // 切换之后必须重算：不重算的话界面上还是模拟那套数字，用户会以为切换没生效。
+        await CalcAsync();
+    }
+
+    private void OnSimulateClick(object sender, RoutedEventArgs e)
+    {
+        if (Workspace.Current.SessionId is null)
+        {
+            ShowNotice("还没有可替换的 session——请先在映射页完成至少一个文件");
+            return;
+        }
+        Frame.Navigate(typeof(V4SimPage));
+    }
+
+    private async void ShowNotice(string text)
+    {
+        var dlg = new ContentDialog
+        {
+            Title = "提示",
+            Content = text,
+            CloseButtonText = "知道了",
+            XamlRoot = XamlRoot,
+        };
+        await dlg.ShowAsync();
     }
 }

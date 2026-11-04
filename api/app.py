@@ -100,6 +100,8 @@ def health():
             "GET /api/preview", "POST /api/calc/spaces", "POST /api/calc/capacity",
             "POST /api/plot/fit",
             "POST /api/export/run", "GET /api/export/status", "GET /api/export/report",
+            "GET /api/simulate/templates", "POST /api/simulate/load",
+            "POST /api/simulate/apply",
             "WS /ws/progress",
         ],
     }).model_dump()

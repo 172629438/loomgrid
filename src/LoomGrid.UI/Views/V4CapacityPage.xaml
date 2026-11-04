@@ -31,6 +31,31 @@
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="10" Margin="0,0,8,0">
 
+                    <!-- 数据来源条：模拟时常态显示，不藏 tooltip ——
+                         「可复现」是硬需求，用户想重生成同一条时不用翻日志。
+                         seed 用 # 前缀，告诉用户「这是标识符不是数量」。 -->
+                    <StackPanel x:Name="SourceBar" Spacing="6" Visibility="Collapsed">
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource TextCaption}" Text="数据来源：" />
+                                <TextBlock x:Name="SourceText" Style="{StaticResource TextCaption}"
+                                           FontFamily="{StaticResource MonoFamily}" Text="" />
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="RevertBtn" Content="恢复原始数据"
+                                    Click="OnRevertClick" Visibility="Collapsed" />
+                        </Grid>
+                        <Rectangle Height="1" HorizontalAlignment="Stretch"
+                                   Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                    </StackPanel>
+
+                    <Button x:Name="SimulateBtn" HorizontalAlignment="Stretch"
+                            Content="负荷模拟…" Click="OnSimulateClick"
+                            ToolTipService.ToolTip="用行业模板生成一条模拟负荷曲线（25 个模板）。模拟后本章测算与 V3 预览都改用模拟数据，可随时切回原始。" />
+
                     <TextBlock Style="{StaticResource TextCaption}" Text="分组" />
                     <ComboBox x:Name="GroupCombo" HorizontalAlignment="Stretch" SelectionChanged="OnParamChanged" />
 
@@ -174,22 +199,16 @@
                         <TextBlock Style="{StaticResource TextCaption}" Text="暂不可用（原 Fusion 有，WinUI 版未实现）" />
                         <Button
                             HorizontalAlignment="Stretch"
-                            Content="负荷模拟…"
-                            IsEnabled="False"
-                            Opacity="0.5"
-                            ToolTipService.ToolTip="WinUI 版尚未实现。原 Fusion 支持 25 个行业模板生成模拟负荷曲线，用于无真实数据时试算。" />
-                        <Button
-                            HorizontalAlignment="Stretch"
                             Content="光伏返送详情…"
                             IsEnabled="False"
                             Opacity="0.5"
                             ToolTipService.ToolTip="WinUI 版尚未实现。原 Fusion 可查看倒送时段、倒送量与可存电量明细。" />
                         <Button
                             HorizontalAlignment="Stretch"
-                            Content="恢复原始数据"
+                            Content="园区负荷模拟（多资产组合）"
                             IsEnabled="False"
                             Opacity="0.5"
-                            ToolTipService.ToolTip="与负荷模拟配套：只有模拟改过数据才有可恢复的状态。模拟未实现，所以这里也无状态可恢复。" />
+                            ToolTipService.ToolTip="WinUI 版尚未实现。原 Fusion 可添加多个资产（各自选行业与功率）后相加得到园区总负荷，「负荷模拟…」目前只支持单行业。" />
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>

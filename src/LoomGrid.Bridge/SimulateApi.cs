@@ -36,6 +36,20 @@ public sealed class SimulateApi
         return data.Deserialize<SimLoadResult>(Opts)
                ?? throw new ApiException("负荷模拟返回了空数据");
     }
+
+    /// <summary>
+    /// 把已经生成好的曲线存成一个模拟 session。
+    /// 为什么不让服务端按 seed 重新生成：前端传的正是屏幕上那条，
+    /// 少一层「seed 是否对得上」的隐含假设。
+    /// </summary>
+    public async Task<SimApplyResult> ApplyAsync(SimApplyRequest req, CancellationToken ct = default)
+    {
+        JsonElement data = await _api.PostDataAsync(ApiPaths.SimulateApply, req, ct)
+            .ConfigureAwait(false);
+
+        return data.Deserialize<SimApplyResult>(Opts)
+               ?? throw new ApiException("模拟应用返回了空数据");
+    }
 }
 
 public sealed class TemplateListWrapper
@@ -160,4 +174,48 @@ public sealed class SimStats
     public double Min { get; set; }
     public double Max { get; set; }
     public double Mean { get; set; }
+}
+
+public sealed class SimApplyRequest
+{
+    /// <summary>被替换的真实 session。必传：后端靠它清理旧的模拟 session。这个 session 本身不动。</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("original_session_id")]
+    public string OriginalSessionId { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonPropertyName("load_array")]
+    public List<List<double>> LoadArray { get; set; } = new();
+
+    [System.Text.Json.Serialization.JsonPropertyName("time_labels")]
+    public List<string> TimeLabels { get; set; } = new();
+
+    [System.Text.Json.Serialization.JsonPropertyName("date_labels")]
+    public List<string> DateLabels { get; set; } = new();
+
+    [System.Text.Json.Serialization.JsonPropertyName("industry")]
+    public string Industry { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonPropertyName("seed")]
+    public int? Seed { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("asset")]
+    public string? Asset { get; set; }
+}
+
+public sealed class SimApplyResult
+{
+    [System.Text.Json.Serialization.JsonPropertyName("session_id")]
+    public string SessionId { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonPropertyName("group_count")]
+    public int GroupCount { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("month_str")]
+    public string MonthStr { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonPropertyName("asset")]
+    public string Asset { get; set; } = "";
+
+    /// <summary>本次清掉的旧模拟 session 个数。正常为 0 或 1。</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("dropped_previous")]
+    public int DroppedPrevious { get; set; }
 }
