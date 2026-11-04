@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.10（2026-11-04 修复：月份无法识别时不再猜 1 月、不再崩专业窗口）
+发布版本：LoomGrid Fusion v2.3.11（2026-11-04 修复：「2026年7月份」整表静默丢弃、只有表头时伪造列名、空 CSV 抛未捕获异常）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -215,7 +215,7 @@ def _check_and_install_dependencies():
 # v2.3.6fix(K5): 版本号只能有一个来源。
 # 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
 # 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
-FUSION_VERSION = "2.3.10"
+FUSION_VERSION = "2.3.11"
 FUSION_APP_NAME = "LoomGrid Fusion"
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
 _SUPPORTED_EXTS_SET = frozenset(SUPPORTED_EXTS)  # v2.3.4fix(J6): O(1) 成员查找
@@ -6296,9 +6296,28 @@ class ProcessingThread(threading.Thread):
                     if isinstance(res, dict) and 'error' in res:
                         friendly = _translate_error(None, res['error'])
                         self.signals.log.emit(f"扫描错误: {friendly}")
+                    elif isinstance(res, dict) and res.get('skipped'):
+                        # v2.3.11fix5: 扫描层现在会把「整表没拿到有效数据」明确报上来。
+                        # 以前这些情况返回空列表，界面与「这个文件本来就没有数据」无法区分。
+                        _why = {
+                            'empty_sheet': '工作表无数据行（只有表头或完全为空）',
+                            'no_valid_rows': '所有行的日期都无法识别',
+                        }.get(res['skipped'], res['skipped'])
+                        _extra = f"，共 {res.get('dropped')} 行" if res.get('dropped') else ""
+                        self.signals.log.emit(f"跳过 {os.path.basename(fp)} / {sheet}：{_why}{_extra}")
                     elif isinstance(res, list):
                         for item in res:
-                            self.all_summaries.append(GroupSummary(**item))
+                            # v2.3.11fix5: 原为 GroupSummary(**item)。
+                            # core.models.GroupSummary 是 __slots__ 定长结构，注释里写明
+                            # 「统一从 from_dict 构造，而不是各处写 **d」——但这里没跟上。
+                            # 后果：扫描层一旦在 dict 里多带一个字段（如 dropped_rows），
+                            # 这里直接 TypeError，整批分组丢失。
+                            self.all_summaries.append(GroupSummary.from_dict(item))
+                            _dropped = item.get('dropped_rows') or 0
+                            if _dropped:
+                                self.signals.log.emit(
+                                    f"[{os.path.basename(fp)}/{sheet}] {_dropped} 行的日期无法识别，已跳过"
+                                )
                 except Exception as e:
                     friendly = _translate_error(type(e), str(e))
                     self.signals.log.emit(f"扫描异常 ({fp}/{sheet}): {friendly}")

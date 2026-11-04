@@ -148,52 +148,92 @@ cx_Freeze 实测可用，所以保持现状不改，但换打包器时先验这�
 
 ---
 
-## v2.3.10 — 2026-11-04（Fusion）
+## v2.3.11 — 2026-11-04（Fusion）
 
-> 两处「月份无法识别」的下游处理缺陷。同一个根因，同一个哨兵值。
+> 数据接入层的静默失败清理。本版包含此前已入代码但未发版、未入 CHANGELOG 的
+> `v2.3.11fix` 系列（Excel 序列号与 4 位数字判定、日期列抽样验证），以及本轮三项修复。
 
-### 根因
+### 一、`2026年7月份` 整表被静默丢弃（P0，端到端实测）
 
-`core.ingest._extract_ym` 无法识别日期时返回哨兵字符串 `未知月份`——这是正确设计，
-可识别的失败比 NaN 好。但两个消费方都没处理它：
+`_extract_ym` 的中文日期正则只认「月」不认「月份」。「份」是中文里最常见的
+月份写法，于是 `2026年7月份` 落进兜底返回 `未知月份`；而扫描层
+`_scan_wide_chunk` / `_scan_long_chunk` 对 `未知月份` 的行是 `continue`——
+整月数据直接消失，不报错、界面无提示。
 
-| 消费方 | 原行为 | 后果 |
+**实测**（直调 `_scan_file_worker`，96 点宽表，同一组负荷值只换日期写法）：
+
+| 日期写法 | 结果 |
+|---|---|
+| `2026-07-01` | month=2026-07 dates=3 tp=96 |
+| `2026/7/1` | 同上 |
+| `2026年7月1日` | 同上 |
+| `2026年7月` | 同上 |
+| **`2026年7月份`** | **[] 空分组，无错误** |
+| `7月1日` / `7-1` | 同上（按今年） |
+| `45000`（Excel 序列号） | 2023-03 |
+
+修法：两条中文日期正则加 `\s*(?:份)?`。用非捕获组，不影响 `group(1)/group(2)`。
+
+### 二、只有表头时，真实列名被伪造成「列1..列10」
+
+`get_columns_fast` 原判据是 `if df is None or df.empty`。
+「只有表头、没有数据行」的表 `df.empty` 为 True 但列名完全有效——旧代码丢掉
+真实列名、返回 10 个占位列名。映射界面会显示 10 个不存在的列，用户手选后必然对不上。
+
+实测：3 列且只有表头的 CSV，旧行为 `['列1'...'列10']`；新行为 `['日期','时间','有功功率(kW)']`。
+
+### 三、空 CSV 的列名读取会抛未捕获异常
+
+`get_columns_fast` 的 CSV 分支：第一段 `try` 失败后回退到 `sep=None`，
+而**回退分支本身没有 try**。空文件在 `sep=None` 时抛
+`_csv.Error: Could not determine delimiter`，直接逃到 UI 层弹「无法读取列名」。
+
+现在回退分支也包 try，失败记 `log.error` 并返回 `[]`——调用方见到空列表会走
+「未能识别任何列名」的明确分支，而不是一个含义不明的异常。
+
+### 四、月份解析统一入口（防御性加固，附口径更正）
+
+新增 `_parse_month_num(month_str)`，返回 `1..12` 或 `None`。
+`PreviewDialog._periods_for_idx` 与 `ProfessionalWindow._recalc_spaces` 统一走它。
+
+**口径更正**：本轮同时验证了一个反向事实——扫描层已把 `未知月份` 的行 `continue` 掉了，
+所以 `month_str` 在正常数据流里恒为 `YYYY-MM`。这条修复针对的是「将来改扫描层时可能泄漏」
+的防御场景，**不是已发生的线上缺陷**。最初把它当成本版最重要的修复是判断过量，此处更正。
+
+### 五、整表被丢弃时不再静默
+
+两处返回空列表的情况现在都能说明原因：
+
+| 情况 | 以前 | 现在 |
 |---|---|---|
-| `PreviewDialog._periods_for_idx` | `int()` 失败后 `except: month_int = 1` | 静默套用 1 月的分时电价 |
-| `ProfessionalWindow._recalc_spaces` | `int(month_num)` 裸调用 | ValueError 抽穿 `__init__`，专业分析窗口打不开 |
+| 日期列完全无法解析 | `[]`，与「空表」无法区分 | `{'skipped': 'no_valid_rows', 'dropped': N}` |
+| 空工作表（只有表头） | `[]` | `{'skipped': 'empty_sheet'}` |
+| 部分行日期无效 | 静默少几个月 | 正常返回，每个分组带 `dropped_rows` |
 
-第一条更危险：它不报错。夏季数据拿到 1 月的时段表，若该省冬夏峰谷不同，
-充电/放电空间会按错误时段算出来——**容量建议看着合理但全错，用户不会怀疑工具**。
+`_scan_and_prepare` 会把这些转成界面可见日志，例如
+「跳过 某某.xlsx / Sheet1：所有行的日期都无法识别，共 3 行」。
 
-### 修法
-
-新增模块级 `_parse_month_num(month_str)`，返回 `1..12` 或 `None`。两处消费方统一走它，
-且**必须显式处理 None**：
-
-- `_periods_for_idx`：返回 `[]` + `log.warning`（不套用任何分时时段）
-- `_recalc_spaces`：`log.error` + `continue`（跳过该月，不参与测算）
-
-判据：`_parse_month_num('未知月份') is None`、`'2026-07' == 7`、
-`'2026' is None`（4 位年份不得被当成月份）。
+同时修正一处契约不一致：主程序原来用 `GroupSummary(**item)`，而 `core.models`
+的注释写明「统一从 `from_dict` 构造，而不是各处写 `**d`」。扫描层一旦在 dict 里多带
+一个字段就会 `TypeError`、整批分组丢失——现已改为 `GroupSummary.from_dict(item)`。
 
 ### 验证
 
-- 新增 `tests/verify_month_parse.py`：22 项，含两处消费点的 AST 契约断言
-  （断言 `month_int = 1` 兜底已移除、`month_num` 不再被裸调 `int()`）
-- 全套回归 `python tools/run_all_tests.py --core` → **32 个脚本 PASS 32 / FAIL 0**
-- 主程序编译通过
+- 新增 `tests/verify_month_parse.py`（22 项，含两处消费点的 AST 契约断言）
+- 新增 `tests/verify_scan_drop.py`（12 项：正常 / 「月份」写法 / 全乱码 / 空表 / 部分丢弃）
+- `python tools/run_all_tests.py --core` → 全绿
+- 端到端数据流探针：11 组日期写法逐一核对分组结果
 
-### 新增工具
+### 下一批（已定位，未动）
 
-`tools/run_all_tests.py`：Windows 可用的批量测试入口。
-`tests/README.md` 里那段 heredoc 在 PowerShell 5.1 与 cmd 下都跑不了。
-默认把需要 HTTP/真实窗口的脚本失败标为 `ENV` 而不是 `FAIL`——
-环境缺失不该被误读成代码回归。
+- `_detect_file_format_type` 检测失败默认返回 `'long'`，宽表会被当长表读取
+- `_detect_transposed_wide` 内部有两处静默 `pass`，可能让转置判定漏报
 
-### 本轮已知遗留（下一步）
+---
 
-月份无法识别时，该月被**跳过**而不是被标红。日志里有 `log.error`，
-但界面没有可见提示——用户只会发现月份少了。下一轮补界面提示。
+## v2.3.10 — 2026-11-04（Fusion，已并入 v2.3.11）
+
+> 本号未单独发版。内容（月份解析统一入口）已并入 v2.3.11 第四节。
 
 ---
 

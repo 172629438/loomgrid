@@ -191,11 +191,14 @@ def _extract_ym(d):
     # C8：中文年月日 / 无年份日期。
     # 这三种格式此前全部落到 pd.to_datetime 并被解析成公元 1 年（0001-01），
     # 看起来像个日期，比直接报错更糟。
-    _cn = re.match(r"^(\d{4})\s*年\s*(\d{1,2})\s*月(?:\s*(\d{1,2})\s*日?)?$", raw)
+    # v2.3.11fix4: 「份」是中文里最常见的月份写法（“2026 年 7 月份”），
+    # 原正则只认「月」不认「月份」，整表会返回「未知月份」→ 扫描层 continue →
+    # 整月数据静默消失（实测：同样五组日期写法，只有带「份」的被丢）。
+    _cn = re.match(r"^(\d{4})\s*年\s*(\d{1,2})\s*月\s*(?:份)?\s*(?:\d{1,2}\s*日?)?$", raw)
     if _cn:
         return "%s-%02d" % (_cn.group(1), int(_cn.group(2)))
 
-    _md = re.match(r"^(\d{1,2})\s*月(?:\s*(\d{1,2})\s*日?)?$", raw)
+    _md = re.match(r"^(\d{1,2})\s*月\s*(?:份)?\s*(?:\d{1,2}\s*日?)?$", raw)
     if _md:
         import datetime as _dt
         _y = _dt.date.today().year
@@ -523,7 +526,14 @@ def get_columns_fast(fp, sheet=None, hrow=0, enc=None, delimiter=','):
         try:
             df = pd.read_csv(fp, encoding=e, nrows=hrow+1, header=hrow, sep=delimiter, engine='python')
         except Exception:
-            df = pd.read_csv(fp, encoding=e, nrows=hrow+1, header=hrow, sep=None, engine='python')
+            # v2.3.11fix: 回退分支原来没有 try。空文件在 sep=None 时招 pandas
+            # `_csv.Error: Could not determine delimiter`，直接逃到 UI 的「无法读取列名」。
+            # 现在统一返回空列表，让调用方走「未能识别任何列名」的明确分支。
+            try:
+                df = pd.read_csv(fp, encoding=e, nrows=hrow+1, header=hrow, sep=None, engine='python')
+            except Exception as _e2:
+                log.error(f"CSV列名读取失败({fp}): {_e2}")
+                return []
     else:
         # v2.3fix: 引擎自动检测 + 空DataFrame保护
         try:
@@ -531,11 +541,17 @@ def get_columns_fast(fp, sheet=None, hrow=0, enc=None, delimiter=','):
         except Exception as _e:
             log.error(f"Excel列名读取失败({fp}): {_e}")
             return [f"列{i+1}" for i in range(10)]  # 兜底列名
-    # v2.3fix: 空DataFrame保护
-    if df is None or df.empty:
-        log.warning(f"文件列名为空({fp})，使用默认列名")
+    # v2.3.11fix: 0 行 ≠ 没有列名。
+    # 原判据是 `df is None or df.empty`，而「只有表头、没有数据行」的表格
+    # df.empty 为 True 但列名完全有效——旧代码会把真实列名丢掉、伪造「列1..列10」，
+    # 用户在映射界面看到 10 个不存在的列，手选后必然对不上。
+    if df is None:
+        log.error(f"文件读取失败({fp})，返回占位列名")
         return [f"列{i+1}" for i in range(10)]
     cols = [str(c) for c in df.columns]
+    if not cols:
+        log.warning(f"文件无任何列({fp})，返回占位列名")
+        return [f"列{i+1}" for i in range(10)]
     if all(c.startswith('Unnamed:') for c in cols):
         cols = [f"列{i+1}" for i in range(len(cols))]
     return cols
@@ -987,7 +1003,11 @@ def _scan_wide_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
     for idx, ym in yms.items():
         if cancel_event and cancel_event.is_set():
             return
+        # v2.3.11fix5: 丢弃的行必须可计数。
+        # 原来这三处 continue 把无法识别月份 / 无有效时间列 / 空数组的行
+        # 默默丢掉，调用方拿到的只是「少了几个月」，不知道丢了多少。
         if pd.isna(ym) or ym == '' or ym == '未知月份':
+            monthly_stats['__dropped__'] = monthly_stats.get('__dropped__', 0) + 1
             continue
         if raw_vals is not None:
             asset_val = _normalize_asset(raw_vals[idx], fallback=_extract_asset_from_name(fp, sheet))
@@ -997,9 +1017,11 @@ def _scan_wide_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
         row = ldf.loc[idx] if not mapping.get('transpose') else ldf.iloc[idx]
         vcols = _valid_time_cols(row.index)
         if not vcols:
+            monthly_stats['__dropped__'] = monthly_stats.get('__dropped__', 0) + 1
             continue
         arr = row[vcols].values
         if arr.size == 0:
+            monthly_stats['__dropped__'] = monthly_stats.get('__dropped__', 0) + 1
             continue
         key = (ym, asset_val)
         monthly_stats.setdefault(key, {'date_count': 0, 'min_val': np.inf,
@@ -1073,6 +1095,7 @@ def _scan_long_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
             asset_val = _extract_asset_from_name(fp, sheet) or '未命名'
         ym = str(ym_val)
         if ym == '未知月份':
+            monthly_stats['__dropped__'] = monthly_stats.get('__dropped__', 0) + 1
             continue
         key = (ym, asset_val)
         grp_clean = grp[['__dt__', '__load__']].copy()
@@ -1080,6 +1103,7 @@ def _scan_long_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
         grp_clean['__t__'] = grp_clean['__dt__'].dt.floor('min').dt.time
         grp_clean = grp_clean.drop_duplicates(subset=['__d__', '__t__'])
         if grp_clean.empty:
+            monthly_stats['__dropped__'] = monthly_stats.get('__dropped__', 0) + 1
             continue
         dates = grp_clean['__d__'].unique()
         min_v = grp_clean['__load__'].min()
@@ -1143,8 +1167,10 @@ def _scan_file_worker(args):
         if cancel_event.is_set():
             return {'cancelled': True}
         # v3.0fix: 空工作表跳过——0行数据无需扫描,节省列映射时间
+        # v2.3.11fix5: 但「跳过」不能等于「静默」。返回可识别的 skipped，
+        # 由调用方向用户说明，否则用户只知道「少了这个 sheet」。
         if df is not None and len(df) == 0:
-            return []
+            return {'skipped': 'empty_sheet'}
         if mapping['date_col'] not in df.columns and not mapping.get('transpose'):
             return {'error': _translate_error(KeyError, f"日期列不存在，可用列: {list(df.columns)}")}
         monthly_stats = {}
@@ -1161,6 +1187,11 @@ def _scan_file_worker(args):
                 load_col = load_col[0]
             normative['load_col'] = load_col
             _scan_long_chunk(fp, sheet, normative, df, fallback, monthly_stats, cancel_event)
+        dropped = monthly_stats.pop('__dropped__', 0)
+        if not monthly_stats:
+            # 有行但全部无法归类（日期列全乱码就是这种）——以前返回 []，
+            # 界面表现与「这个 sheet 是空的」完全一样。
+            return {'skipped': 'no_valid_rows', 'dropped': dropped}
         summaries = []
         for (ym, asset), stats in monthly_stats.items():
             summaries.append({
@@ -1174,6 +1205,9 @@ def _scan_file_worker(args):
                 'max_val': stats['max_val'],
                 'dates': sorted(stats.get('dates') or []),
                 'yearless_samples': stats.get('yearless') or [],
+                # GroupSummary.from_dict 只取白名单字段，这个额外字段不会进对象，
+                # 但调用方能在构造前读到它并给出提示。
+                'dropped_rows': dropped,
                 'mapping': normative
             })
         return summaries
