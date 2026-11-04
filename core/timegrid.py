@@ -224,6 +224,11 @@ def _parse_min(t) -> int:
         if 0 <= val <= 24:
             h = int(val)
             m = int(round((val - h) * 60))
+            # v2.3.9fix(P2-4): 23.999 → h=23, m=round(59.94)=60，原实现不处理进位，
+            # 得到 1440 分钟与 "23:60" 标签。补进位，与 datetime 语义一致。
+            if m == 60:
+                h += 1
+                m = 0
             minutes = h * 60 + m
             lbl = f"{h:02d}:{m:02d}"
             TIME_CACHE.put(key, (minutes, lbl))
@@ -255,12 +260,16 @@ def _parse_min(t) -> int:
 
 
 def _fmt_time(t) -> str:
-    key = str(t).strip()
+    # v2.3.9fix(P2-4): _parse_min 存缓存用的 key 是规范化之后的（"8时" → "8:00"），
+    # 而 _fmt_time 查的是 str(t) 原样，永远查不到，直接返回原字符串。
+    # 图表 X 轴于是显示 "8时" 而不是 "08:00"。这里用同一套规范化生成 key。
+    raw = str(t).strip()
+    key = _normalize_fullwidth_chars(_normalize_time_column_name(raw))
     cached = TIME_CACHE.get(key)
     if not cached:
         _parse_min(t)
         cached = TIME_CACHE.get(key)
-    return _clean_plot(cached[1] if cached and cached[0] != INVALID_MINUTES else key)
+    return _clean_plot(cached[1] if cached and cached[0] != INVALID_MINUTES else raw)
 
 
 def _fmt_date(d):
