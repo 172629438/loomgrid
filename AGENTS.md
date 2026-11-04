@@ -433,6 +433,40 @@ verify_prod_artifact → 产物行为 == 源码行为
 这一节记的**不是缺陷**，是「写了但没验过的分支」。
 写下来比让它悬着强：下一个人至少知道该不该信它。
 
+### 隐性规矩（编译器不提醒、运行时不报错、症状只是「没反应」）
+
+这一类坑的共同点：**代码完全合法，不报警，只是结果不对**。
+共同解法：**先加一行日志确认事件/函数到不到，再改代码**。
+不要用「改了再跑看看」代替诊断——那次跑流程要好几分钟，一行日志两秒。
+
+| 坑 | 症状 | 修法 / 判断 |
+|---|---|---|
+| `Background=null` 的 Panel | WinUI 里**不参与命中测试**，指针事件永不到达；日志 0 行 | `Background="Transparent"`（**Transparent 能命中，null 不能**） |
+| ScottPlot `Add.Scatter` | 图例正常、标题正常，但图是空的；Y 轴停在 -10~10 | 它**不触发自动缩放**，必须显式 `plot.Axes.AutoScale()` |
+| ScottPlot 字体 | 中文渲染成方块；`FontName` 设了、读回也对 | 必须 `Fonts.AddFontFile(名, 文件路径)` + `plot.Font.Set(名)`，逐 Label 设无效 |
+| `Canvas.SetLeft` 用于 Grid 子元素 | 属性存在但**不生效**（那是 Canvas 的附加属性） | 用 `RenderTransform = TranslateTransform` 改 X/Y |
+| `Window.Frame.GoBack()` | 返回后页面重建，列表显示 0 条 | 在 `Loaded` 里重新 `RefreshList()` |
+
+### 探针（V3 曲线读数）：**两次未验成，可能是环境限制**
+
+```
+第 1 次   PointerMoved 绑 scott:WinUIPlot     → 浮层不出现（猜，无证据）
+第 2 次   PointerMoved 绑外层 Grid            → 浮层仍不出现（猜，无证据）
+第 3 次   加 AppLog 日志                       → 日志 0 行，确诊事件未触发
+第 4 次   Grid 加 Background="Transparent"     → 日志仍 0 行
+```
+
+**卡点**：验证时 LoomGrid 窗口**不在前台**（截图工具报 `No active window found`），
+而鼠标位置是程序化移动的（`SetCursorPos`）。**WinUI 的 PointerMoved 在窗口非前台 +
+程序化输入下未必触发** —— 所以这可能是**验证方法的限制**，不是功能不可行。
+
+**因此不标「暂不可用」**，改为：
+- 人工自测判据：把鼠标移到曲线上，看是否出现带「日期 时刻 / 数值 kW」的浮层
+- 若人工也不出：问题在命中测试的更深层（可能有元素盖住）；先查 `PlotView` 是否被其他 Border 遮住
+
+**教训**：UI 自动化能验「点击」（点击会激活窗口），但验不了「hover」。
+以后碰到鼠标悬停类功能，直接把人工判据交给用户，不自己循环试。
+
 ### UIPI 拒绝路径（提权进程拖入）
 
 ```
