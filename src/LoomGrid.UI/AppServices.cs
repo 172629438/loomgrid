@@ -36,6 +36,12 @@ public sealed class AppServices : IAsyncDisposable
         string coreRoot = PythonCoreLocator.Resolve();
         Sink($"代码目录：{coreRoot}");
 
+        // 绘图字体：必须在第一个 Plot 创建前完成，否则中文会静默变成方块
+        PlotFontBootstrap.Ensure();
+        Sink(PlotFontBootstrap.IsReady
+            ? $"绘图字体就绪：{Path.GetFileName(PlotFontBootstrap.FontFile)}"
+            : "警告：未找到中文字体，图表中文会渲染为方块");
+
         Sink("定位 Python 解释器并启动后端…");
         var options = new PythonHostOptions
         {

@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from api.routes_calc import router as calc_router
 from api.routes_export import router as export_router
 from api.routes_ingest import router as ingest_router
+from api.routes_plot import router as plot_router
 from api.routes_preview import router as preview_router
 from api.ws_progress import router as ws_router
 from api.schemas import Envelope
@@ -61,6 +62,7 @@ app.add_middleware(
 app.include_router(ingest_router)
 app.include_router(preview_router)
 app.include_router(calc_router)
+app.include_router(plot_router)
 app.include_router(export_router)
 app.include_router(ws_router)
 
@@ -94,6 +96,7 @@ def health():
         "endpoints": [
             "POST /api/ingest/inspect", "POST /api/ingest/mapping",
             "GET /api/preview", "POST /api/calc/spaces", "POST /api/calc/capacity",
+            "POST /api/plot/fit",
             "POST /api/export/run", "GET /api/export/status", "GET /api/export/report",
             "WS /ws/progress",
         ],
