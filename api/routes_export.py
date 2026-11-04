@@ -37,6 +37,7 @@ from services.export import (
 )
 from services.provider import DataProvider
 from services.tasks import TASK_STORE
+from plotting.naming import generate_filename, parse_title_template
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/export", tags=["export"])
@@ -187,6 +188,53 @@ def _output_dir_allowed(d: str) -> bool:
         if low == ff or low.startswith(ff + os.sep):
             return False
     return True
+
+class PreviewRequest(BaseModel):
+    session_id: str
+    groups: list[int] | None = Field(default=None, description="要预览的分组序号；省略=全部")
+    title_template: str = DEFAULT_TITLE_TEMPLATE
+    filename_template: str = DEFAULT_FILENAME_TEMPLATE
+
+
+@router.post("/preview", response_model=Envelope,
+             description=(
+                 "预览每个分组将生成的标题与文件名。\n\n"
+                 "**命名逻辑不在这里实现**：直接调 `plotting.naming` 的\n"
+                 "`parse_title_template` 与 `generate_filename`，与真正落盘时同一份代码。\n\n"
+                 "占位符：`{table_no}` `{year_month}` `{asset}` `{sheet}`；\n"
+                 "未知占位符原样保留；文件名会过 `_sanitize_name`\n"
+                 "（非法字符转下划线、Windows 保留名加后缀、超长截断）。\n\n"
+                 "前端只负责展示，不得在 C# 里重写一遍清洗逻辑。"
+             ))
+def preview(req: PreviewRequest):
+    sess = get_session(req.session_id)
+    if not sess:
+        return _err("EXPORT_SESSION_NOT_FOUND", f"session 不存在：{req.session_id}")
+
+    raw_groups = sess.get("groups", [])
+    idxs = req.groups if req.groups is not None else list(range(len(raw_groups)))
+
+    items = []
+    for i in idxs:
+        if i < 0 or i >= len(raw_groups):
+            continue
+        gs = GroupSummary.from_dict(raw_groups[i])
+        ctx = {
+            "year_month": gs.month_str or "",
+            "table_no": gs.asset_value or "未命名",
+            "asset": gs.asset_value or "未命名",
+            "sheet": gs.sheet_name or "",
+        }
+        items.append({
+            "group_index": i,
+            "asset": gs.asset_value or "未命名",
+            "month": gs.month_str or "",
+            "title": parse_title_template(req.title_template, ctx),
+            "filename": generate_filename(req.filename_template, ctx),
+        })
+
+    return Envelope(ok=True, data={"items": items, "total": len(items)}).model_dump()
+
 
 @router.post("/run", response_model=Envelope,
              description=(
