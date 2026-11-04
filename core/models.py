@@ -20,7 +20,7 @@ core/ 不得 import 任何 UI 框架、绘图库或 Web 框架。
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import Enum
 from typing import List
 
@@ -104,6 +104,27 @@ class PlotOptions:
             'mark_anomalies': self.mark_anomalies,
             'dark_theme': self.dark_theme,
         }
+
+    @classmethod
+    def from_dict(cls, d):
+        """从 dict 还原；未知键忽略，缺失键用默认值。
+
+        v2.3.11fix6: 阶段 1 把 PlotOptions 搬进本模块时只搬了 to_dict，
+        from_dict 丢了——而它本来就是既有契约，两个消费方都依赖它：
+
+          主程序 ProfessionalWindow.__init__ / update_asset_summaries
+              传的是 .to_dict() 的结果，走到这里直接 AttributeError，
+              「专业分析」窗口 100% 打不开。
+          plotting/curves.py 的 dict 分支
+              dict 形态的 plot_options 同样依赖它。
+
+        用 fields() 取白名单而不是硬编码列表：以后给数据类加字段时，
+        只要 to_dict 同步，这里自动跟上。
+        """
+        if not isinstance(d, dict):
+            return cls()
+        known = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in d.items() if k in known})
 
 
 class GroupSummary:

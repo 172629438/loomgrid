@@ -217,10 +217,62 @@ cx_Freeze 实测可用，所以保持现状不改，但换打包器时先验这�
 的注释写明「统一从 `from_dict` 构造，而不是各处写 `**d`」。扫描层一旦在 dict 里多带
 一个字段就会 `TypeError`、整批分组丢失——现已改为 `GroupSummary.from_dict(item)`。
 
+### 六、专业分析窗口因 `PlotOptions.from_dict` 不存在而必然打不开（P0）
+
+阶段 1 把 `PlotOptions` 搬进 `core/models.py` 时只搬了 `to_dict`，`from_dict` 丢了。
+而它是既有契约，两个消费点都在用：
+
+```
+主程序 L3789   ProfessionalWindow(plot_options=...to_dict())   传的是 dict
+主程序 L4416   self.plot_options = PlotOptions.from_dict(...)  ← AttributeError
+主程序 L5411   update_asset_summaries 里同样
+plotting/curves.py  dict 分支也调它
+```
+
+后果：点「专业分析」后窗口不出现。两个入口（首开 / 切表号）都命中，整条功能不可用。
+
+实测：`python -c "from core.models import PlotOptions; PlotOptions.from_dict({})"`
+→ `AttributeError: type object 'PlotOptions' has no attribute 'from_dict'`。
+
+修法：给 `PlotOptions` 补 `from_dict`，用 `dataclasses.fields()` 取白名单——
+以后给数据类加字段时只要 `to_dict` 同步，这里自动跟上。
+
+### 七、映射超时后的「确定」会串到下一个文件上（P0）
+
+`_parse_and_map` 超时后是 `break` + `continue`，跳过该文件进入下一个。
+但 UI 线程还阻塞在第一个 `dlg.exec()` 里；用户随后的「确定」会唤醒**下一个文件**的等待，
+因为 `set_mapping_result` 只设 `dialog_result` + `dialog_event.set()`，没有任何代次校验。
+
+结果：a 文件的列映射被套到 b 文件上——列名对得上就用错列算错数据，对不上就报「缺少列」。
+两种都不报真因。
+
+修法：超时改为中止整个任务并提示，不再「跳过继续」。
+宁可让用户重来，也不能拿错映射继续算。
+
+### 八、逐日吞吐量三处各自实现，两处被占位零压成 0（P0/P1）
+
+`compute_segmented_spaces` 返回的四个平行列表里，每个段在非本方向那一侧是**占位零**。
+主程序三处各自写「逐段配对 min」：
+
+| 位置 | 旧后果 |
+|---|---|
+| `_check_day_satisfied` | 容量 > 0 时「满足天数」恒为 0；容量 = 0 时又全真（`0 >= 0`） |
+| `_fill_daily_table` 满载列 | 「日最小值」恒为 0.000 |
+| `_get_all_filtered_daily_mins` 满载分支 | 同上（剔除占位零后错位，仍错） |
+
+第一个最危险：用户看到「一天都满足不了」会把容量往大调，**方向是反的**。
+
+而正确口径在 `services/capacity.daily_throughput_series` 里已经写死并有注释：
+**当日总充与当日总放取瓶颈侧**，不是「段配段」。
+
+修法：主程序 import 该函数，三处全改用它。新增 `tests/verify_daily_throughput.py`
+同时断言纯函数行为和三处消费点的 AST 契约。
+
 ### 验证
 
 - 新增 `tests/verify_month_parse.py`（22 项，含两处消费点的 AST 契约断言）
 - 新增 `tests/verify_scan_drop.py`（12 项：正常 / 「月份」写法 / 全乱码 / 空表 / 部分丢弃）
+- 新增 `tests/verify_daily_throughput.py`（18 项：占位零对拍 + 三处消费点 AST 契约）
 - `python tools/run_all_tests.py --core` → 全绿
 - 端到端数据流探针：11 组日期写法逐一核对分组结果
 

@@ -99,6 +99,9 @@ from core.ingest import (  # noqa: E402
 )
 from services.config import Config, _validate_config_schema  # noqa: E402
 from services.provider import DataProvider, MemoryLimitedCache  # noqa: E402
+# v2.3.11fix8: 逐日吞吐量的唯一实现。主程序原先三处各自算「逐段配对 min」，
+# 而同一索引的充段与放段是不同时段，配对 min 必然被占位零或错位压成 0。
+from services.capacity import daily_throughput_series  # noqa: E402
 from ui.window_state import (  # noqa: E402
     get_window_geometry, set_window_geometry,
     get_splitter_state, set_splitter_state,
@@ -4957,36 +4960,35 @@ class ProfessionalWindow(QMainWindow):
             n_days = len(c_arrs[0]) if c_arrs else (len(d_arrs[0]) if d_arrs else 0)
             if n_days == 0:
                 continue
+            # v2.3.11fix8: 满载分支把「逐段配对 min」改成「当日总充与总放取瓶颈」。
+            # 剔除占位零后 c_arrs[i] 与 d_arrs[i] 仍是不同时段的两段，配对无意义。
+            _tp = None if use_min else daily_throughput_series(c_arrs, d_arrs)
             for d in range(n_days):
                 if use_min:
                     all_vals = [arr[d] for arr in c_arrs if d < len(arr)] + \
                                [arr[d] for arr in d_arrs if d < len(arr)]
                     daily_cap = min(all_vals) if all_vals else 0.0
                 else:
-                    n_pairs = max(len(c_arrs), len(d_arrs))
-                    daily_cap = 0.0
-                    for i in range(n_pairs):
-                        cv = c_arrs[i][d] if i < len(c_arrs) and d < len(c_arrs[i]) else float('inf')
-                        dv = d_arrs[i][d] if i < len(d_arrs) and d < len(d_arrs[i]) else float('inf')
-                        pair_min = min(cv, dv)
-                        if pair_min != float('inf'):
-                            daily_cap = max(daily_cap, pair_min)
+                    daily_cap = float(_tp[d]) if _tp is not None and d < len(_tp) else 0.0
                 if daily_cap > 0 or (c_arrs or d_arrs):
                     daily_mins.append(daily_cap)
         return daily_mins
 
     def _check_day_satisfied(self, month, day_index, cap):
-        """v3.2fix: 按充放配对判断——应用DOD折算可用容量后比较"""
+        """v3.2fix: 按充放配对判断——应用DOD折算可用容量后比较
+
+        v2.3.11fix8: 原来要求「同一索引 i 的充段与放段同时 >= 可用容量」。
+        剔除占位零后两个列表已不再逐位对应，这条判据几乎恒假：
+        容量 > 0 时「满足天数」全是 0，容量 = 0 时又全真（0 >= 0）。
+        两端都错，且都看起来合理。改为当日吞吐量（总充与总放取瓶颈）>= 可用容量。
+        """
         dod_val = self.dod_spin.value() if hasattr(self, 'dod_spin') else 95
         usable_cap = cap * dod_val / 100.0
         c_arrs, d_arrs = self._get_relevant_segments_for_month(month)
-        n_pairs = max(len(c_arrs), len(d_arrs))
-        for i in range(n_pairs):
-            cv = c_arrs[i][day_index] if i < len(c_arrs) and day_index < len(c_arrs[i]) else float('inf')
-            dv = d_arrs[i][day_index] if i < len(d_arrs) and day_index < len(d_arrs[i]) else float('inf')
-            if cv >= usable_cap and dv >= usable_cap:
-                return True
-        return False
+        _tp = daily_throughput_series(c_arrs, d_arrs)
+        if day_index >= len(_tp):
+            return False
+        return float(_tp[day_index]) >= usable_cap
 
     def _populate_space_table(self):
         months = sorted(self._get_work_data().keys())
@@ -5163,6 +5165,10 @@ class ProfessionalWindow(QMainWindow):
         self.daily_table.setHorizontalHeaderLabels(col_labels)
         n_days = len(dates)
         self.daily_table.setRowCount(n_days)
+        # v2.3.11fix8: 满载口径改为「当日总充与总放取瓶颈」，
+        # 唯一实现见 services/capacity.daily_throughput_series。
+        # 原逐段配对 min 因占位零/错位，整列恒为 0.000。
+        _thr = daily_throughput_series(c_segs, d_segs)
 
         for d in range(n_days):
             self.daily_table.setItem(d, 0, QTableWidgetItem(str(dates[d])))
@@ -5180,14 +5186,7 @@ class ProfessionalWindow(QMainWindow):
             # v3.0: 日需求跟策略走
             est_mode = self.est_combo.currentText() if hasattr(self, 'est_combo') else '最小可行容量'
             if '满载' in est_mode:
-                n_pairs = max(len(c_segs), len(d_segs))
-                daily_need = 0.0
-                for i in range(n_pairs):
-                    cv = c_segs[i][d] if i < len(c_segs) and d < len(c_segs[i]) else float('inf')
-                    dv = d_segs[i][d] if i < len(d_segs) and d < len(d_segs[i]) else float('inf')
-                    p = min(cv, dv)
-                    if p != float('inf'):
-                        daily_need = max(daily_need, p)
+                daily_need = float(_thr[d]) if d < len(_thr) else 0.0
             else:
                 daily_need = min_val
             self.daily_table.setItem(d, col, QTableWidgetItem(f"{daily_need:.3f}"))
@@ -6218,10 +6217,18 @@ class ProcessingThread(threading.Thread):
                 if self.stop_event.is_set():
                     return
                 if time.time() - _wait_start > _map_timeout:
-                    self.signals.log.emit(f"映射超时({_map_timeout}s)，自动跳过文件: {fname}")
-                    break
-            if not self.dialog_event.is_set():
-                continue
+                    # v2.3.11fix7: 原行为是 break 后 continue，跳过该文件继续下一个。
+                    # 但 UI 线程还阻塞在第一个 dlg.exec() 里，用户随后的「确定」会
+                    # 唤醒**下一个文件**的等待（set_mapping_result 没有代次校验），
+                    # 于是 b 文件用了 a 文件的列映射——列名对得上就用错列算错数据，
+                    # 对不上就报「缺少列」。两种结果都不报真因。
+                    # 改为中止整个任务：宁可让用户重来，也不能拿错映射继续算。
+                    self.signals.log.emit(
+                        f"映射超时({_map_timeout}s)，处理已中止。"
+                        f"若要继续请重新开始（映射对话框里可选「跳过」）。"
+                    )
+                    self.stop_event.set()
+                    return
             if self.stop_event.is_set():
                 return
             if self.dialog_result == 'skip':
