@@ -261,8 +261,17 @@ public sealed partial class V3PreviewPage : Page
         if (_data is null) { AppLog.Write("V3 探针自检：数据为空"); return; }
 
         var plot = PlotView.Plot;
-        var range = plot.Axes.Bottom.Range;
-        double cx = range.Min + (range.Max - range.Min) / 2;
+        // 位置可由环境变量指定（开发自测用）；默认轴中点。
+        // 为什么需要：轴中点恰好是 .5 边界（如 47.50），用它测舍入规则是碰运气——
+        // 必须能指定 47.49 / 47.50 / 47.51 才能覆盖边界两侧。
+        double cx;
+        if (double.TryParse(Environment.GetEnvironmentVariable("LGM_PROBE_X"), out var forcedX))
+            cx = forcedX;
+        else
+        {
+            var range = plot.Axes.Bottom.Range;
+            cx = range.Min + (range.Max - range.Min) / 2;
+        }
         int idx = (int)Math.Round(cx);
         int nPts = _data.TimeLabels.Count;
         if (idx < 0 || idx >= nPts)
