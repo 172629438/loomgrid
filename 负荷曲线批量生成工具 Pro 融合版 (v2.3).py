@@ -5099,11 +5099,14 @@ class ProfessionalWindow(QMainWindow):
         except Exception:
             log.debug(f"[_update_cap_label] billing lookup failed", exc_info=True)
             pass
-        # v3.2fix: 有容量线时自动勾选需量限制按钮
-        if cap_val > 0 and hasattr(self, 'need_cap_cb') and self.need_cap_cb:
-            if not self.need_cap_cb.isChecked():
-                self.need_cap_cb.setChecked(True)
-        self._cap_label.setText(f"容量线:{cap_val:.2f}")
+        # v2.3.9fix(P2-12): 只做显示，不再自动勾选「需量限制」。
+        # 原来只要容量线>0 就把用户上次取消的勾选重新勾上，并触发一次重算。
+        # v2.3.9fix(P2-7): 0 与「未设置」分开显示。原来两者都写 "容量线:0.00"，
+        # mode A 空间全 0 时用户分不清是没填还是填了 0。
+        if cap_val and cap_val > 0:
+            self._cap_label.setText(f"容量线:{cap_val:.2f}")
+        else:
+            self._cap_label.setText("容量线:未设置")
 
     def _populate_daily_month_combo(self):
         self.daily_month_combo.blockSignals(True)
@@ -5195,7 +5198,11 @@ class ProfessionalWindow(QMainWindow):
                 daily_need = float(_thr[d]) if d < len(_thr) else 0.0
             else:
                 daily_need = min_val
-            self.daily_table.setItem(d, col, QTableWidgetItem(f"{daily_need:.3f}"))
+            # v2.3.9fix(P2-16): 当天所有段都是 0 时显示 —，而不是 0.000。
+            # 否则「没数据」与「确实没有可充放空间」长得一模一样。
+            _all_zero = (not vals) or all(abs(v) < 1e-12 for v in vals)
+            _txt = "—" if _all_zero else f"{daily_need:.3f}"
+            self.daily_table.setItem(d, col, QTableWidgetItem(_txt))
         self.daily_table.resizeColumnsToContents()
 
     def _update_effective_days_label(self):
@@ -5719,7 +5726,9 @@ class ExportConfirmDialog(QDialog):
             self.table.setCellWidget(row, 6, highlight_cb)
 
             full_path = os.path.join(self.output_dir, path_preview.replace('/', os.sep))
-            status = "⚠ 将覆盖" if os.path.exists(full_path) else ""
+            # v2.3.9fix(P2-17): 同名文件实际不会覆盖——_plot_single_worker 会自动加 _1 后缀。
+            # 原提示写「将覆盖」，用户以为旧图会被替掉，实际拿到两份。
+            status = "同名，将自动加序号" if os.path.exists(full_path) else ""
             self.table.setItem(row, 7, QTableWidgetItem(status))
         self.table.blockSignals(False)
 
@@ -5783,7 +5792,7 @@ class ExportConfirmDialog(QDialog):
         path_preview = os.path.join(sanitized_asset, fname) if self.classify else fname
         self.table.item(row, 5).setText(path_preview)
         full_path = os.path.join(self.mod_dir_edit.text(), path_preview.replace('/', os.sep))
-        status = "⚠ 将覆盖" if os.path.exists(full_path) else ""
+        status = "同名，将自动加序号" if os.path.exists(full_path) else ""
         self.table.item(row, 7).setText(status)
 
     def _restore_cell(self, row, col):
@@ -5986,7 +5995,7 @@ class ExportConfirmDialog(QDialog):
             path_preview = os.path.join(sanitized_asset, fname) if self.classify else fname
             self.table.item(row, 5).setText(path_preview)
             full_path = os.path.join(current_dir, path_preview.replace('/', os.sep))
-            status = "⚠ 将覆盖" if os.path.exists(full_path) else ""
+            status = "同名，将自动加序号" if os.path.exists(full_path) else ""
             self.table.item(row, 7).setText(status)
 
     def _on_accept(self):
@@ -7803,10 +7812,16 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
                 QMessageBox.critical(self, "错误", "配置文件结构无效，拒绝导入。")
                 return
             if QMessageBox.question(self, "确认", "导入将覆盖当前配置，继续？") == QMessageBox.Yes:
-                self.config_manager.cfg = new_cfg
-                self.config_manager._migrate()
-                self.config_manager.save()
-                QMessageBox.information(self, "完成", "配置已导入")
+                # v2.3.9fix(P2-18): 替换与迁移放进 Config 的锁里，避免与保存线程竞争。
+                # 原实现直接赋值 cfg 并 _migrate()，不持锁。
+                with self.config_manager._lock:
+                    self.config_manager.cfg = new_cfg
+                    self.config_manager._migrate()
+                    self.config_manager.save()
+                # v2.3.9fix(P2-18): 界面不刷新，用户会以为导入没生效。
+                QMessageBox.information(
+                    self, "完成",
+                    "配置已导入。省份、分时策略与显示设置需重启程序后全部生效。")
         except Exception as e:
             QMessageBox.critical(self, "错误", f"导入失败: {e}")
 
