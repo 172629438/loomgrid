@@ -312,6 +312,9 @@ def _convert_accumulated_to_power(df, date_col, time_col, load_col, asset_col=No
             if not _reset_like:
                 log.error('示数表检测:数据可能为非日重置累积表(月度累计),无法通过差分计算功率.请改用「长表」格式.')
                 df = df.drop(columns=['__ts__', '__date__'])
+                # v2.3.9fix(P1-8): 打标记，由 _parse_long_to_standard 转成明确错误。
+                # 原实现静默返回原始示数，下游把它当功率画，曲线单调上升且无任何提示。
+                df.attrs['accumulated_error'] = '数据可能是月度累计表（跨天不回落），无法通过差分计算功率'
                 return df
         # v2.3.3fix(I7): 标记跨天边界——日重置表 23:45→次日 00:00 的回落是正常现象。
         # shift(-1)：示数差归属到「起始时间」，所以跨天回落落在当天最后一个点上。
@@ -361,10 +364,12 @@ def _convert_accumulated_to_power(df, date_col, time_col, load_col, asset_col=No
         log.info("累计示数已自动转换为平均功率（差值/时间间隔）")
         return df
     except Exception as e:
-        log.warning(f"累计示数转换失败: {e}，将使用原始数据")
+        log.warning(f"累计示数转换失败: {e}")
         for _c in ('__ts__', '__date__', '__crossday__'):
             if _c in df.columns:
                 df = df.drop(columns=[_c])
+        # v2.3.9fix(P1-8): 不再静默回退原始示数
+        df.attrs['accumulated_error'] = str(e)
         return df
 
 def _parse_long_to_standard(df, date_col, time_col, load_col, multiplier=1.0,
@@ -381,6 +386,10 @@ def _parse_long_to_standard(df, date_col, time_col, load_col, multiplier=1.0,
     df = df[needed_cols].copy()
     if convert_accumulated:
         df = _convert_accumulated_to_power(df, date_col, time_col, load_col, asset_col, cancel_event)
+        # v2.3.9fix(P1-8): 差分失败必须报错，不能拿累计示数当功率画
+        _acc_err = df.attrs.get('accumulated_error')
+        if _acc_err:
+            raise ValueError(f"累计示数转换失败：{_acc_err}")
 
     date_series = _safe_get_col(df, date_col)
     if date_series.empty:
@@ -1134,6 +1143,10 @@ _ERROR_TRANSLATION = {
 }
 
 def _translate_error(exc_type, exc_msg):
+    # v2.3.9fix(P1-8): 示数转换失败的原因要原样透出，
+    # 否则被 ValueError 的通用文案（"数值转换失败…"）盖掉，用户不知道该改什么
+    if "累计示数转换失败" in str(exc_msg):
+        return str(exc_msg)
     str_type = str(exc_type)
     for tech, template in _ERROR_TRANSLATION.items():
         if tech in str_type:
