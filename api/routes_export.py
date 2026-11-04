@@ -91,6 +91,9 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
     """后台线程里跑的实际导出，按四阶段推进。"""
     TASK_STORE.set_status(tid, "running")
     files: list[str] = []
+    # 显式产物清单：kind 由生产方标注，不让下游靠扩展名或顺序猜。
+    # files 保持原样（向后兼容），artifacts 是新增的并行结构。
+    artifacts: list[dict] = []
     failed: list[dict] = []
     summaries: list[GroupSummary] = []
 
@@ -160,8 +163,11 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
                                price_periods=req.price_periods,
                                multiplier=mult)
                 files.append(p)
+                artifacts.append({"name": os.path.basename(p), "kind": "chart"})
                 if req.export_midwide:
-                    files.append(export_midwide(gs, data, req.output_dir))
+                    _mw = export_midwide(gs, data, req.output_dir)
+                    files.append(_mw)
+                    artifacts.append({"name": os.path.basename(_mw), "kind": "midwide"})
                 TASK_STORE.emit(tid, "log", {"level": "info",
                                              "message": f"已生成 {os.path.basename(p)}"})
             except Exception as e:
@@ -182,6 +188,8 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
             "succeeded": len(files),
             "failed": failed,
             "files": [os.path.basename(f) for f in files],
+            # 显式产物类型：chart / midwide。下游按 kind 分流，不看扩展名、不看顺序。
+            "artifacts": artifacts,
             "output_dir": req.output_dir,
             "report": os.path.basename(report_path) if report_path else None,
         }
