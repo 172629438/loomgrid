@@ -27,6 +27,11 @@ from core.ingest import (
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
+# 允许摄入的文件类型。这是数据导入工具，不是通用文件读取器——
+# 扩展名白名单同时在 upload / allow 两处生效，负责挡住「误操作授权」与
+# 「意外授权」（私钥、脚本、可执行文件都没有这些扩展名）。
+_ALLOWED_EXTS = {".xlsx", ".xlsm", ".xlsb", ".xls", ".csv", ".tsv"}
+
 # 会话状态：session_id -> {"path","sheet","mapping","groups"}
 # 单进程内存即可；重启丢失属预期（阶段 2 不做持久化）。
 _SESSIONS: dict[str, dict] = {}
@@ -145,8 +150,9 @@ async def upload(file: UploadFile = File(...)):
     """
     name = file.filename or "upload.xlsx"
     ext = os.path.splitext(name)[1].lower()
-    if ext not in (".xlsx", ".xlsm", ".xls", ".csv", ".xlsb"):
-        return _err("INGEST_UNSUPPORTED_TYPE", f"不支持的扩展名：{ext}")
+    if ext not in _ALLOWED_EXTS:
+        return _err("INGEST_UNSUPPORTED_TYPE",
+                    f"不支持的文件类型：{ext or '无扩展名'}（只接受 Excel / CSV）")
 
     try:
         data = await file.read()
@@ -239,6 +245,7 @@ def allow_paths(payload: dict):
     added: list[str] = []
     existing: list[str] = []
     rejected: list[str] = []
+    reasons: dict[str, str] = {}
     forbidden = [_norm(f) for f in _forbidden_roots() if _norm(f)]
 
     for raw in raw_list:
@@ -247,12 +254,20 @@ def allow_paths(payload: dict):
         real = _norm(raw)
         if not real or not os.path.exists(real):
             rejected.append(raw)
+            reasons[raw] = "文件不存在或路径无效"
             continue
         if not os.path.isfile(real):
             rejected.append(raw)
+            reasons[raw] = "只接受文件，不是目录"
+            continue
+        ext = os.path.splitext(real)[1].lower()
+        if ext not in _ALLOWED_EXTS:
+            rejected.append(raw)
+            reasons[raw] = f"不支持的文件类型（{ext or '无扩展名'}），只接受 Excel / CSV"
             continue
         if any(real == f or real.startswith(f + os.sep) for f in forbidden):
             rejected.append(raw)
+            reasons[raw] = "系统目录或程序目录不允许读取"
             continue
 
         with _ALLOWED_LOCK:
@@ -265,6 +280,7 @@ def allow_paths(payload: dict):
     log.info("allow: added=%d existing=%d rejected=%d", len(added), len(existing), len(rejected))
     return Envelope(ok=True, data={
         "added": added, "existing": existing, "rejected": rejected,
+        "reasons": reasons,
     }).model_dump()
 
 
@@ -292,8 +308,9 @@ def inspect(payload: dict):
         return _err("INGEST_READ_FAILED", f"文件不存在：{path}")
 
     ext = os.path.splitext(path)[1].lower()
-    if ext not in (".xlsx", ".xlsm", ".xls", ".csv", ".xlsb"):
-        return _err("INGEST_UNSUPPORTED_TYPE", f"不支持的扩展名：{ext}")
+    if ext not in _ALLOWED_EXTS:
+        return _err("INGEST_UNSUPPORTED_TYPE",
+                    f"不支持的文件类型：{ext or '无扩展名'}（只接受 Excel / CSV）")
 
     try:
         sheets = [None] if ext == ".csv" else (_safe_excel_sheets(path) or [None])

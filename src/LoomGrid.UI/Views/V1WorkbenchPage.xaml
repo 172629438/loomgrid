@@ -113,10 +113,33 @@
                     </Grid.ColumnDefinitions>
 
                     <Button Grid.Column="0" Click="OnSortFileName" Style="{StaticResource TableHeaderButtonStyle}" Content="源文件" />
-                    <Button Grid.Column="1" Click="OnSortAsset" Style="{StaticResource TableHeaderButtonStyle}" Content="分组" />
-                    <Button Grid.Column="2" Click="OnSortTimePoints" Style="{StaticResource TableHeaderButtonStyle}" Content="时刻点" HorizontalContentAlignment="Right" />
-                    <Button Grid.Column="3" Click="OnSortMin" Style="{StaticResource TableHeaderButtonStyle}" Content="最小负荷" HorizontalContentAlignment="Right" />
-                    <Button Grid.Column="4" Click="OnSortMax" Style="{StaticResource TableHeaderButtonStyle}" Content="最大负荷" HorizontalContentAlignment="Right" />
+                    <Button
+                        Grid.Column="1"
+                        Click="OnSortAsset"
+                        Content="分组"
+                        Style="{StaticResource TableHeaderButtonStyle}"
+                        ToolTipService.ToolTip="完成列映射后才有值" />
+                    <Button
+                        Grid.Column="2"
+                        Click="OnSortTimePoints"
+                        Content="时刻点"
+                        HorizontalContentAlignment="Right"
+                        Style="{StaticResource TableHeaderButtonStyle}"
+                        ToolTipService.ToolTip="完成列映射后才有值" />
+                    <Button
+                        Grid.Column="3"
+                        Click="OnSortMin"
+                        Content="最小负荷"
+                        HorizontalContentAlignment="Right"
+                        Style="{StaticResource TableHeaderButtonStyle}"
+                        ToolTipService.ToolTip="完成列映射后才有值" />
+                    <Button
+                        Grid.Column="4"
+                        Click="OnSortMax"
+                        Content="最大负荷"
+                        HorizontalContentAlignment="Right"
+                        Style="{StaticResource TableHeaderButtonStyle}"
+                        ToolTipService.ToolTip="完成列映射后才有值" />
                     <Button Grid.Column="5" Click="OnSortState" Style="{StaticResource TableHeaderButtonStyle}" Content="状态" />
                 </Grid>
 

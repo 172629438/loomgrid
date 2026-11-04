@@ -7,6 +7,9 @@ public sealed record AllowPathsResult
     public List<string> Added { get; init; } = new();
     public List<string> Existing { get; init; } = new();
     public List<string> Rejected { get; init; } = new();
+
+    /// <summary>被拒路径 → 中文原因（后端逐条给，不靠前端猜）。</summary>
+    public Dictionary<string, string> Reasons { get; init; } = new();
 }
 
 /// <summary>
@@ -40,7 +43,19 @@ public sealed class IngestApi
             Added = ReadList(data, "added"),
             Existing = ReadList(data, "existing"),
             Rejected = ReadList(data, "rejected"),
+            Reasons = ReadReasons(data),
         };
+    }
+
+    private static Dictionary<string, string> ReadReasons(JsonElement data)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (data.ValueKind != JsonValueKind.Object) return result;
+        if (!data.TryGetProperty("reasons", out var obj) || obj.ValueKind != JsonValueKind.Object)
+            return result;
+        foreach (var prop in obj.EnumerateObject())
+            result[prop.Name] = prop.Value.GetString() ?? "";
+        return result;
     }
 
     public async Task<InspectResult> InspectAsync(string path, CancellationToken ct = default)

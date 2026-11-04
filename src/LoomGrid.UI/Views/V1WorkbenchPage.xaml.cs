@@ -196,7 +196,16 @@ public sealed partial class V1WorkbenchPage : Page
             var allow = await api.AllowPathsAsync(fresh.Select(f => f.FullPath).ToList());
             AppLog.Write($"授权文件：新增 {allow.Added.Count}，已存在 {allow.Existing.Count}，拒绝 {allow.Rejected.Count}");
             if (allow.Rejected.Count > 0)
-                ShowNotice($"{allow.Rejected.Count} 个文件不能读（系统目录或不可访问），已跳过");
+            {
+                // 把后端给的原因原样转达：用户需要知道是「类型不对」还是「读不了」
+                foreach (var path in allow.Rejected)
+                {
+                    string why = allow.Reasons.TryGetValue(path, out var r) ? r : "不被允许";
+                    AppLog.Write($"授权拒绝：{Path.GetFileName(path)} —— {why}");
+                }
+                string first = allow.Reasons.TryGetValue(allow.Rejected[0], out var f0) ? f0 : "不被允许";
+                ShowNotice($"{allow.Rejected.Count} 个文件不能读取：{first}");
+            }
         }
         catch (Exception ex)
         {
