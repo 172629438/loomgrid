@@ -15,6 +15,9 @@ public sealed class V3GroupItem
     public required string Month { get; init; }
 
     public string Display => $"{Asset} · {Month}";
+
+    // 不写这个，ListView 会直接显示类型全名「LoomGrid.UI.V3GroupItem」。
+    public override string ToString() => Display;
 }
 
 /// <summary>
@@ -157,14 +160,29 @@ public sealed partial class V3PreviewPage : Page
             sc.Color = CurveColors.ForDay(d);
         }
 
-        // 刻度：最多 12 个，均匀取，标签用真实时刻
-        int step = Math.Max(1, nPts / 12);
+        // 刻度：最多 8 个。12 个时 96 点的标签会挤成一团（旋转 45° 也不够）。
+        int step = Math.Max(1, nPts / 8);
         var ticks = new List<Tick>();
         for (int i = 0; i < nPts; i += step)
-            ticks.Add(new Tick(i, data.TimeLabels[i]));
+        {
+            // 只保留小时边界（00:00 / 02:00 …）：非整点标签更长，挤在一起更难认。
+            string label = data.TimeLabels[i];
+            if (!label.EndsWith(":00")) continue;
+            ticks.Add(new Tick(i, label));
+        }
+        if (ticks.Count == 0)
+        {
+            for (int i = 0; i < nPts; i += step)
+                ticks.Add(new Tick(i, data.TimeLabels[i]));
+        }
         plot.Axes.Bottom.TickGenerator = new ScottPlot.TickGenerators.NumericManual(ticks.ToArray());
         plot.Axes.Bottom.TickLabelStyle.Rotation = 45;
         plot.Axes.Bottom.TickLabelStyle.FontSize = 9;
+
+        // ⚠️ 必须显式 AutoScale：ScottPlot 5 的 Add.Scatter **不会**自动调整轴范围。
+        // 不调这一行的症状：图例正常、Figure 正常，但轴范围停在默认 -10~10，
+        // 数据线全在视野之外 —— 看起来像「没数据」，实际是没缩放。
+        plot.Axes.AutoScale();
 
         plot.Axes.Title.Label.Text = $"{g.Asset} · {g.Month}";
         plot.Axes.Left.Label.Text = "负荷";

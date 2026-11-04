@@ -16,9 +16,10 @@ import logging
 
 import numpy as np
 from fastapi import APIRouter, Response
+from pydantic import BaseModel, Field
 
 from api.routes_ingest import get_session
-from api.schemas import Envelope
+from api.schemas import Envelope, ErrorBody
 from core.models import GroupSummary
 from services.provider import DataProvider
 
@@ -29,12 +30,46 @@ router = APIRouter(prefix="/api", tags=["preview"])
 _PROVIDER = DataProvider()
 
 
+# ── 响应模型 ─────────────────────────────────────────────
+# 为什么要写：Envelope.data 是 Any，OpenAPI 里它的 schema 是空 object，
+# 前端只能「实测一次真实响应再照抄」—— 这条路已经错过四次
+# （format_type / confidence 层级 / load_col / shape）。
+# 声明之后 schema 可查，不靠猜。纯注解，不碰任何计算逻辑与返回结构。
+
+class PreviewGroupInfo(BaseModel):
+    asset: str
+    month: str
+
+
+class PreviewData(BaseModel):
+    group: PreviewGroupInfo
+    date_labels: list[str]
+    time_labels: list[str]
+    load_array: list[list[float]] = Field(description="二维数组，形状 (天 × 点)")
+    shape: list[int] = Field(
+        description="[rows, cols]，**是数组不是字符串**。"
+                    "响应头 X-Shape（仅 format=bin）才是 '31x96' 字符串，两个不同的东西。")
+
+
+class PreviewEnvelope(BaseModel):
+    """不复用 Envelope：它 data 是 Any，声明不到字段；泛型化会影响全部端点。"""
+    ok: bool
+    data: PreviewData | None = None
+    error: ErrorBody | None = None
+
+
 def _err(code: str, message: str, detail: dict | None = None) -> dict:
     return Envelope(ok=False, error={"code": code, "message": message,
                                      "detail": detail}).model_dump()
 
 
-@router.get("/preview")
+@router.get("/preview", response_model=PreviewEnvelope,
+             description=(
+                 "session_id + 分组序号 → 宽表。\n\n"
+                 "format=json：普通 JSON（shape 是数组 [rows, cols]）\n"
+                 "format=bin：uint32 rows + uint32 cols + float32 数据，"
+                 "标签在响应头（X-Shape 是字符串 '31x96'，与 json 里的 shape 不是同一个东西）"
+             ))
 def preview(session_id: str, group: int = 0, format: str = "json"):
     """session_id + 分组序号 → 宽表。
 
