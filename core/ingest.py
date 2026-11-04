@@ -76,8 +76,10 @@ def _safe_get_col(df, col_name):
         if score > best_score:
             best_score = score
             best_col = c
-    if best_score >= 0.6:
-        log.info(f"列名 '{col_name}' 不存在，自动替换为最相似列 '{best_col}' (相似度 {best_score:.2f})")
+    if best_score >= 0.85:
+        # v2.3.9fix(P2-14): 阈值从 0.6 提到 0.85。中文列名两个字相同就能过 0.6，
+        # 「负荷1 找不到 → 自动用负荷2」，算出的是另一列数据，只在日志里留一条 info。
+        log.warning(f"列名 '{col_name}' 不存在，自动替换为最相似列 '{best_col}' (相似度 {best_score:.2f})")
         col_name = best_col
     else:
         raise KeyError(f"列 '{col_name}' 不存在，可用列: {list(df.columns)}")
@@ -697,6 +699,14 @@ def _to_dt(series, fmt=None):
     return dt_series
 
 def _valid_time_cols(cols):
+    # v2.3.9fix(P2-15): 纯数字列名（1,2,...,96）更像采样点序号而不是时刻。
+    # _parse_min("1")~"24" 能过，于是 96 列宽表只有前 24 列被当成时刻列，
+    # 曲线静默只剩 6 小时。整组纯数字且最大 >24 时全部剔除，
+    # 让下游明确报「没有有效的时间列」，而不是悄悄截断。
+    _num = [int(str(c).strip()) for c in cols
+            if re.fullmatch(r'\d+', str(c).strip())]
+    if len(_num) >= 2 and max(_num) > 24:
+        cols = [c for c in cols if not re.fullmatch(r'\d+', str(c).strip())]
     valid = []
     for c in cols:
         normalized = _normalize_time_column_name(str(c))
@@ -941,11 +951,14 @@ def _detect_file_format_type(fp, sheet, hrow=0, enc='auto', delimiter=','):
         sample_df.columns = [str(c) for c in sample_df.columns]
     except Exception:
         log.debug("文件格式检测失败", exc_info=True)
-        return 'long'
+        # v2.3.9fix(P2-1): 返回 None 而不是 'long'。
+        # 返回 'long' 会让 MappingDialog 默认勾选长表，宽表被直接当长表解析，
+        # 报「缺少列」而用户以为是自己选错了列。None 表示「没检测出来」。
+        return None
     cols = list(sample_df.columns)
     smart = _smart_classify_columns(cols, sample_df)
-    fmt = smart.get('format_type', 'long')
-    return fmt if fmt else 'long'
+    # 可能为 None：调用方需要区分「检测失败」与「确实是长表」
+    return smart.get('format_type')
 
 def _extract_asset_from_name(file_path, sheet_name):
     basename = os.path.splitext(os.path.basename(file_path))[0]
@@ -1124,7 +1137,15 @@ def _scan_long_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
         grp_clean = grp[['__dt__', '__load__']].copy()
         grp_clean['__d__'] = grp_clean['__dt__'].dt.date
         grp_clean['__t__'] = grp_clean['__dt__'].dt.floor('min').dt.time
-        grp_clean = grp_clean.drop_duplicates(subset=['__d__', '__t__'])
+        # v2.3.9fix(P2-8): 同一分钟多条记录按均值聚合，与加载阶段
+        # （provider._load_group_data 的 groupby(...).mean()）保持同一口径。
+        # 原实现 drop_duplicates 只留首条：扫描显示的最小/最大值与图上的点
+        # 对不上，而且丢了多少条没有任何提示。
+        _before = len(grp_clean)
+        grp_clean = grp_clean.groupby(['__d__', '__t__'], as_index=False)['__load__'].mean()
+        _dup = _before - len(grp_clean)
+        if _dup > 0:
+            log.info(f"长表同一分钟存在 {_dup} 条重复记录，已按均值聚合: {fp}/{sheet}")
         if grp_clean.empty:
             monthly_stats['__dropped__'] = monthly_stats.get('__dropped__', 0) + 1
             continue

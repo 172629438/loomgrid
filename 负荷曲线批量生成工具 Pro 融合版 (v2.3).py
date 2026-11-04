@@ -1418,6 +1418,12 @@ class MappingDialog(QDialog):
             self.fmt_accumulated.setChecked(True)
         else:
             self.fmt_long.setChecked(True)
+        if self._initial_format_type is None:
+            # v2.3.9fix(P2-1): 自动检测失败时明确告知。原来失败也默认勾长表，
+            # 宽表被直接当长表解析，报「缺少列」而用户以为是自己选错了列。
+            _fmt_warn = QLabel("自动检测失败，请手动确认数据格式")
+            _fmt_warn.setStyleSheet("color: #c62828;")
+            fmt_layout.addWidget(_fmt_warn)
         fmt_layout.addWidget(self.fmt_long)
         fmt_layout.addWidget(self.fmt_accumulated)
         fmt_layout.addWidget(self.fmt_wide)
