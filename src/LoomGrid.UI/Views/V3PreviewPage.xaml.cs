@@ -34,12 +34,15 @@ public sealed partial class V3PreviewPage : Page
     private readonly List<V3GroupItem> _groups = new();
     private int _index = -1;
     private bool _busy;
+    private PreviewResult? _data;
+    private int _selectedDay = -1;   // -1 = 画全部天
 
     public V3PreviewPage()
     {
         InitializeComponent();
         Loaded += OnLoaded;
         KeyDown += OnKeyDown;
+        PlotView.PointerWheelChanged += OnPointerWheelChanged;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -105,12 +108,15 @@ public sealed partial class V3PreviewPage : Page
             var services = await Boot.EnsureAsync();
             var api = new PreviewApi(services.Api);
             var data = await api.GetAsync(g.SessionId, g.GroupIndex);
+            _data = data;
+            _selectedDay = -1;
 
             Draw(g, data);
             ShapeText.Text = data.ShapeText;
             StatusText.Text =
                 $"{g.Display} · {data.DateLabels.Count} 天 × {data.TimeLabels.Count} 点" +
                 $"（{data.ShapeText}）";
+            BuildDatePanel(data);
         }
         catch (ApiException ex)
         {
@@ -128,6 +134,82 @@ public sealed partial class V3PreviewPage : Page
         {
             _busy = false;
         }
+    }
+
+    /// <summary>
+    /// 日期面板：每格一天。点一天只看那天，再点同一格回到全部。
+    /// 天数多的月份自动换行（3 列）。
+    /// </summary>
+    private void BuildDatePanel(PreviewResult data)
+    {
+        DateGrid.Children.Clear();
+        DateGrid.ColumnDefinitions.Clear();
+        DateGrid.RowDefinitions.Clear();
+
+        const int Cols = 3;
+        for (int c = 0; c < Cols; c++)
+            DateGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        int n = data.DateLabels.Count;
+        int rows = (n + Cols - 1) / Cols;
+        for (int r = 0; r < rows; r++)
+            DateGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        for (int d = 0; d < n; d++)
+        {
+            string label = data.DateLabels[d];
+            var btn = new Button
+            {
+                Content = label.Length >= 5 ? label.Substring(5) : label,   // 只显示 MM-DD，省宽度
+                FontSize = 11.5,
+                Padding = new Thickness(4, 3, 4, 3),
+                Margin = new Thickness(0, 0, 4, 4),
+                HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Center,
+                Tag = d,
+            };
+            btn.Click += OnDateClick;
+            if (d == _selectedDay)
+                btn.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
+            Grid.SetColumn(btn, d % Cols);
+            Grid.SetRow(btn, d / Cols);
+            DateGrid.Children.Add(btn);
+        }
+    }
+
+    private void OnDateClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button b || b.Tag is not int d || _data is null) return;
+        if (_index < 0 || _index >= _groups.Count) return;
+
+        _selectedDay = _selectedDay == d ? -1 : d;
+        Draw(_groups[_index], _data);
+        BuildDatePanel(_data);
+        StatusText.Text = _selectedDay >= 0
+            ? $"只看 {_data.DateLabels[_selectedDay]}（再点同一格回全部）"
+            : $"{_groups[_index].Display} · 全部 {_data.DateLabels.Count} 天";
+    }
+
+    /// <summary>Shift+滚轮 或 滚轮 = 缩放 X 轴；这是 V3 的 P1 交互之一。</summary>
+    private void OnPointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_data is null) return;
+        var plot = PlotView.Plot;
+        var lim = plot.Axes.Bottom.Range;
+        double center = (lim.Min + lim.Max) / 2;
+        double half = (lim.Max - lim.Min) / 2;
+
+        int delta = e.GetCurrentPoint(PlotView).Properties.MouseWheelDelta;
+        double factor = delta > 0 ? 0.8 : 1.25;
+
+        double minHalf = Math.Max(2, _data.TimeLabels.Count / 48.0);
+        double maxHalf = _data.TimeLabels.Count * 1.2 / 2;
+        half = Math.Clamp(half * factor, minHalf, maxHalf);
+
+        // ScottPlot 5：IXAxis 没有 SetLimits，用 Axes.SetLimitsX
+        plot.Axes.SetLimitsX(center - half, center + half);
+        PlotView.Refresh();
+        e.Handled = true;
     }
 
     private void Draw(V3GroupItem g, PreviewResult data)
@@ -150,12 +232,13 @@ public sealed partial class V3PreviewPage : Page
 
         for (int d = 0; d < nDays; d++)
         {
+            if (_selectedDay >= 0 && d != _selectedDay) continue;   // 单日模式
             var row = data.LoadArray[d];
             if (row.Count < nPts) continue;
             double[] ys = row.Take(nPts).ToArray();
             var sc = plot.Add.Scatter(xs, ys);
             sc.LegendText = d < data.DateLabels.Count ? data.DateLabels[d] : $"第 {d + 1} 天";
-            sc.LineWidth = 1.4f;
+            sc.LineWidth = _selectedDay >= 0 ? 2.2f : 1.4f;   // 单日时线加粗，看得清拐点
             sc.MarkerSize = 0;
             sc.Color = CurveColors.ForDay(d);
         }
