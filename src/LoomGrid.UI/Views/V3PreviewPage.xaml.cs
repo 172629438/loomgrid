@@ -244,6 +244,11 @@ public sealed partial class V3PreviewPage : Page
             tt.Y = top;
         }
         Probe.Visibility = Visibility.Visible;
+        // 诊断：事件到达与浮层显示是两环。前面已证实 PointerMoved 会触发（日志有 x/y），
+        // 但截图里看不到浮层——到底是没设 Visibility，还是截图时鼠标已移开（PointerExited），
+        // 这行日志把它分开。
+        AppLog.Write($"V3 探针浮层：pos=({left:0},{top:0}) vis={Probe.Visibility} " +
+                     $"text=\"{ProbeTime.Text}\" / \"{ProbeValue.Text}\"");
     }
 
     private void OnPointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
