@@ -27,6 +27,7 @@ from api.schemas import (
 from core.models import GroupSummary, PeriodType
 from core.periods import _segment_periods
 from core.spaces import calc_days_for_capacity, compute_segmented_spaces
+from services.timeline import unify_time_resolution
 from services.capacity import (
     DemandBasis, daily_demand_series, summarize_daily_demand, throughput_breakdown,
 )
@@ -268,6 +269,146 @@ def satisfied_days(req: SatisfiedDaysRequest):
                        "satisfied": satisfied, "total": n_days}],
         "note": "satisfied_days 按 DOD 折算+逐对判定（同界面）；"
                 "satisfied_days_core 不折算、各段相加后再比（同 core）。两者语义不同。",
+    }).model_dump()
+
+
+class MonthlySpacesRequest(BaseModel):
+    session_ids: list[str] = Field(default_factory=list,
+                                  description="全部已加载的 session；跨分组按月份聚合")
+    segments: list[Segment] | None = None
+    periods: list[dict] | None = None
+    billing: dict | None = None
+    mode: str = "A"
+    rated_power: float | None = None
+    ignore_negative: bool = False
+
+
+@router.post("/monthly-spaces", response_model=Envelope,
+             description=(
+                 "跨分组按**月份**聚合的逐段空间（V4 月度表的输入）。\n\n"
+                 "**同月份会被后来者覆盖** —— 与 Fusion 的 `monthly_data[month_str] = data`\n"
+                 "一致。两个文件都是 2026-01 时，表里只有一行（后加载的那个）。\n"
+                 "这不是 bug，是既有行为；不要「聪明地」改成两行。\n\n"
+                 "粒度归一：内部调 `services/timeline.unify_time_resolution`，\n"
+                 "把各月插值到点数最多的那个粒度。每行带 `resolution`（**原始**点数），\n"
+                 "用来回答「这月和那月可比吗」。\n\n"
+                 "`min_segment` 口径：本月各段中最小的那一段（充+放），与列名「最小段空间」一致。\n"
+                 "全零段列会被隐藏，隐藏数量在 `hidden_zero_segments`。"
+             ))
+def monthly_spaces(req: MonthlySpacesRequest):
+    sp = SpacesRequest(session_id="", group=0, segments=req.segments,
+                       periods=req.periods, billing=req.billing, mode=req.mode,
+                       rated_power=req.rated_power, ignore_negative=req.ignore_negative)
+    segs = _to_internal_segments(sp)
+    if not segs:
+        return _err("CALC_INVALID_SEGMENT", "没有有效时段，请传 segments 或 periods")
+
+    if not req.session_ids:
+        return _err("CALC_INVALID_SEGMENT", "session_ids 不能为空")
+
+    # ① 逐 session 逐 group 收集，按 month_str 建 dict（后加载覆盖前者，同 Fusion）
+    #    注意：拷贝 load_array。unify_time_resolution 是原地修改，
+    #    直接引用 provider 的返回会污染它的缓存，影响后续调用。
+    monthly: dict[str, dict] = {}
+    raw_resolution: dict[str, int] = {}
+    for sid in req.session_ids:
+        sess = get_session(sid)
+        if not sess:
+            continue
+        for gd in sess.get("groups", []):
+            try:
+                gs = GroupSummary.from_dict(gd)
+            except Exception:
+                continue
+            data = _PROVIDER.get_group_data(gs)
+            if not data or data.get("load_array") is None:
+                continue
+            arr = np.asarray(data["load_array"], dtype=float)
+            if arr.ndim != 2:
+                continue
+            key = gs.month_str or "—"
+            monthly[key] = {
+                "load_array": np.array(arr, dtype=float, copy=True),
+                "time_labels": [str(x) for x in data.get("time_labels", [])],
+                "month_str": gs.month_str,
+                "asset": gs.asset_value,
+            }
+            raw_resolution[key] = int(arr.shape[1])
+
+    if not monthly:
+        return _err("CALC_NO_DATA", "没有可用的月度数据")
+
+    # ② 粒度归一（各月插到最细）
+    unify_time_resolution(monthly)
+
+    # ③ 逐月算段空间
+    per_month: list[dict] = []
+    labels: list[str] = []
+    for month in sorted(monthly.keys()):
+        data = monthly[month]
+        load = data["load_array"]
+        tl = data["time_labels"]
+        try:
+            ch, dis, cl, dl = compute_segmented_spaces(
+                load, tl, segs, billing=req.billing, mode=req.mode,
+                rated_power=req.rated_power, ignore_negative=req.ignore_negative)
+        except Exception as e:
+            log.warning("月度空间：%s 测算失败 %s", month, e)
+            continue
+
+        use_labels = cl if len(cl) >= len(dl) else dl
+        if not labels:
+            labels = list(use_labels)
+
+        n = max(len(ch), len(dis))
+        totals: list[float] = []
+        for i in range(n):
+            c_sum = (float(np.nansum(np.nan_to_num(np.asarray(ch[i], dtype=float), nan=0.0)))
+                     if i < len(ch) else 0.0)
+            d_sum = (float(np.nansum(np.nan_to_num(np.asarray(dis[i], dtype=float), nan=0.0)))
+                     if i < len(dis) else 0.0)
+            totals.append(round(c_sum + d_sum, 2))
+
+        per_month.append({
+            "month": month,
+            "resolution": raw_resolution.get(month, 0),
+            "asset": data.get("asset"),
+            "totals": totals,
+        })
+
+    if not per_month:
+        return _err("CALC_NO_DATA", "所有月份的测算都失败了")
+
+    # ④ 去全零段列（与 Fusion 的 C4 一致：该段在所有月份都为 0 则隐藏）
+    n_seg = max(len(m["totals"]) for m in per_month)
+    keep = []
+    for i in range(n_seg):
+        if any(i < len(m["totals"]) and m["totals"][i] != 0.0 for m in per_month):
+            keep.append(i)
+    hidden = n_seg - len(keep)
+
+    months_out = []
+    for m in per_month:
+        vals = [m["totals"][i] if i < len(m["totals"]) else 0.0 for i in keep]
+        months_out.append({
+            "month": m["month"],
+            "resolution": m["resolution"],
+            "asset": m.get("asset"),
+            "segments": [
+                {"label": labels[i] if i < len(labels) else f"段{i+1}", "value": v}
+                for i, v in zip(keep, vals)
+            ],
+            # 口径：本月各段中最小的那一段（充+放）
+            "min_segment": min(vals) if vals else 0.0,
+        })
+
+    return Envelope(ok=True, data={
+        "months": months_out,
+        "columns": [labels[i] if i < len(labels) else f"段{i+1}" for i in keep],
+        "hidden_zero_segments": hidden,
+        "min_segment_label": "最小段空间",
+        "note": "同月份以后加载者为准（与 Fusion 一致）；"
+                "resolution 是该月原始点数，插值后已统一到最细粒度。",
     }).model_dump()
 
 
