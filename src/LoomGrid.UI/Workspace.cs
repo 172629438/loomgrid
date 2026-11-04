@@ -20,6 +20,9 @@ public sealed class Workspace
     /// <summary>V2 产出的分组清单（V3 左树的输入）。</summary>
     public List<LoomGrid.Bridge.GroupInfoDto> Groups { get; } = new();
 
+    /// <summary>上次导出结果（V5 写完，V6 读）。</summary>
+    public List<ExportRunSummary> LastRuns { get; } = new();
+
     /// <summary>已完成映射的文件数（V2 底部进度用）。</summary>
     public int MappedCount => Files.Count(f => f.SessionId is not null);
 

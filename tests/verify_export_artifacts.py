@@ -144,6 +144,18 @@ def main() -> int:
     check(len(pngs) == n_groups and len(xlsxs) == n_groups,
           f"磁盘上 PNG {len(pngs)} / xlsx {len(xlsxs)}", f"{sorted(on_disk)}")
 
+    print("\n[⑥ 量纲：分组数 vs 产物数]")
+    check(res2.get("total") == n_groups, f"total 是分组数（{res2.get('total')}）", str(res2.get("total")))
+    check(res2.get("succeeded") == n_groups * 2,
+          f"succeeded 是产物数（{res2.get('succeeded')} = 组数×2）", str(res2.get("succeeded")))
+    check(res2.get("groups_succeeded") == n_groups,
+          f"groups_succeeded 是成功分组数（{res2.get('groups_succeeded')}）", str(res2.get("groups_succeeded")))
+    check(res2.get("groups_failed") == 0,
+          f"groups_failed = 0（{res2.get('groups_failed')}）", str(res2.get("groups_failed")))
+    check(res2.get("succeeded") != res2.get("total"),
+          "带宽表时 succeeded ≠ total（否则这条判据无意义）",
+          f"{res2.get('succeeded')} vs {res2.get('total')}")
+
     print("\n[⑤ 单组导出（顺序变化场景）]")
     d3 = base / "single"
     d3.mkdir(parents=True, exist_ok=True)

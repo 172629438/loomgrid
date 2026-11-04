@@ -96,6 +96,8 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
     artifacts: list[dict] = []
     failed: list[dict] = []
     summaries: list[GroupSummary] = []
+    # 成功的**分组数**。与 succeeded（产物数）不同量纲，带宽表时两者不等。
+    n_ok = 0
 
     try:
         total = len(idxs)
@@ -154,6 +156,7 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
             mult = ov.multiplier if ov and ov.multiplier is not None else req.multiplier
             bill = ov.billing if ov and ov.billing is not None else req.billing
             opts = ov.plot_options if ov and ov.plot_options is not None else req.plot_options
+            p = None  # 供 except 判断「PNG 是否已落盘」
             try:
                 p = plot_group(gs, data, req.output_dir,
                                title_template=req.title_template,
@@ -168,11 +171,16 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
                     _mw = export_midwide(gs, data, req.output_dir)
                     files.append(_mw)
                     artifacts.append({"name": os.path.basename(_mw), "kind": "midwide"})
+                n_ok += 1
                 TASK_STORE.emit(tid, "log", {"level": "info",
                                              "message": f"已生成 {os.path.basename(p)}"})
             except Exception as e:
                 log.exception("出图失败 group=%s", gs.asset_value)
-                failed.append({"group": gs.asset_value, "error": f"{type(e).__name__}: {e}"})
+                # 宽表或后续步骤失败时，PNG 可能已经落盘。不说清楚的话，
+                # 运维会看到「有图却说失败」，不知道该删哪一个。
+                hint = "（图表已生成并落盘，但后续产物失败）" if p else ""
+                failed.append({"group": gs.asset_value,
+                               "error": f"{type(e).__name__}: {e}{hint}"})
             TASK_STORE.emit(tid, "progress", {"current": n, "total": len(prepared)})
 
         report_path = None
@@ -184,8 +192,12 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
 
         result = {
             "task_id": tid,
-            "total": total,
+            "total": total,                     # 本次要处理的**分组数**
+            # 产物数（PNG + 宽表合计），不是分组数。
+            # 分组口径看 groups_succeeded / groups_failed —— 两个量纲不同，不要相除。
             "succeeded": len(files),
+            "groups_succeeded": n_ok,
+            "groups_failed": len(failed),
             "failed": failed,
             "files": [os.path.basename(f) for f in files],
             # 显式产物类型：chart / midwide。下游按 kind 分流，不看扩展名、不看顺序。

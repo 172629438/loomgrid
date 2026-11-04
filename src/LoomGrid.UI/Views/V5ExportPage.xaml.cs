@@ -238,6 +238,7 @@ public sealed partial class V5ExportPage : Page
         Progress.Visibility = Visibility.Visible;
         Progress.Value = 0;
         _taskIds.Clear();
+        Workspace.Current.LastRuns.Clear();
 
         var services = await Boot.EnsureAsync();
         var api = new ExportApi(services.Api);
@@ -291,6 +292,22 @@ public sealed partial class V5ExportPage : Page
                         && status.Result.TryGetProperty("failed", out var f)
                         && f.ValueKind == System.Text.Json.JsonValueKind.Array
                         ? f.GetArrayLength() : 0;
+
+                    // 给 V6 的汇总：分组口径用 groups_succeeded，产物清单用 artifacts
+                    var runSummary = new ExportRunSummary
+                    {
+                        TaskId = run.TaskId ?? "",
+                        SourceFile = group.First().SourceFile,
+                        OutputDir = _outputDir,
+                        TotalGroups = group.Count(),
+                        GroupsSucceeded = status.GroupsSucceeded,
+                        GroupsFailed = status.GroupsFailed,
+                        ReportName = status.ReportName,
+                    };
+                    foreach (var (name, kind) in status.Artifacts)
+                        runSummary.Artifacts.Add(ExportArtifact.From(_outputDir, name, kind));
+                    runSummary.FailedMessages.AddRange(status.FailedMessages);
+                    Workspace.Current.LastRuns.Add(runSummary);
                 }
                 else
                 {
@@ -345,12 +362,11 @@ public sealed partial class V5ExportPage : Page
         else Frame.Navigate(typeof(V2MappingPage));
     }
 
-    private async void OnResultClick(object sender, RoutedEventArgs e)
+    private void OnResultClick(object sender, RoutedEventArgs e)
     {
-        if (_taskIds.Count == 0) return;
-        string list = string.Join("\n", _taskIds.Take(10));
-        await ShowMessageAsync("本次任务",
-            $"共 {_taskIds.Count} 个任务：\n{list}\n\nV6 结果页还没接上——下一步是缩略图网格 + 失败归因。");
+        if (Workspace.Current.LastRuns.Count == 0) return;
+        AppLog.Write($"V5：进入 V6，{Workspace.Current.LastRuns.Count} 个任务结果");
+        Frame.Navigate(typeof(V6ResultPage));
     }
 
     private async Task ShowMessageAsync(string title, string text)

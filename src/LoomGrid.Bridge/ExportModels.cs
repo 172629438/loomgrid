@@ -86,6 +86,61 @@ public sealed record ExportStatusResult
         && Result.TryGetProperty("succeeded", out var v) && v.ValueKind == JsonValueKind.Number
         ? v.GetInt32() : 0;
 
+    /// <summary>成功的分组数（与 succeeded 不同量纲：succeeded 是产物数）。</summary>
+    public int GroupsSucceeded => GetInt("groups_succeeded");
+    public int GroupsFailed => GetInt("groups_failed");
+
+    private int GetInt(string name) => Result.ValueKind == JsonValueKind.Object
+        && Result.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number
+        ? v.GetInt32() : 0;
+
+    /// <summary>产物清单 [{name, kind}]。缺失时为空（老 task）。</summary>
+    public List<(string Name, string Kind)> Artifacts
+    {
+        get
+        {
+            var list = new List<(string, string)>();
+            if (Result.ValueKind != JsonValueKind.Object) return list;
+            if (!Result.TryGetProperty("artifacts", out var arr) || arr.ValueKind != JsonValueKind.Array)
+                return list;
+            foreach (var item in arr.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object) continue;
+                string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String
+                    ? n.GetString() ?? "" : "";
+                string kind = item.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String
+                    ? k.GetString() ?? "chart" : "chart";
+                if (!string.IsNullOrEmpty(name)) list.Add((name, kind));
+            }
+            return list;
+        }
+    }
+
+    /// <summary>失败明细（原文，未聚合）。</summary>
+    public List<string> FailedMessages
+    {
+        get
+        {
+            var list = new List<string>();
+            if (Result.ValueKind != JsonValueKind.Object) return list;
+            if (!Result.TryGetProperty("failed", out var arr) || arr.ValueKind != JsonValueKind.Array)
+                return list;
+            foreach (var item in arr.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object) continue;
+                string grp = item.TryGetProperty("group", out var g) ? g.ToString() : "?";
+                string err = item.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String
+                    ? e.GetString() ?? "" : "";
+                list.Add($"{grp}：{err}");
+            }
+            return list;
+        }
+    }
+
+    public string? ReportName => Result.ValueKind == JsonValueKind.Object
+        && Result.TryGetProperty("report", out var v) && v.ValueKind == JsonValueKind.String
+        ? v.GetString() : null;
+
     public List<string> Files
     {
         get
