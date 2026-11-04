@@ -252,15 +252,17 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Click="OnBackClick" Content="返回映射" />
-                <Button Click="OnCapacityClick" Content="容量测算" />
+                <Button Click="OnBackClick" AccessKey="B" Content="返回映射" />
+                <Button Click="OnCapacityClick" AccessKey="C" Content="容量测算" />
                 <Button
                     x:Name="RunButton"
+                    AccessKey="X"
                     Click="OnRunClick"
                     Content="开始导出"
                     Style="{StaticResource AccentButtonStyle}" />
                 <Button
                     x:Name="ResultButton"
+                    AccessKey="V"
                     Click="OnResultClick"
                     Content="查看结果"
                     IsEnabled="False" />

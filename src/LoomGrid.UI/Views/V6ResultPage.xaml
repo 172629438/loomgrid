@@ -191,13 +191,14 @@
                 TextTrimming="CharacterEllipsis" />
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Click="OnOpenDirClick" Content="打开输出目录" />
+                <Button Click="OnOpenDirClick" AccessKey="O" Content="打开输出目录" />
                 <Button
                     x:Name="RetryButton"
+                    AccessKey="R"
                     Click="OnRetryClick"
                     Content="仅重试失败项"
                     IsEnabled="False" />
-                <Button Click="OnBackClick" Content="回到工作台" Style="{StaticResource AccentButtonStyle}" />
+                <Button Click="OnBackClick" AccessKey="B" Content="回到工作台" Style="{StaticResource AccentButtonStyle}" />
             </StackPanel>
         </Grid>
     </Grid>

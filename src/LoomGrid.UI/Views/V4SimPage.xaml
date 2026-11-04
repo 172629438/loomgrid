@@ -191,10 +191,10 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" Content="返回容量测算" Click="OnCancelClick" />
-            <Button Grid.Column="2" Content="换一条" Click="OnReshuffleClick"
+            <Button Grid.Column="0" AccessKey="B" Content="返回容量测算" Click="OnCancelClick" />
+            <Button Grid.Column="2" AccessKey="R" Content="换一条" Click="OnReshuffleClick"
                     ToolTipService.ToolTip="换一个随机种子，同样的参数得到另一条噪声实例。预览与应用始终共用同一个种子。" />
-            <Button Grid.Column="3" x:Name="ApplyButton" Content="应用这个配置"
+            <Button Grid.Column="3" x:Name="ApplyButton" AccessKey="A" Content="应用这个配置"
                     Style="{StaticResource AccentButtonStyle}" Click="OnApplyClick" IsEnabled="False" />
         </Grid>
     </Grid>

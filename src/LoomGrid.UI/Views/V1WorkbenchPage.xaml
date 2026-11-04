@@ -46,11 +46,12 @@
                 Orientation="Horizontal"
                 Spacing="8"
                 VerticalAlignment="Center">
-                <Button x:Name="AddButton" Click="OnAddClick" Content="添加文件" />
-                <Button x:Name="RemoveButton" Click="OnRemoveClick" Content="移除选中" IsEnabled="False" />
-                <Button x:Name="ClearButton" Click="OnClearClick" Content="清空" IsEnabled="False" />
+                <Button x:Name="AddButton" AccessKey="A" Click="OnAddClick" Content="添加文件" />
+                <Button x:Name="RemoveButton" AccessKey="D" Click="OnRemoveClick" Content="移除选中" IsEnabled="False" />
+                <Button x:Name="ClearButton" AccessKey="L" Click="OnClearClick" Content="清空" IsEnabled="False" />
                 <Button
                     x:Name="NextButton"
+                    AccessKey="N"
                     Click="OnNextClick"
                     Content="下一步：识别列"
                     IsEnabled="False"
@@ -271,6 +272,7 @@
                 <Button
                     Padding="8,2"
                     Click="OnAboutClick"
+                    AccessKey="B"
                     Content="关于"
                     FontSize="{StaticResource FsCaption}" />
             </StackPanel>

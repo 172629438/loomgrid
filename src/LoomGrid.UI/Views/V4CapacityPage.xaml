@@ -45,14 +45,14 @@
                                 <TextBlock x:Name="SourceText" Style="{StaticResource TextCaption}"
                                            FontFamily="{StaticResource MonoFamily}" Text="" />
                             </StackPanel>
-                            <Button Grid.Column="1" x:Name="RevertBtn" Content="恢复原始数据"
+                            <Button Grid.Column="1" x:Name="RevertBtn" AccessKey="R" Content="恢复原始数据"
                                     Click="OnRevertClick" Visibility="Collapsed" />
                         </Grid>
                         <Rectangle Height="1" HorizontalAlignment="Stretch"
                                    Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
                     </StackPanel>
 
-                    <Button x:Name="SimulateBtn" HorizontalAlignment="Stretch"
+                    <Button x:Name="SimulateBtn" AccessKey="S" HorizontalAlignment="Stretch"
                             Content="负荷模拟…" Click="OnSimulateClick"
                             ToolTipService.ToolTip="用行业模板生成一条模拟负荷曲线（25 个模板）。模拟后本章测算与 V3 预览都改用模拟数据，可随时切回原始。" />
 
@@ -379,9 +379,10 @@
                 TextTrimming="CharacterEllipsis" />
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Click="OnBackClick" Content="返回导出" />
+                <Button Click="OnBackClick" AccessKey="B" Content="返回导出" />
                 <Button
                     x:Name="CalcButton"
+                    AccessKey="C"
                     Click="OnCalcClick"
                     Content="测算"
                     Style="{StaticResource AccentButtonStyle}" />
