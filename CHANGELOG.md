@@ -148,6 +148,55 @@ cx_Freeze 实测可用，所以保持现状不改，但换打包器时先验这�
 
 ---
 
+## v2.3.10 — 2026-11-04（Fusion）
+
+> 两处「月份无法识别」的下游处理缺陷。同一个根因，同一个哨兵值。
+
+### 根因
+
+`core.ingest._extract_ym` 无法识别日期时返回哨兵字符串 `未知月份`——这是正确设计，
+可识别的失败比 NaN 好。但两个消费方都没处理它：
+
+| 消费方 | 原行为 | 后果 |
+|---|---|---|
+| `PreviewDialog._periods_for_idx` | `int()` 失败后 `except: month_int = 1` | 静默套用 1 月的分时电价 |
+| `ProfessionalWindow._recalc_spaces` | `int(month_num)` 裸调用 | ValueError 抽穿 `__init__`，专业分析窗口打不开 |
+
+第一条更危险：它不报错。夏季数据拿到 1 月的时段表，若该省冬夏峰谷不同，
+充电/放电空间会按错误时段算出来——**容量建议看着合理但全错，用户不会怀疑工具**。
+
+### 修法
+
+新增模块级 `_parse_month_num(month_str)`，返回 `1..12` 或 `None`。两处消费方统一走它，
+且**必须显式处理 None**：
+
+- `_periods_for_idx`：返回 `[]` + `log.warning`（不套用任何分时时段）
+- `_recalc_spaces`：`log.error` + `continue`（跳过该月，不参与测算）
+
+判据：`_parse_month_num('未知月份') is None`、`'2026-07' == 7`、
+`'2026' is None`（4 位年份不得被当成月份）。
+
+### 验证
+
+- 新增 `tests/verify_month_parse.py`：22 项，含两处消费点的 AST 契约断言
+  （断言 `month_int = 1` 兜底已移除、`month_num` 不再被裸调 `int()`）
+- 全套回归 `python tools/run_all_tests.py --core` → **32 个脚本 PASS 32 / FAIL 0**
+- 主程序编译通过
+
+### 新增工具
+
+`tools/run_all_tests.py`：Windows 可用的批量测试入口。
+`tests/README.md` 里那段 heredoc 在 PowerShell 5.1 与 cmd 下都跑不了。
+默认把需要 HTTP/真实窗口的脚本失败标为 `ENV` 而不是 `FAIL`——
+环境缺失不该被误读成代码回归。
+
+### 本轮已知遗留（下一步）
+
+月份无法识别时，该月被**跳过**而不是被标红。日志里有 `log.error`，
+但界面没有可见提示——用户只会发现月份少了。下一轮补界面提示。
+
+---
+
 ## v2.3.9 — 2026-11-03（Fusion）
 
 > 两处修复。第一条是阶段 0 采基线时暴露的静默错误，第二条是 v2.3.7 我自己引入的回归。

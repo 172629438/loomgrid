@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.9（2026-11-03 修复：宽表行累计被误判为转置宽表）
+发布版本：LoomGrid Fusion v2.3.10（2026-11-04 修复：月份无法识别时不再猜 1 月、不再崩专业窗口）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -215,7 +215,7 @@ def _check_and_install_dependencies():
 # v2.3.6fix(K5): 版本号只能有一个来源。
 # 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
 # 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
-FUSION_VERSION = "2.3.9"
+FUSION_VERSION = "2.3.10"
 FUSION_APP_NAME = "LoomGrid Fusion"
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
 _SUPPORTED_EXTS_SET = frozenset(SUPPORTED_EXTS)  # v2.3.4fix(J6): O(1) 成员查找
@@ -225,6 +225,30 @@ def _is_supported_file(path: str) -> bool:
     """v2.3.4fix(J6): 原 Fusion 没有这个函数，_on_files_dropped 不过滤类型，
     拖入 .txt/.zip/.exe 也会进列表并被当表格处理。"""
     return os.path.splitext(path)[1].lower() in _SUPPORTED_EXTS_SET
+
+
+def _parse_month_num(month_str):
+    """从分组月份标识提取 1..12 的月份号；无法识别返回 None。
+
+    month_str 由 core.ingest._extract_ym 产出，正常形态是 "YYYY-MM"，
+    解析失败时返回哨兵字符串「未知月份」。此前两处消费方各自兜底：
+      PreviewDialog._periods_for_idx     兜成 1 月（静默套用冬季分时电价）
+      ProfessionalWindow._recalc_spaces  int() 直接抛 ValueError（窗口打不开）
+    统一走本函数，调用方必须显式处理 None——不得再猜月份。
+    """
+    if not month_str:
+        return None
+    s = str(month_str).strip()
+    if '-' in s:
+        parts = s.split('-')
+        if len(parts) < 2:
+            return None
+        s = parts[1]
+    try:
+        m = int(s)
+    except (TypeError, ValueError):
+        return None
+    return m if 1 <= m <= 12 else None
 
 PREVIEW_CACHE_MAXSIZE = 100
 
@@ -3389,11 +3413,11 @@ class PreviewDialog(QDialog):
         if province == "无" or not province:
             return []
         s = self.all_summaries[idx]
-        m = s.month_str.split('-')[1] if '-' in s.month_str else s.month_str
-        try:
-            month_int = int(m)
-        except Exception:
-            month_int = 1
+        month_int = _parse_month_num(s.month_str)
+        if month_int is None:
+            # 不猜月份：猜成 1 月会静默套用冬季分时电价，图看着正常但测算结果是错的。
+            log.warning(f"月份无法识别({s.month_str!r})，该分组不套用分时时段")
+            return []
         return self.config_manager.get_periods_for_month(province, month_int)
 
     def _init_periods_fingerprints(self):
@@ -4533,7 +4557,13 @@ class ProfessionalWindow(QMainWindow):
                 mb = self.settings_model.effective_billing(idx)
                 if mb and mb.get('value'):
                     month_billing = mb
-            month_num = month_str.split('-')[1] if '-' in month_str else month_str
+            month_num = _parse_month_num(month_str)
+            if month_num is None:
+                # v2.3.10fix: 原代码 int(month_str) 无保护，月份为「未知月份」时
+                # ValueError 直接抽穿 __init__，专业分析窗口根本打不开。
+                # 跳过该月并在日志里点名，比崩掉或猜一个月份都正确。
+                log.error(f"[_recalc_spaces] 月份无法识别({month_str!r})，跳过该月测算；请检查文件名或数据内日期列")
+                continue
 
             # --- 修复：光伏消纳模式下充放电段逻辑 ---
             # B模式：全天24h，充电=光伏返送存电，放电=正向负荷放电
@@ -4549,7 +4579,7 @@ class ProfessionalWindow(QMainWindow):
                 ]
             elif self.mode == 'C':
                 # 混合模式：充电来自全天光伏返送，放电来自策略峰段
-                periods = strategy_periods.get(str(int(month_num)), [])
+                periods = strategy_periods.get(str(month_num), []) if month_num is not None else []
                 strategy_segs = _segment_periods(periods) if periods else []
                 # 提取策略中的放电段（峰/尖峰），充电段用全天替换
                 discharge_segs = [s for s in strategy_segs
@@ -4566,7 +4596,7 @@ class ProfessionalWindow(QMainWindow):
                 segments = [charge_seg] + discharge_segs
             else:
                 # A模式：原有策略时段逻辑
-                periods = strategy_periods.get(str(int(month_num)), [])
+                periods = strategy_periods.get(str(month_num), []) if month_num is not None else []
                 segments = _segment_periods(periods)
 
             c_segs, d_segs, c_labs, d_labs = compute_segmented_spaces(
