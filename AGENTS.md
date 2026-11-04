@@ -583,6 +583,7 @@ sum(segs[0]["charge"])   # 全月合计（5 天时就差 5 倍）
 | 程序化鼠标（`SetCursorPos`） | **只改光标位置，不投递 `WM_MOUSEMOVE`**；WinUI 的 PointerMoved 依赖 WM_POINTER* 系列消息 | hover 类功能不能这样测；要真事件得用 `SendInput` / `mouse_event`，或交人工 |
 | 程序化鼠标 + 窗口非前台 | 即使投递了事件，窗口不在前台时 hover 也未必触发 | 同上：交人工 |
 | 用截图判断界面状态 | 截图看着对 ≠ 实际对（PrintWindow 抓不到 Mica / 某些合成层）；截图看着错 ≠ 实际错（最小化时是黑块） | 视觉判断用截图；**状态判断走 API**（`ActualTheme` / `SystemBackdrop` 类型 / DOM 属性） |
+| 只读了一半日志 | 看到 A 有日志、B 没日志，就判「B 无效」；实际是「B 未观测」 | 判无效必须证明「它的日志没出现」，不是「另一件事的日志出现了」 |
 | 跑旧二进制 | 改完代码没效果，因为启动的是另一个 build 目录 | 先核对「跑的是不是刚编的那个 exe」（Debug vs Release、bin 路径） |
 
 ### 三种坐标的定义（混用必错）
