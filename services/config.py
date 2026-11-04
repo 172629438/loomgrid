@@ -136,7 +136,6 @@ class Config:
             for key, default_val in self.DEFAULT_CONFIG.items():
                 # v2.3.9fix(P2-9): 深拷贝，避免实例与类属性共享同一个嵌套 dict
                 self.cfg.setdefault(key, copy.deepcopy(default_val))
-            os.makedirs(self.BACKUP_DIR, exist_ok=True)
             self._migrate()
             self._validate_highlight_dependency()
             _set_24h_belong(self.cfg['app_settings'].get('24h_belongs_current_month', False))
