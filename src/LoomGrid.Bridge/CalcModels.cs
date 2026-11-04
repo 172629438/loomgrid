@@ -133,3 +133,46 @@ public sealed record MonthlySpacesResult
     [JsonPropertyName("min_segment_label")] public string MinSegmentLabel { get; init; } = "最小段空间";
     [JsonPropertyName("note")] public string Note { get; init; } = "";
 }
+
+// ───────────────────── 反向测算：容量 → 天数 ─────────────────────
+
+/// <summary>
+/// 入口 B：已知装了 X kWh，算能供几天。
+/// **与入口 A（target_days → 容量）是两套独立输入，不是同一控件的两种显示。**
+/// </summary>
+public sealed record SatisfiedDaysRequest
+{
+    [JsonPropertyName("session_id")] public required string SessionId { get; init; }
+    [JsonPropertyName("group")] public int Group { get; init; }
+    [JsonPropertyName("segments")] public List<CalcSegment>? Segments { get; init; }
+    [JsonPropertyName("billing")] public CalcBilling? Billing { get; init; }
+    [JsonPropertyName("mode")] public string Mode { get; init; } = "A";
+    [JsonPropertyName("rated_power")] public double? RatedPower { get; init; }
+    [JsonPropertyName("ignore_negative")] public bool IgnoreNegative { get; init; }
+    [JsonPropertyName("capacity_kwh")] public required double CapacityKwh { get; init; }
+    [JsonPropertyName("dod_percent")] public double DodPercent { get; init; } = 95.0;
+}
+
+public sealed record MonthSatisfactionDto
+{
+    [JsonPropertyName("month")] public string Month { get; init; } = "";
+    [JsonPropertyName("satisfied")] public int Satisfied { get; init; }
+    [JsonPropertyName("total")] public int Total { get; init; }
+}
+
+/// <summary>
+/// <para><c>satisfied_days</c>：按 DOD 折算 + 逐对判定（**与 Fusion 界面同口径，界面就显示这个**）。</para>
+/// <para><c>satisfied_days_core</c>：不折算、各段相加后再比（与 core 一致）。两个数语义不同，不并排展示。</para>
+/// </summary>
+public sealed record SatisfiedDaysResult
+{
+    [JsonPropertyName("capacity_kwh")] public double CapacityKwh { get; init; }
+    [JsonPropertyName("usable_kwh")] public double UsableKwh { get; init; }
+    [JsonPropertyName("dod_percent")] public double DodPercent { get; init; }
+    [JsonPropertyName("satisfied_days")] public int SatisfiedDays { get; init; }
+    [JsonPropertyName("satisfied_days_core")] public int SatisfiedDaysCore { get; init; }
+    [JsonPropertyName("total_days")] public int TotalDays { get; init; }
+    [JsonPropertyName("equivalent_days")] public int EquivalentDays { get; init; }
+    [JsonPropertyName("by_month")] public List<MonthSatisfactionDto> ByMonth { get; init; } = new();
+    [JsonPropertyName("note")] public string Note { get; init; } = "";
+}

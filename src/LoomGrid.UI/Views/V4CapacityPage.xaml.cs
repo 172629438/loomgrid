@@ -152,6 +152,77 @@ public sealed partial class V4CapacityPage : Page
 
     private async void OnCalcClick(object sender, RoutedEventArgs e) => await CalcAsync();
 
+    /// <summary>
+    /// 入口 B：容量 → 天数。
+    /// 与入口 A（target_days → 容量）完全独立：自己的输入框、自己的结果行。
+    /// 默认值为空，不预填——两个入口都有数时用户不知道该看哪个。
+    /// </summary>
+    private async void OnSatisfiedDaysClick(object sender, RoutedEventArgs e)
+    {
+        if (GroupCombo.SelectedItem is not V4GroupItem g) return;
+
+        if (!TryNum(InstalledCapacityBox.Text, out var cap) || cap <= 0)
+        {
+            SatisfiedDaysText.Text = "请输入安装容量（kWh，> 0）";
+            return;
+        }
+
+        var segs = new List<CalcSegment>();
+        if (TryNum(ChargeStartBox.Text, out var cs) && TryNum(ChargeEndBox.Text, out var ce) && ce > cs)
+            segs.Add(new CalcSegment { Start = cs, End = ce, Type = "charge", Label = "充电段" });
+        if (TryNum(DischargeStartBox.Text, out var ds) && TryNum(DischargeEndBox.Text, out var de) && de > ds)
+            segs.Add(new CalcSegment { Start = ds, End = de, Type = "discharge", Label = "放电段" });
+        if (segs.Count == 0)
+        {
+            SatisfiedDaysText.Text = "至少需要一个有效时段（起 < 止）";
+            return;
+        }
+
+        double? rated = TryNum(RatedPowerBox.Text, out var rp) && rp > 0 ? rp : null;
+        CalcBilling? billing = TryNum(CapacityLineBox.Text, out var cl) && cl > 0
+            ? new CalcBilling { Value = cl }
+            : null;
+        double dod = TryNum(DodBox.Text, out var d) && d > 0 ? d : 95.0;
+
+        try
+        {
+            SatisfiedDaysText.Text = "计算中…";
+            var services = await Boot.EnsureAsync();
+            var api = new CalcApi(services.Api);
+            var r = await api.SatisfiedDaysAsync(new SatisfiedDaysRequest
+            {
+                SessionId = g.SessionId,
+                Group = g.GroupIndex,
+                Segments = segs,
+                Billing = billing,
+                Mode = ModeKey,
+                RatedPower = rated,
+                IgnoreNegative = IgnoreNegativeCheck.IsChecked == true,
+                CapacityKwh = cap,
+                DodPercent = dod,
+            });
+
+            // 只显示 satisfied_days（DOD 折算版，与 Fusion 界面同口径）。
+            // satisfied_days_core 是 core 的另一个算法，两个数并排会让用户不知道信哪个。
+            SatisfiedDaysText.Text =
+                $"满足 {r.SatisfiedDays} / {r.TotalDays} 天" +
+                $" · 等效 {r.EquivalentDays} 天/年" +
+                $" · 可用 {r.UsableKwh:N1} kWh（DOD {r.DodPercent:0.#}%）";
+            AppLog.Write($"V4 入口B：容量 {cap:N1} kWh → 满足 {r.SatisfiedDays}/{r.TotalDays} 天，" +
+                         $"等效 {r.EquivalentDays}，可用 {r.UsableKwh:N1}");
+        }
+        catch (ApiException ex)
+        {
+            SatisfiedDaysText.Text = $"失败：{ex.Message}" + (ex.Code is null ? "" : $"（{ex.Code}）");
+            AppLog.Write($"V4 入口B 失败：{ex.Code} {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            SatisfiedDaysText.Text = $"出错：{ex.GetType().Name}";
+            AppLog.Write($"V4 入口B 异常：{ex}");
+        }
+    }
+
     private async Task CalcAsync()
     {
         if (GroupCombo.SelectedItem is not V4GroupItem g) return;

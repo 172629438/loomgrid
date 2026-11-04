@@ -132,6 +132,65 @@
                         Style="{StaticResource TextCaption}"
                         Text="勾上会把负负荷清零 —— mode B/C 的充电空间因此归 0，实测充电为 0 时先查这里。"
                         TextWrapping="Wrap" />
+
+                    <Rectangle Height="1" HorizontalAlignment="Stretch" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                    <!-- 入口 B：容量 → 天数。与上面的 target_days（天数 → 容量）是两套独立输入，
+                         不共用结果区，也不互相回填。 -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Style="{StaticResource TextCaption}" Text="反向：装了多大 → 能供几天" />
+                        <TextBlock
+                            Style="{StaticResource TextCaption}"
+                            Text="与上方「目标天数」是两套独立输入：这里给安装容量，算能满足多少天。"
+                            TextWrapping="Wrap" />
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox
+                                x:Name="InstalledCapacityBox"
+                                Grid.Column="0"
+                                FontFamily="{StaticResource MonoFamily}"
+                                PlaceholderText="安装容量 kWh" />
+                            <Button
+                                Grid.Column="1"
+                                Click="OnSatisfiedDaysClick"
+                                Content="算天数" />
+                        </Grid>
+                        <TextBlock
+                            x:Name="SatisfiedDaysText"
+                            FontFamily="{StaticResource MonoFamily}"
+                            FontSize="{StaticResource FsCaption}"
+                            Text=""
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <Rectangle Height="1" HorizontalAlignment="Stretch" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                    <!-- 暂不可用：原 Fusion 有、WinUI 版未实现。禁用 + tooltip 而不是「点了弹说明」——
+                         假按钮会让整排按钮都变得不可信。 -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Style="{StaticResource TextCaption}" Text="暂不可用（原 Fusion 有，WinUI 版未实现）" />
+                        <Button
+                            HorizontalAlignment="Stretch"
+                            Content="负荷模拟…"
+                            IsEnabled="False"
+                            Opacity="0.5"
+                            ToolTipService.ToolTip="WinUI 版尚未实现。原 Fusion 支持 25 个行业模板生成模拟负荷曲线，用于无真实数据时试算。" />
+                        <Button
+                            HorizontalAlignment="Stretch"
+                            Content="光伏返送详情…"
+                            IsEnabled="False"
+                            Opacity="0.5"
+                            ToolTipService.ToolTip="WinUI 版尚未实现。原 Fusion 可查看倒送时段、倒送量与可存电量明细。" />
+                        <Button
+                            HorizontalAlignment="Stretch"
+                            Content="恢复原始数据"
+                            IsEnabled="False"
+                            Opacity="0.5"
+                            ToolTipService.ToolTip="与负荷模拟配套：只有模拟改过数据才有可恢复的状态。模拟未实现，所以这里也无状态可恢复。" />
+                    </StackPanel>
                 </StackPanel>
             </ScrollViewer>
 

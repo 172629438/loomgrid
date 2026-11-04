@@ -51,4 +51,16 @@ public sealed class CalcApi
         return data.Deserialize<MonthlySpacesResult>(Opts)
                ?? throw new ApiException("月度空间返回了空数据");
     }
+
+    /// <summary>反向测算：容量 → 能满足的天数。逐日判定，不是除法。</summary>
+    public async Task<SatisfiedDaysResult> SatisfiedDaysAsync(
+        SatisfiedDaysRequest req, CancellationToken ct = default)
+    {
+        JsonElement data = await _api
+            .PostDataAsync(ApiPaths.CalcSatisfiedDays, req, ct)
+            .ConfigureAwait(false);
+
+        return data.Deserialize<SatisfiedDaysResult>(Opts)
+               ?? throw new ApiException("满足天数返回了空数据");
+    }
 }
