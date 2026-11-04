@@ -36,4 +36,19 @@ public sealed class CalcApi
         return data.Deserialize<SpacesResult>(Opts)
                ?? throw new ApiException("充放空间返回了空数据");
     }
+
+    /// <summary>
+    /// 跨分组按月份聚合的月度表。
+    /// 同月份后者覆盖前者（与 Fusion 一致），<c>source_count &gt; 1</c> 时要在界面上标明。
+    /// </summary>
+    public async Task<MonthlySpacesResult> MonthlySpacesAsync(
+        MonthlySpacesRequest req, CancellationToken ct = default)
+    {
+        JsonElement data = await _api
+            .PostDataAsync(ApiPaths.CalcMonthlySpaces, req, ct)
+            .ConfigureAwait(false);
+
+        return data.Deserialize<MonthlySpacesResult>(Opts)
+               ?? throw new ApiException("月度空间返回了空数据");
+    }
 }

@@ -207,6 +207,34 @@ public sealed partial class V4CapacityPage : Page
                 AppLog.Write($"V4：每日表获取失败 {ex.Code} {ex.Message}");
                 DailySubText.Text = $"每日明细不可用：{ex.Message}";
             }
+
+            // 月度表：跨所有已加载 session 按月份聚合（同月份后者覆盖前者）
+            try
+            {
+                var sids = Workspace.Current.Files
+                    .Where(f => f.SessionId is not null)
+                    .Select(f => f.SessionId!)
+                    .Distinct()
+                    .ToList();
+                if (sids.Count > 0)
+                {
+                    var mr = await api.MonthlySpacesAsync(new MonthlySpacesRequest
+                    {
+                        SessionIds = sids,
+                        Segments = segs,
+                        Billing = billing,
+                        Mode = ModeKey,
+                        RatedPower = rated,
+                        IgnoreNegative = IgnoreNegativeCheck.IsChecked == true,
+                    });
+                    RenderMonthly(mr);
+                }
+            }
+            catch (ApiException ex)
+            {
+                AppLog.Write($"V4：月度表获取失败 {ex.Code} {ex.Message}");
+                MonthlySubText.Text = $"月度表不可用：{ex.Message}";
+            }
         }
         catch (ApiException ex)
         {
@@ -249,6 +277,113 @@ public sealed partial class V4CapacityPage : Page
     }
 
     // ── 每日明细 ───────────────────────────────────────────
+
+    private void RenderMonthly(MonthlySpacesResult r)
+    {
+        MonthlyGrid.Children.Clear();
+        MonthlyGrid.ColumnDefinitions.Clear();
+        MonthlyGrid.RowDefinitions.Clear();
+
+        if (r.Months.Count == 0)
+        {
+            MonthlySubText.Text = "没有月度数据（先完成列映射）";
+            return;
+        }
+
+        int nSeg = r.Columns.Count;
+        int totalCols = 1 + nSeg + 1;      // 月份 + 各段 + 最小段空间
+
+        for (int c = 0; c < totalCols; c++)
+        {
+            bool fixedWidth = c == 0 || c == totalCols - 1;
+            MonthlyGrid.ColumnDefinitions.Add(new ColumnDefinition
+            {
+                Width = fixedWidth
+                    ? new GridLength(c == 0 ? 210 : 130)
+                    : new GridLength(1, GridUnitType.Star),
+            });
+        }
+        MonthlyGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        for (int i = 0; i < r.Months.Count; i++)
+            MonthlyGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        AddMonthlyCell("月份", 0, 0, mono: false, header: true);
+        for (int i = 0; i < nSeg; i++)
+            AddMonthlyCell(r.Columns[i], 1 + i, 0, mono: false, header: true);
+        AddMonthlyCell(r.MinSegmentLabel, totalCols - 1, 0, mono: true, header: true);
+
+        var monoFont = (Microsoft.UI.Xaml.Media.FontFamily)Application.Current.Resources["MonoFamily"];
+        var secondary = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+
+        for (int m = 0; m < r.Months.Count; m++)
+        {
+            var mo = r.Months[m];
+            int row = m + 1;
+
+            // 月份列：主行是月份，副标说明点数和「同月多源」——
+            // 措辞写「取后加载的那个」而不是「合并」，后者会让用户以为数据相加。
+            var sp = new StackPanel { Spacing = 0, Padding = new Thickness(4, 3, 4, 3) };
+            sp.Children.Add(new TextBlock
+            {
+                Text = mo.Month,
+                FontSize = 12.5,
+                FontFamily = monoFont,
+            });
+            sp.Children.Add(new TextBlock
+            {
+                Text = mo.SourceCount > 1
+                    ? $"{mo.SourceCount} 个文件同月，本行取后加载的那个"
+                    : $"{mo.Resolution} 点",
+                FontSize = 10.5,
+                Foreground = secondary,
+                TextWrapping = TextWrapping.Wrap,
+            });
+            Grid.SetColumn(sp, 0);
+            Grid.SetRow(sp, row);
+            MonthlyGrid.Children.Add(sp);
+
+            for (int i = 0; i < nSeg; i++)
+            {
+                string text = i < mo.Segments.Count ? mo.Segments[i].Value.ToString("N1") : "—";
+                AddMonthlyCell(text, 1 + i, row, mono: true, header: false);
+            }
+            AddMonthlyCell(mo.MinSegment.ToString("N1"), totalCols - 1, row, mono: true, header: false);
+        }
+
+        MonthlySubText.Text = r.HiddenZeroSegments > 0
+            ? $"最小段空间 = 本月各段中最小的那一段（充+放）；已隐藏 {r.HiddenZeroSegments} 个全零段列"
+            : "最小段空间 = 本月各段中最小的那一段（充+放）";
+    }
+
+    private void AddMonthlyCell(string text, int column, int row, bool mono, bool header)
+    {
+        var tb = new TextBlock
+        {
+            Text = text,
+            FontSize = 12,
+            Padding = new Thickness(4, 3, 4, 3),
+            TextAlignment = mono ? TextAlignment.Right : TextAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        if (mono)
+        {
+            tb.FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)
+                Application.Current.Resources["MonoFamily"];
+        }
+        if (header || !mono)
+        {
+            tb.Foreground = (Microsoft.UI.Xaml.Media.Brush)
+                Application.Current.Resources["TextFillColorSecondaryBrush"];
+        }
+        if (header)
+        {
+            tb.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
+        }
+
+        Grid.SetColumn(tb, column);
+        Grid.SetRow(tb, row);
+        MonthlyGrid.Children.Add(tb);
+    }
 
     private void RenderDaily(SpacesResult sp)
     {

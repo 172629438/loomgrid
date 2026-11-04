@@ -82,6 +82,7 @@ def main() -> int:
         m0 = months[0]
         check(m0["month"] == "2026-01", f"月份 = 2026-01（{m0['month']}）", "")
         check(m0["resolution"] == 96, f"resolution = 96（{m0['resolution']}）", "")
+        check(m0.get("source_count") == 1, f"source_count = 1（{m0.get('source_count')}）", "")
         check(isinstance(m0.get("min_segment"), (int, float)),
               f"min_segment 是数字（{m0.get('min_segment')}）", str(m0.get("min_segment")))
         check(m0["min_segment"] == m0["min_segment"], "min_segment 不是 NaN", "")
@@ -102,6 +103,11 @@ def main() -> int:
         d2 = b2.get("data") or {}
         m2 = d2.get("months") or []
         check(len(m2) == 1, f"仍然 1 行（{len(m2)}）——同月份被覆盖", str([x["month"] for x in m2]))
+        if m2:
+            check(m2[0].get("source_count") == 2,
+                  f"source_count = 2（{m2[0].get('source_count')}）", str(m2[0].get("source_count")))
+            srcs = m2[0].get("sources") or []
+            check(len(srcs) == 2, f"sources 列出 2 个来源：{srcs}", str(srcs))
         print(f"    两个 session 都是 2026-01，输出 {len(m2)} 行")
 
     print("\n[③ 全零段隐藏]")

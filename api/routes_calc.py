@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 import numpy as np
 from fastapi import APIRouter
@@ -311,6 +312,9 @@ def monthly_spaces(req: MonthlySpacesRequest):
     #    直接引用 provider 的返回会污染它的缓存，影响后续调用。
     monthly: dict[str, dict] = {}
     raw_resolution: dict[str, int] = {}
+    # 来源追踪：同月份赋值是静默覆盖，痕迹不记就彻底没了。
+    # 用户看到「2 个文件同月」后第一个问题一定是「哪两个」，所以连文件名一起存。
+    sources: dict[str, list[str]] = {}
     for sid in req.session_ids:
         sess = get_session(sid)
         if not sess:
@@ -334,6 +338,12 @@ def monthly_spaces(req: MonthlySpacesRequest):
                 "asset": gs.asset_value,
             }
             raw_resolution[key] = int(arr.shape[1])
+            # 用**文件名**而不是 asset_value 做来源标识：
+            # 没有资产列时 asset_value 恒为「未命名」，两个来源会看不出区别。
+            # 用户要回答的是「哪两个文件同月」，文件名才是答案。
+            fname = os.path.basename(getattr(gs, "file_path", "") or "")
+            label = fname or str(gs.asset_value or key)
+            sources.setdefault(key, []).append(label)
 
     if not monthly:
         return _err("CALC_NO_DATA", "没有可用的月度数据")
@@ -374,6 +384,7 @@ def monthly_spaces(req: MonthlySpacesRequest):
             "resolution": raw_resolution.get(month, 0),
             "asset": data.get("asset"),
             "totals": totals,
+            "sources": sources.get(month, []),
         })
 
     if not per_month:
@@ -394,6 +405,10 @@ def monthly_spaces(req: MonthlySpacesRequest):
             "month": m["month"],
             "resolution": m["resolution"],
             "asset": m.get("asset"),
+            "sources": m["sources"],
+            # 同月份后者覆盖前者：>1 时 UI 用副标「N 个文件同月，本行取后加载的那个」。
+            # 措辞不叫「合并」——用户会以为数据相加。
+            "source_count": len(m["sources"]),
             "segments": [
                 {"label": labels[i] if i < len(labels) else f"段{i+1}", "value": v}
                 for i, v in zip(keep, vals)
@@ -408,6 +423,7 @@ def monthly_spaces(req: MonthlySpacesRequest):
         "hidden_zero_segments": hidden,
         "min_segment_label": "最小段空间",
         "note": "同月份以后加载者为准（与 Fusion 一致）；"
+                "source_count>1 表示该月有多个文件，本行取后加载的那个；"
                 "resolution 是该月原始点数，插值后已统一到最细粒度。",
     }).model_dump()
 

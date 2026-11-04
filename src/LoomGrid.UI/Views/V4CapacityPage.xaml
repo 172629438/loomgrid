@@ -141,6 +141,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0" ColumnSpacing="12">
@@ -247,6 +248,32 @@
 
                     <ScrollViewer Grid.Row="5" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                         <Grid x:Name="DailyGrid" Padding="4,0,4,4" />
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- 月度表：跨文件按月份聚合。同月份后者覆盖前者（Fusion 既有行为）。 -->
+                <!-- 高度用 Auto + 内部 MaxHeight：固定高会把每日明细挤没（实跑已撞过）。 -->
+                <Grid Grid.Row="3" RowSpacing="4">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Style="{StaticResource TextCaption}" Text="月度表（跨文件按月份聚合）" />
+                    <TextBlock
+                        x:Name="MonthlySubText"
+                        Grid.Row="1"
+                        Style="{StaticResource TextCaption}"
+                        Text="最小段空间 = 本月各段中最小的那一段（充+放）；「N 源」表示该月有多个文件，本行取后加载的那个"
+                        TextWrapping="Wrap" />
+
+                    <ScrollViewer
+                        Grid.Row="2"
+                        MaxHeight="180"
+                        HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto">
+                        <Grid x:Name="MonthlyGrid" Padding="4,0,4,4" />
                     </ScrollViewer>
                 </Grid>
             </Grid>

@@ -88,3 +88,48 @@ public sealed record CapacityResult
     [JsonPropertyName("capacity_suggestion_installed_kwh")] public double? CapacitySuggestionInstalledKwh { get; init; }
     [JsonPropertyName("hints")] public List<string> Hints { get; init; } = new();
 }
+
+// ───────────────────────── 月度表（跨分组按月份聚合） ─────────────────────────
+
+/// <summary>月度表的请求。session_ids 是全部已加载的 session，不是单个。</summary>
+public sealed record MonthlySpacesRequest
+{
+    [JsonPropertyName("session_ids")] public required List<string> SessionIds { get; init; }
+    [JsonPropertyName("segments")] public List<CalcSegment>? Segments { get; init; }
+    [JsonPropertyName("billing")] public CalcBilling? Billing { get; init; }
+    [JsonPropertyName("mode")] public string Mode { get; init; } = "A";
+    [JsonPropertyName("rated_power")] public double? RatedPower { get; init; }
+    [JsonPropertyName("ignore_negative")] public bool IgnoreNegative { get; init; }
+}
+
+public sealed record MonthlySegmentValueDto
+{
+    [JsonPropertyName("label")] public string Label { get; init; } = "";
+    [JsonPropertyName("value")] public double Value { get; init; }
+}
+
+/// <summary>
+/// 月度表的一行。
+/// <para><c>source_count &gt; 1</c> 表示该月有多个文件，**本行取后加载的那个**（前者被覆盖）。
+/// 副标写「N 个文件同月，本行取后加载的那个」——不写「合并」，用户会以为数据相加。</para>
+/// <para><c>resolution</c> 是该月原始点数，用来回答「这月和那月可比吗」。</para>
+/// </summary>
+public sealed record MonthlyMonthDto
+{
+    [JsonPropertyName("month")] public string Month { get; init; } = "";
+    [JsonPropertyName("resolution")] public int Resolution { get; init; }
+    [JsonPropertyName("asset")] public string? Asset { get; init; }
+    [JsonPropertyName("sources")] public List<string> Sources { get; init; } = new();
+    [JsonPropertyName("source_count")] public int SourceCount { get; init; }
+    [JsonPropertyName("segments")] public List<MonthlySegmentValueDto> Segments { get; init; } = new();
+    [JsonPropertyName("min_segment")] public double MinSegment { get; init; }
+}
+
+public sealed record MonthlySpacesResult
+{
+    [JsonPropertyName("months")] public List<MonthlyMonthDto> Months { get; init; } = new();
+    [JsonPropertyName("columns")] public List<string> Columns { get; init; } = new();
+    [JsonPropertyName("hidden_zero_segments")] public int HiddenZeroSegments { get; init; }
+    [JsonPropertyName("min_segment_label")] public string MinSegmentLabel { get; init; } = "最小段空间";
+    [JsonPropertyName("note")] public string Note { get; init; } = "";
+}
