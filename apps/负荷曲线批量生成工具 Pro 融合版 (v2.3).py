@@ -52,6 +52,14 @@ if sys.stderr is None:
 # 主程序可能被 spec_from_file_location / PyInstaller 以多种方式加载，
 # 不能假定仓库根已在 sys.path 里；这里主动补一次（幂等）。
 _PKG_ROOT = os.path.dirname(os.path.abspath(__file__))
+# v2.3.9fix(P0): 主程序被收纳到 apps/ 之后，__file__ 的目录是 apps/，
+# 而 core/ services/ plotting/ 仍在仓库根 → 直接双击该文件会直接报
+# ModuleNotFoundError: No module named 'core'。向上找一层，取含 core/ 的目录。
+# 打包后（PyInstaller 已把模块打进去）这段不生效，不影响产物。
+if not os.path.isdir(os.path.join(_PKG_ROOT, 'core')):
+    _up = os.path.dirname(_PKG_ROOT)
+    if os.path.isdir(os.path.join(_up, 'core')):
+        _PKG_ROOT = _up
 if _PKG_ROOT not in sys.path:
     sys.path.insert(0, _PKG_ROOT)
 from core.models import (  # noqa: E402
