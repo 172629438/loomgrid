@@ -23,9 +23,21 @@ public sealed record ExportPreviewResult
 }
 
 /// <summary>
+/// 分组级参数覆盖。字段为 null 时用请求里的全局值。
+/// 对应 api/routes_export.py 的 GroupOverride。
+/// </summary>
+public sealed record GroupOverride
+{
+    [JsonPropertyName("index")] public required int Index { get; init; }
+    [JsonPropertyName("multiplier")] public double? Multiplier { get; init; }
+    [JsonPropertyName("billing")] public Dictionary<string, object?>? Billing { get; init; }
+    [JsonPropertyName("plot_options")] public Dictionary<string, object?>? PlotOptions { get; init; }
+}
+
+/// <summary>
 /// POST /api/export/run 的请求体。
-/// **注意**：multiplier / billing / plot_options 都是「整批一个值」，
-/// 后端不支持按 group 覆盖——逐行不同倍率需要按值分组多次调用。
+/// **注意**：multiplier / billing / plot_options 是「整批一个值」；
+/// 逐行不同值靠 GroupOverrides（不传则完全等同整批行为）。
 /// </summary>
 public sealed record ExportRunRequest
 {
@@ -43,6 +55,9 @@ public sealed record ExportRunRequest
     [JsonPropertyName("billing")] public Dictionary<string, object?>? Billing { get; init; }
     [JsonPropertyName("price_periods")] public List<object?>? PricePeriods { get; init; }
     [JsonPropertyName("export_midwide")] public bool ExportMidwide { get; init; }
+
+    /// <summary>分组级覆盖（可选）。不传 = 完全等同原有整批行为。</summary>
+    [JsonPropertyName("group_overrides")] public List<GroupOverride>? GroupOverrides { get; init; }
 
     /// <summary>与 services/export.py 的 DEFAULT_TITLE_TEMPLATE 保持一致。</summary>
     public const string DefaultTemplate = "{table_no}_{year_month}_负荷曲线";

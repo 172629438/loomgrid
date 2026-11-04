@@ -361,9 +361,8 @@ public sealed partial class V2MappingPage : Page
         }
 
         int groups = Workspace.Current.Groups.Count;
-        AppLog.Write($"V2：全部映射完成，共 {groups} 个分组，准备进 V3");
-        await ShowMessageAsync("准备进入预览",
-            $"共 {groups} 个分组，可以开始看曲线了。\n\nV3 预览页还没接上——下一步是分组树 + 曲线 + 策略参数。");
+        AppLog.Write($"V2：全部映射完成，共 {groups} 个分组，进入 V5");
+        Frame.Navigate(typeof(V5ExportPage));
     }
 
     private async Task ShowMessageAsync(string title, string text)
