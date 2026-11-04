@@ -204,6 +204,9 @@ public sealed partial class V3PreviewPage : Page
 
         var px = e.GetCurrentPoint(PlotView).Position;
         if (px.X < 0 || px.Y < 0) return;
+        // 诊断：先确认事件到不到。之前两次换绑定层级都无效，但没区分
+        // 「事件未触发」与「触发了但浮层未显示」——盲改。
+        AppLog.Write($"V3 探针：PointerMoved ({px.X:0},{px.Y:0}) data={(_data is null ? "null" : "ok")}");
 
         int nPts = _data.TimeLabels.Count;
         if (nPts == 0) return;

@@ -113,7 +113,10 @@
                  探针用 XAML 浮层而不是 plot.Add.Text：后者每次鼠标移动都重绘整个 Plot
                  （96 点 × N 天的曲线，每秒几十次），必然卡。浮层只改 Canvas 位置，
                  ScottPlot 一次不重绘。IsHitTestVisible=False 让浮层不吃鼠标事件。 -->
-            <Grid Grid.Column="1" PointerMoved="OnPointerMoved" PointerExited="OnPointerExited">
+            <!-- Background="Transparent" 不能省：WinUI 里 Background 为 null 的 Panel **不参与命中测试**，
+                 指针事件根本不会触达。之前两次 PointerMoved 不生效（日志 0 行）就是这个原因。
+                 注意 Transparent 不是 null：Transparent 能命中，null 不能。 -->
+            <Grid Grid.Column="1" Background="Transparent" PointerMoved="OnPointerMoved" PointerExited="OnPointerExited">
                 <scott:WinUIPlot x:Name="PlotView" />
                 <Border
                     x:Name="Probe"
