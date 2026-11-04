@@ -89,7 +89,38 @@ def assess_confidence(mapping: dict, df: pd.DataFrame) -> Confidence:
     return Confidence(score=round(score, 2), reasons=reasons)
 
 
+def _cleanup_stale_uploads(max_age_hours: int = 24) -> int:
+    """清理过期的上传临时目录。
+
+    在创建本进程的目录之前调用。只删确实老了的，避免误伤同时运行的另一个实例。
+    返回清理数量。
+    """
+    import shutil
+    import time
+
+    base = tempfile.gettempdir()
+    cutoff = time.time() - max_age_hours * 3600
+    removed = 0
+    try:
+        for name in os.listdir(base):
+            if not name.startswith("loomgrid-upload-"):
+                continue
+            full = os.path.join(base, name)
+            try:
+                if os.path.isdir(full) and os.path.getmtime(full) < cutoff:
+                    shutil.rmtree(full, ignore_errors=True)
+                    removed += 1
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return removed
+
+
+_STALE = _cleanup_stale_uploads()
 _UPLOAD_DIR = tempfile.mkdtemp(prefix="loomgrid-upload-")
+if _STALE:
+    logging.getLogger(__name__).info("清理了 %d 个过期上传目录", _STALE)
 
 
 @router.post("/upload", response_model=Envelope)
