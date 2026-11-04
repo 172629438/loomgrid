@@ -35,6 +35,10 @@ public sealed partial class MainWindow : Window
 
         RootFrame.Navigate(typeof(V1WorkbenchPage));
 
+        // dev-only：LGM_AUTO_E2E=1 时自动跑一遍数据链路（不点任何按钮）。
+        // 生产环境不设该变量，AutoE2E 内部直接 return。
+        AutoE2E.RunIfRequested();
+
         Closed += OnClosed;
     }
 

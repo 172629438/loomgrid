@@ -413,7 +413,15 @@ public sealed partial class V1WorkbenchPage : Page
             "\n" +
 
             "上述按钮在界面上均为禁用状态（灰），hover 有说明。\n" +
-            "它们不是 bug，是本版未实现。";
+            "它们不是 bug，是本版未实现。\n\n" +
+            "快捷键（按住 Alt 再按字母；每页 B 都是返回上一屏）\n" +
+            "　V1　A 添加文件　D 移除选中　L 清空　N 识别列\n" +
+            "　V2　C 确认这个文件　N 预览曲线\n" +
+            "　V3　P 上一组　N 下一组　E 导出\n" +
+            "　V4　S 负荷模拟　R 恢复原始　C 测算\n" +
+            "　V5　X 开始导出　C 容量测算　V 查看结果\n" +
+            "　V6　O 打开输出目录　R 仅重试失败项";
+
 
         var dlg = new ContentDialog
         {

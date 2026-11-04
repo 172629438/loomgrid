@@ -46,7 +46,8 @@
                 Orientation="Horizontal"
                 Spacing="8"
                 VerticalAlignment="Center">
-                <Button x:Name="AddButton" AccessKey="A" Click="OnAddClick" Content="添加文件" />
+                <Button x:Name="AddButton" AccessKey="A" Click="OnAddClick" Content="添加文件"
+                        ToolTipService.ToolTip="快捷键 Alt+A" />
                 <Button x:Name="RemoveButton" AccessKey="D" Click="OnRemoveClick" Content="移除选中" IsEnabled="False" />
                 <Button x:Name="ClearButton" AccessKey="L" Click="OnClearClick" Content="清空" IsEnabled="False" />
                 <Button
@@ -55,6 +56,7 @@
                     Click="OnNextClick"
                     Content="下一步：识别列"
                     IsEnabled="False"
+                    ToolTipService.ToolTip="快捷键 Alt+N"
                     Style="{StaticResource AccentButtonStyle}" />
             </StackPanel>
         </Grid>

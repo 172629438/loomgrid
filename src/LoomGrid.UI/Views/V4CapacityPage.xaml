@@ -54,7 +54,7 @@
 
                     <Button x:Name="SimulateBtn" AccessKey="S" HorizontalAlignment="Stretch"
                             Content="负荷模拟…" Click="OnSimulateClick"
-                            ToolTipService.ToolTip="用行业模板生成一条模拟负荷曲线（25 个模板）。模拟后本章测算与 V3 预览都改用模拟数据，可随时切回原始。" />
+                            ToolTipService.ToolTip="快捷键 Alt+S。用行业模板生成一条模拟负荷曲线（25 个模板）；模拟后本章测算与 V3 预览都改用模拟数据，可随时切回原始。" />
 
                     <TextBlock Style="{StaticResource TextCaption}" Text="分组" />
                     <ComboBox x:Name="GroupCombo" HorizontalAlignment="Stretch" SelectionChanged="OnParamChanged" />

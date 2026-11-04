@@ -132,8 +132,10 @@
             <TextBlock x:Name="StatusText" Grid.Column="0" FontSize="{StaticResource FsCaption}" Text="" />
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                 <Button Click="OnBackClick" AccessKey="B" Content="返回工作台" />
-                <Button x:Name="ConfirmButton" AccessKey="C" Click="OnConfirmClick" Content="确认这个文件" IsEnabled="False" Style="{StaticResource AccentButtonStyle}" />
-                <Button x:Name="NextButton" AccessKey="N" Click="OnNextClick" Content="下一步：预览曲线" IsEnabled="False" />
+                <Button x:Name="ConfirmButton" AccessKey="C" Click="OnConfirmClick" Content="确认这个文件" IsEnabled="False" Style="{StaticResource AccentButtonStyle}"
+                        ToolTipService.ToolTip="快捷键 Alt+C" />
+                <Button x:Name="NextButton" AccessKey="N" Click="OnNextClick" Content="下一步：预览曲线" IsEnabled="False"
+                        ToolTipService.ToolTip="快捷键 Alt+N" />
             </StackPanel>
         </Grid>
     </Grid>
