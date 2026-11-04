@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import multiprocessing as mp
@@ -126,10 +127,15 @@ class Config:
     def __init__(self):
         self._lock = threading.RLock()
         self.restored_from_backup = False
+        # v2.3.9fix(P2-3): 备份目录必须先建。原顺序是先 _load() 再 makedirs，
+        # 配置损坏且目录不存在时 _load → _restore_backup → os.listdir 直接
+        # 抛 FileNotFoundError，程序启动即崩，错误信息还不指向配置文件。
+        os.makedirs(self.BACKUP_DIR, exist_ok=True)
         self.cfg = self._load()
         with self._lock:
             for key, default_val in self.DEFAULT_CONFIG.items():
-                self.cfg.setdefault(key, default_val)
+                # v2.3.9fix(P2-9): 深拷贝，避免实例与类属性共享同一个嵌套 dict
+                self.cfg.setdefault(key, copy.deepcopy(default_val))
             os.makedirs(self.BACKUP_DIR, exist_ok=True)
             self._migrate()
             self._validate_highlight_dependency()
@@ -238,7 +244,13 @@ class Config:
         return {}
 
     def _restore_backup(self):
-        backups = sorted([f for f in os.listdir(self.BACKUP_DIR) if f.endswith('.json')], reverse=True)
+        # v2.3.9fix(P2-3): 目录不存在时 os.listdir 会抛 FileNotFoundError
+        try:
+            names = os.listdir(self.BACKUP_DIR)
+        except OSError as e:
+            log.warning(f"备份目录不可读，跳过备份恢复: {e}")
+            names = []
+        backups = sorted([f for f in names if f.endswith('.json')], reverse=True)
         for bk in backups:
             try:
                 with open(os.path.join(self.BACKUP_DIR,bk),'r',encoding='utf-8') as f:
@@ -250,7 +262,7 @@ class Config:
                 log.debug(f"备份 {bk} 恢复失败", exc_info=True)
         log.critical("无法恢复任何配置，使用硬编码默认配置")
         self.restored_from_backup = True
-        return self.DEFAULT_CONFIG.copy()
+        return copy.deepcopy(self.DEFAULT_CONFIG)
 
     def save(self):
         with self._lock:
@@ -339,13 +351,15 @@ class Config:
         return fnmatch.fnmatch(t.lower(),p.lower())
 
     def _valid_map(self,m,col):
-        if m['date_col'] not in col:
+        # v2.3.9fix(P2-2): 旧版（v13 及更早）写下的 column_fingerprints 条目
+        # 没有 format_type 键，硬取会 KeyError；recommend 的指纹循环没有 try。
+        if m.get('date_col') not in col:
             return False
         if m.get('time_col') and m['time_col'] not in col:
             return False
         if m.get('asset_col') and m['asset_col'] not in col:
             return False
-        if m['format_type'] in ('wide', 'wide_transposed', 'accumulated'):
+        if m.get('format_type', 'long') in ('wide', 'wide_transposed', 'accumulated'):
             load_cols = m.get('load_col', [])
             if isinstance(load_cols, str):
                 load_cols = [load_cols]
@@ -353,7 +367,7 @@ class Config:
                 if c not in col:
                     return False
         else:
-            if m['load_col'] not in col:
+            if m.get('load_col') not in col:
                 return False
         return True
 
