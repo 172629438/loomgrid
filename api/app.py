@@ -24,6 +24,7 @@ from api.routes_export import router as export_router
 from api.routes_ingest import router as ingest_router
 from api.routes_plot import router as plot_router
 from api.routes_preview import router as preview_router
+from api.routes_simulate import router as simulate_router
 from api.ws_progress import router as ws_router
 from api.schemas import Envelope
 
@@ -64,6 +65,7 @@ app.include_router(preview_router)
 app.include_router(calc_router)
 app.include_router(plot_router)
 app.include_router(export_router)
+app.include_router(simulate_router)
 app.include_router(ws_router)
 
 

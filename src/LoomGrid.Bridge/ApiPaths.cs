@@ -16,6 +16,8 @@ public static class ApiPaths
     public const string CalcCapacity = "api/calc/capacity";
     public const string CalcMonthlySpaces = "api/calc/monthly-spaces";
     public const string CalcSatisfiedDays = "api/calc/satisfied-days";
+    public const string SimulateTemplates = "api/simulate/templates";
+    public const string SimulateLoad = "api/simulate/load";
     public const string ExportRun = "api/export/run";
     public const string ExportStatus = "api/export/status";
     public const string ExportReport = "api/export/report";
