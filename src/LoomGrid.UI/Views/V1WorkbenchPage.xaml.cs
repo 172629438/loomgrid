@@ -26,7 +26,7 @@ public sealed partial class V1WorkbenchPage : Page
     private static readonly SolidColorBrush HoverBorder = new(Color.FromArgb(255, 0x4E, 0xA8, 0xDE));
     private static readonly SolidColorBrush RejectBorder = new(Color.FromArgb(255, 0xD1, 0x34, 0x38));
 
-    private readonly List<WorkFile> _files = new();
+    private readonly List<WorkFile> Files = Workspace.Current.Files;
     private readonly SemaphoreSlim _inspectGate = new(3);
     private bool _dragAccepted;
     private bool _loaded;
@@ -170,10 +170,10 @@ public sealed partial class V1WorkbenchPage : Page
         var fresh = new List<WorkFile>();
         foreach (var path in paths)
         {
-            if (_files.Any(f => string.Equals(f.FullPath, path, StringComparison.OrdinalIgnoreCase)))
+            if (Files.Any(f => string.Equals(f.FullPath, path, StringComparison.OrdinalIgnoreCase)))
                 continue;
             var file = new WorkFile(path);
-            _files.Add(file);
+            Files.Add(file);
             fresh.Add(file);
         }
 
@@ -277,8 +277,8 @@ public sealed partial class V1WorkbenchPage : Page
         var selected = FileList.SelectedItems.Cast<WorkFile>().ToList();
         if (selected.Count == 0) return;
 
-        foreach (var file in selected) _files.Remove(file);
-        AppLog.Write($"V1：移除 {selected.Count} 个文件，剩 {_files.Count}");
+        foreach (var file in selected) Files.Remove(file);
+        AppLog.Write($"V1：移除 {selected.Count} 个文件，剩 {Files.Count}");
         FileList.SelectedItems.Clear();
         RefreshList();
         UpdateStatus();
@@ -286,9 +286,9 @@ public sealed partial class V1WorkbenchPage : Page
 
     private void OnClearClick(object sender, RoutedEventArgs e)
     {
-        if (_files.Count == 0) return;
-        int n = _files.Count;
-        _files.Clear();
+        if (Files.Count == 0) return;
+        int n = Files.Count;
+        Files.Clear();
         AppLog.Write($"V1：清空 {n} 个文件");
         FileList.ItemsSource = null;
         RefreshList();
@@ -299,15 +299,15 @@ public sealed partial class V1WorkbenchPage : Page
 
     private void RefreshList()
     {
-        bool hasFiles = _files.Count > 0;
+        bool hasFiles = Files.Count > 0;
         DropZone.Visibility = hasFiles ? Visibility.Collapsed : Visibility.Visible;
         ListArea.Visibility = hasFiles ? Visibility.Visible : Visibility.Collapsed;
 
         if (!hasFiles) return;
 
         var sorted = _sortAscending
-            ? _files.OrderBy(KeyOf).ThenBy(f => f.FileName, StringComparer.OrdinalIgnoreCase)
-            : _files.OrderByDescending(KeyOf).ThenBy(f => f.FileName, StringComparer.OrdinalIgnoreCase);
+            ? Files.OrderBy(KeyOf).ThenBy(f => f.FileName, StringComparer.OrdinalIgnoreCase)
+            : Files.OrderByDescending(KeyOf).ThenBy(f => f.FileName, StringComparer.OrdinalIgnoreCase);
 
         FileList.ItemsSource = sorted.ToList();
     }
@@ -341,7 +341,7 @@ public sealed partial class V1WorkbenchPage : Page
         RemoveButton.IsEnabled = FileList.SelectedItems.Count > 0;
     }
 
-    private int Count(FileState state) => _files.Count(f => f.State == state);
+    private int Count(FileState state) => Files.Count(f => f.State == state);
 
     private void UpdateStatus()
     {
@@ -349,17 +349,17 @@ public sealed partial class V1WorkbenchPage : Page
         int warn = Count(FileState.NeedsConfirm);
         int failed = Count(FileState.Failed);
         int busy = Count(FileState.Inspecting) + Count(FileState.Pending);
-        long totalBytes = _files.Sum(f => f.SizeBytes);
+        long totalBytes = Files.Sum(f => f.SizeBytes);
 
         string busyText = busy > 0 ? $" · 处理中 {busy}" : "";
         string sizeText = totalBytes > 0 ? $" · 总体积 {FormatSize(totalBytes)}" : "";
-        StatusLeftText.Text = $"文件 {_files.Count} · 就绪 {ready} · 需确认 {warn} · 失败 {failed}{busyText}{sizeText}";
+        StatusLeftText.Text = $"文件 {Files.Count} · 就绪 {ready} · 需确认 {warn} · 失败 {failed}{busyText}{sizeText}";
 
-        ClearButton.IsEnabled = _files.Count > 0;
+        ClearButton.IsEnabled = Files.Count > 0;
         NextButton.IsEnabled = busy == 0 && ready + warn > 0;
-        SubtitleText.Text = _files.Count == 0
+        SubtitleText.Text = Files.Count == 0
             ? "拖入 Excel 或 CSV，或点「添加文件」"
-            : $"共 {_files.Count} 个文件，点「下一步：识别列」继续";
+            : $"共 {Files.Count} 个文件，点「下一步：识别列」继续";
     }
 
     private static string FormatSize(long bytes) => bytes switch
@@ -424,27 +424,17 @@ public sealed partial class V1WorkbenchPage : Page
 
     private async void OnNextClick(object sender, RoutedEventArgs e)
     {
-        var blocked = _files.Where(f => f.State == FileState.Failed).ToList();
-        var needCheck = _files.Where(f => f.State == FileState.NeedsConfirm).ToList();
-        var usable = _files.Where(f => f.CanContinue).ToList();
-
+        var usable = Files.Where(f => f.CanContinue).ToList();
         if (usable.Count == 0)
         {
-            await ShowMessageAsync("没有可继续的文件", "所有文件都识别失败了。双击行看原因，或先把文件修好再拖进来。");
+            await ShowMessageAsync("没有可继续的文件",
+                "所有文件都识别失败了。双击行看原因，或先把文件修好再拖进来。");
             return;
         }
 
-        var lines = new List<string>
-        {
-            $"可继续 {usable.Count} 个文件。",
-        };
-        if (needCheck.Count > 0) lines.Add($"其中 {needCheck.Count} 个需要你确认映射（V2 会逐项让你核对）。");
-        if (blocked.Count > 0) lines.Add($"{blocked.Count} 个失败的文件将被跳过。");
-        lines.Add("");
-        lines.Add("V2 映射页还没接上——这一步的下一步是逐文件确认列映射。");
-
-        AppLog.Write($"V1：点下一步，可继续 {usable.Count}，需确认 {needCheck.Count}，失败 {blocked.Count}");
-        await ShowMessageAsync("准备进入 V2", string.Join("\n", lines));
+        int failed = Files.Count(f => f.State == FileState.Failed);
+        AppLog.Write($"V1：进入 V2，可继续 {usable.Count} 个，失败 {failed} 个");
+        Frame.Navigate(typeof(V2MappingPage));
     }
 
     private async Task ShowMessageAsync(string title, string text)

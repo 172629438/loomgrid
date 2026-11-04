@@ -178,7 +178,26 @@ public sealed class WorkFile : INotifyPropertyChanged
     // inspect 结果缓存（进入 V2 时不用重新请求）
     public InspectResult? Inspect { get; set; }
     public SheetInfo? ChosenSheet { get; set; }
-    public string? SessionId { get; set; }
+
+    private string? _sessionId;
+
+    /// <summary>V2 确认映射后写入。null 表示尚未映射。</summary>
+    public string? SessionId
+    {
+        get => _sessionId;
+        set
+        {
+            _sessionId = value;
+            Raise();
+            Raise(nameof(MappingText));
+        }
+    }
+
+    /// <summary>映射状态（V2 列表显示用）。</summary>
+    public string MappingText => SessionId is null ? "待映射" : "已确认";
+
+    /// <summary>V2 产出：该文件扫描出的分组。</summary>
+    public List<GroupInfoDto> Groups { get; } = new();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

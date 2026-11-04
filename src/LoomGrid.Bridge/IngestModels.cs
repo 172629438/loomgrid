@@ -39,6 +39,12 @@ public sealed record SheetInfo
     [JsonPropertyName("suggest")] public SheetSuggest Suggest { get; init; } = new();
     [JsonPropertyName("confidence")] public SheetConfidence Confidence { get; init; } = new();
     [JsonPropertyName("yearless_samples")] public List<string> YearlessSamples { get; init; } = new();
+
+    /// <summary>预览列名（服务端采样，与 sample_rows 按索引对应）。</summary>
+    [JsonPropertyName("sample_columns")] public List<string> SampleColumns { get; init; } = new();
+
+    /// <summary>预览行（前 N 行真实数据，V2 列预览直接用它）。</summary>
+    [JsonPropertyName("sample_rows")] public List<List<JsonElement>> SampleRows { get; init; } = new();
 }
 
 public sealed record GuessedYear
