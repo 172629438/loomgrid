@@ -50,7 +50,24 @@ def _err(code: str, message: str, detail: dict | None = None) -> dict:
                                      "detail": detail}).model_dump()
 
 
+class GroupOverride(BaseModel):
+    """单个分组的参数覆盖。字段为 None 时用请求里的全局值。"""
+    index: int = Field(description="分组序号，与 groups 里的值对应")
+    multiplier: float | None = Field(default=None, description="None = 用全局 multiplier")
+    billing: dict | None = Field(default=None, description="None = 用全局 billing")
+    plot_options: dict | None = Field(default=None, description="None = 用全局 plot_options")
+
+
 class ExportRunRequest(BaseModel):
+    """批量导出请求。
+
+    ⚠️ group_overrides 是**可选扩展**：
+      不传 → 行为与加这个字段之前一字不差（整批用全局 multiplier/billing/plot_options）
+      传了 → 按 index 覆盖；不在列表里的分组仍用全局值；
+             列表里出现 groups 之外的 index → 忽略（宽容，不报错）
+    为什么需要它：Fusion 的导出对话框能逐行改倍率并批量编辑，
+    而 multiplier 是标量——不提供分组级覆盖就是功能倒退。
+    """
     session_id: str
     output_dir: str = Field(description="输出目录，不存在会自动创建")
     groups: list[int] | None = Field(default=None, description="要导出的分组序号；省略=全部")
@@ -65,6 +82,9 @@ class ExportRunRequest(BaseModel):
     billing: dict | None = None
     price_periods: list | None = None
     export_midwide: bool = False
+    group_overrides: list[GroupOverride] | None = Field(
+        default=None,
+        description="分组级参数覆盖（可选）；不传则完全等同原有的整批行为")
 
 
 def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: list[int]):
@@ -83,7 +103,7 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
 
         # 阶段 2：扫描（取宽表数据）
         TASK_STORE.emit(tid, "stage.scan", {"stage": "scan", "index": 2, "total": 4})
-        prepared: list[tuple[GroupSummary, dict]] = []
+        prepared: list[tuple[int, GroupSummary, dict]] = []
         for i in idxs:
             try:
                 # session 里的分组 dict 会随 core 新增字段而变多（如 dates），
@@ -114,22 +134,31 @@ def _execute(tid: str, req: ExportRunRequest, summaries_raw: list[dict], idxs: l
                 })
                 continue
             summaries.append(gs)
-            prepared.append((gs, data))
+            prepared.append((i, gs, data))
 
         # 阶段 3：预加载（这里已完成，作为阶段标记）
         TASK_STORE.emit(tid, "stage.preload", {"stage": "preload", "index": 3, "total": 4})
 
         # 阶段 4：图表生成
         TASK_STORE.emit(tid, "stage.generate", {"stage": "generate", "index": 4, "total": 4})
-        for n, (gs, data) in enumerate(prepared, 1):
+
+        # group_overrides 按 index 查找；未命中或字段为 None 时回落到全局值。
+        # 找不到就返回 None，不报错——宽松处理，不让一个多余的 index 毁掉整批。
+        overrides = {o.index: o for o in (req.group_overrides or [])}
+
+        for n, (idx, gs, data) in enumerate(prepared, 1):
+            ov = overrides.get(idx)
+            mult = ov.multiplier if ov and ov.multiplier is not None else req.multiplier
+            bill = ov.billing if ov and ov.billing is not None else req.billing
+            opts = ov.plot_options if ov and ov.plot_options is not None else req.plot_options
             try:
                 p = plot_group(gs, data, req.output_dir,
                                title_template=req.title_template,
                                filename_template=req.filename_template,
-                               plot_options=req.plot_options,
-                               billing=req.billing,
+                               plot_options=opts,
+                               billing=bill,
                                price_periods=req.price_periods,
-                               multiplier=req.multiplier)
+                               multiplier=mult)
                 files.append(p)
                 if req.export_midwide:
                     files.append(export_midwide(gs, data, req.output_dir))
