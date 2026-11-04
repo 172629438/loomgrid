@@ -362,7 +362,7 @@ public sealed partial class V2MappingPage : Page
 
         int groups = Workspace.Current.Groups.Count;
         AppLog.Write($"V2：全部映射完成，共 {groups} 个分组，进入 V5");
-        Frame.Navigate(typeof(V5ExportPage));
+        Frame.Navigate(typeof(V3PreviewPage));
     }
 
     private async Task ShowMessageAsync(string title, string text)
