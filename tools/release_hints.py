@@ -53,13 +53,23 @@ PROD_ULTRA = "ultra-v3.2.9"
 
 
 def download_hint(zip_name: str, zip_mb: float) -> str:
-    """顶部：告诉用户点哪个文件。"""
+    """顶部：告诉用户点哪个文件。
+
+    v2.3.11fix: 原来直接把 zip 名去掉 `.zip` 当目录名与 exe 名。
+    而 pack_release.py 的产物目录用的是 tag（不带 -win64）：
+        zip   LoomGrid-Fusion-v2.3.11-win64.zip
+        目录  LoomGrid-Fusion-v2.3.11\\
+        exe   LoomGrid-Fusion-v2.3.11.exe
+    于是说明写「进入 …-win64\\，双击 …-win64.exe」——用户解压后找不到。
+    这里改成把 -win64 后缀去掉再推目录名。
+    """
     stem = zip_name[:-4] if zip_name.lower().endswith(".zip") else zip_name
+    folder = stem[:-6] if stem.endswith("-win64") else stem
     return (
         f"{MARK_DL}\n"
         f"> **下载这个文件：`{zip_name}`**（{zip_mb:.0f} MB）\n"
         f">\n"
-        f"> 解压后进入 `{stem}\\` 目录，双击 `{stem}.exe` 即可运行，"
+        f"> 解压后进入 `{folder}\\` 目录，双击 `{folder}.exe` 即可运行，"
         f"不需要装 Python 或任何运行库。\n"
         f">\n"
         f"> 页面最下方 GitHub 自动附带的 **`Source code (zip)` / `Source code (tar.gz)`** "
