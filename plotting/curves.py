@@ -357,6 +357,29 @@ def _plot_curves(dates, load, time_labels, title, outpath, opts=None, bill=None,
             gc.collect()
 
 
+def _reserve_output_path(outpath):
+    """原子占用一个输出路径，返回 (实际路径, 错误信息)。
+
+    v2.3.9fix(P1-6): 原实现用 os.path.exists 判断后直接写，两个绘图进程会
+    同时认为同名文件不存在，后写者覆盖先写者；两者还共用同一个 `.tmp`，
+    一个进程的清理会把另一个的临时文件删掉。
+    改为 O_CREAT|O_EXCL 原子占位：只有真正创建成功的进程使用该文件名，
+    其余进程顺延到 `_1`、`_2`……
+    """
+    base, ext = os.path.splitext(outpath)
+    for counter in range(1, MAX_FILENAME_ATTEMPTS + 1):
+        try:
+            fd = os.open(outpath, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            outpath = f"{base}_{counter}{ext}"
+            continue
+        except OSError as e:
+            return None, f"无法创建输出文件: {outpath} ({e})"
+        os.close(fd)
+        return outpath, None
+    return None, f"文件名冲突已达上限（{MAX_FILENAME_ATTEMPTS}次），无法生成: {outpath}"
+
+
 def _plot_single_worker(data, title_template, filename_template,
                         output_dir, classify_by_asset, plot_options,
                         actual_billing, price_periods, actual_multiplier, progress_queue, cancel_event):
@@ -376,14 +399,6 @@ def _plot_single_worker(data, title_template, filename_template,
         out_dir = os.path.join(out_dir, asset_name)
     os.makedirs(out_dir, exist_ok=True)
     outpath = os.path.join(out_dir, filename)
-
-    base, ext = os.path.splitext(outpath)
-    for counter in range(1, MAX_FILENAME_ATTEMPTS + 1):
-        if not os.path.exists(outpath):
-            break
-        outpath = f"{base}_{counter}{ext}"
-    else:
-        return False, f"文件名冲突已达上限（{MAX_FILENAME_ATTEMPTS}次），无法生成: {outpath}"
 
     try:
         load_array = np.array(data['load_array']) * actual_multiplier
@@ -410,7 +425,13 @@ def _plot_single_worker(data, title_template, filename_template,
         else:
             opts_dict = PlotOptions().to_dict()
 
-        tmp_path = outpath + '.tmp'
+        # v2.3.9fix(P1-6): 原子占位，避免两个绘图进程选中同一个文件名
+        outpath, _reserve_err = _reserve_output_path(outpath)
+        if _reserve_err:
+            return False, _reserve_err
+        # v2.3.9fix(P1-6): 临时文件名带进程/线程标识，两个 worker 不再共用同一个 .tmp
+        tmp_path = f"{outpath}.{os.getpid()}.{threading.get_ident()}.tmp"
+        _written = False
         try:
             # 传入取消事件，绘图函数内部会检查并返回 False
             success = _plot_curves(
@@ -419,17 +440,18 @@ def _plot_single_worker(data, title_template, filename_template,
                 opts_dict, actual_billing, periods, cancel_event=cancel_event
             )
             if not success:
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
                 return False, "已取消"
             os.replace(tmp_path, outpath)
-        except Exception:
-            if os.path.exists(tmp_path):
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
-            raise
+            _written = True
+        finally:
+            if not _written:
+                # 取消或失败：临时文件与占位空文件都清掉，不留 0 字节 png
+                for _p in (tmp_path, outpath):
+                    try:
+                        if os.path.exists(_p):
+                            os.remove(_p)
+                    except Exception:
+                        pass
 
         if progress_queue is not None:
             try:
