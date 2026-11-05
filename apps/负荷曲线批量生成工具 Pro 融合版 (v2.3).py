@@ -5010,7 +5010,7 @@ class ProfessionalWindow(QMainWindow):
         # 每个段就是一个充放机会，充段显示可充量、放段显示可放量，不拆方向）。
         # charge_labels 与 discharge_labels 内容相同（都装着全部段名，为了让
         # 四个列表等长），所以只取一份，否则每个段名会重复两遍。
-        # 同名段（如多个「平段」）加序号区分，否则表头仍会重复。
+        # 同名段（如多个同类型段）加序号区分，否则表头仍会重复。
         _cnt = {}
         for lab in self.charge_labels:
             _cnt[lab] = _cnt.get(lab, 0) + 1
@@ -5022,7 +5022,7 @@ class ProfessionalWindow(QMainWindow):
                 _uniq_labels.append(f"{lab}{_seen[lab]}")
             else:
                 _uniq_labels.append(lab)
-        # v2.3.5fix(C4): 全零段（典型是平段）不再占列。
+        # v2.3.5fix(C4): 全零段（非本方向的占位零）不再占列。
         # 先扫一遍全部月份，只有「所有月份、所有段实例」都为 0 的段才隐藏；
         # 任一月出现非零值就照常显示，避免把真实数据藏掉。
         # 计算层（c_segs/d_segs）完全不动，只是不显示。
@@ -5041,7 +5041,7 @@ class ProfessionalWindow(QMainWindow):
         _keep_segs = [i for i in range(n_segs) if _seg_nonzero[i]]
         _hidden = n_segs - len(_keep_segs)
         if _hidden:
-            log.debug(f"隐藏 {_hidden} 个全零段列（所有月份均为 0，可能是平段）")
+            log.debug(f"隐藏 {_hidden} 个全零段列（所有月份均为 0，即非本方向的占位零）")
 
         col_labels = ['月份'] + [_uniq_labels[i] for i in _keep_segs] + ['月最小段总和(kWh)']
         self.space_table.setColumnCount(len(col_labels))
@@ -5057,7 +5057,8 @@ class ProfessionalWindow(QMainWindow):
             seg_values = []
             col = 1
             # 同一个索引 i 在 c_segs 与 d_segs 里指的是同一个段：
-            # 充电段在 c_segs 有值、d_segs 为零数组，放电段反之，平段两边皆零。
+            # 充电段在 c_segs 有值、d_segs 为零数组，放电段反之；
+            # 非充非放的类型（当前枚举下不存在）两边皆零。
             # 所以两者相加就是该段的空间，不会重复计入。
             for i in _keep_segs:
                 c_val = (float(np.sum(np.nan_to_num(c_segs[i], nan=0.0)))
@@ -5150,7 +5151,7 @@ class ProfessionalWindow(QMainWindow):
         # v2.3.6fix: 日明细表沿用月表的「一段一列」口径。
         # 原写法 ['日期'] + charge_labels + discharge_labels 会把每个段名印两遍，
         # 且 vals 里混入充段的放电值（恒为 0），导致 min(vals) 永远是 0。
-        # 同名的全零段（平段）与月表一样不显示，两张表列结构保持一致。
+        # 同名的全零段（占位零）与月表一样不显示，两张表列结构保持一致。
         _n = len(self.charge_labels)
         _nz = [False] * _n
         for _m in sorted(self._get_work_data().keys()):

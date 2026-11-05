@@ -10,7 +10,7 @@
 
   C1  无法识别的时间点不再静默丢弃（invalid_mask 显式检出并告警）
   N4  四个返回列表必须同长（充放标签一一对应，避免下游按索引错位）
-  P-32 平段既不算充电也不算放电（原实现落进 else 被当放电统计）
+  P-32 「非充非放」的类型不参与任何一侧（原实现落进 else 被当放电统计）
 
 ⚠️ Ultra 侧同名函数是独立实现（约 200 行），改这里不会自动同步过去。
 
@@ -141,8 +141,15 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
                 else:
                     space += np.zeros(n_days)
             else:
-                # v2.3.1fix: 原为 else，平段（flat）被当成放电段统计。
-                # 与 Ultra 的 P-32 修复对齐：平段既不属于充电也不属于放电。
+                # v2.3.1fix: 原为 else，非充非放的类型被当成放电段统计。
+                # 与 Ultra 的 P-32 修复对齐：它既不属于充电也不属于放电。
+                #
+                # v2.3.9fix: 这个分支在当前枚举下不会执行——PeriodType 只有
+                # charge / discharge（+两个标签别名），没有 flat；
+                # _segment_periods 也不会把未配置时段填成平段。
+                # 保留它是为了满足 N4「四个返回列表必须同长」，不是因为它能跑到。
+                # 之前叫它「平段」，导致 C4 那次修复被误记成「平段不再占列」——
+                # 实际修的是「非本方向的占位零不该显示成列」。
                 space += np.zeros(n_days)
 
         space = np.nan_to_num(space, nan=0.0)
