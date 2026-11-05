@@ -1,9 +1,20 @@
 # 验证脚本
 
-16 个脚本，全部是**独立可运行**的：`python tests/<脚本名>.py`，不依赖 pytest，
-不需要先安装这个项目。脚本自己会把 `algorithms/` 加进 `sys.path`。
+**62 个脚本**，全部是**独立可运行**的：`python tests/<脚本名>.py`，不依赖 pytest，
+不需要先安装这个项目。脚本自己会把仓库根加进 `sys.path`。
 
 每个脚本末尾打印 `PASS n / FAIL m`，**退出码 0 = 全过**。
+
+## 三层结构
+
+| 层 | 脚本 | 验什么 |
+|---|---|---|
+| **端到端** | `verify_e2e_forms`、`verify_e2e_consistency`、`verify_e2e_capacity` | 8 种数据形态走完整链路；同一真值跨形态逐元素相等；容量口径手算对拍 |
+| **领域回归** | `verify_capacity`、`verify_invariants`、`verify_daily_throughput`、`verify_est_strategy`、`verify_scan_drop`、`verify_month_parse` … | 每个修过的问题一个脚本，防止复现 |
+| **接口/环境** | `verify_api`、`verify_wiring*`、`verify_gui_*` | 起真实 uvicorn / 真实窗口 |
+
+端到端的样本真值库在 `_e2e_fixtures.py`（下划线前缀，不会被 `verify_*.py` 的 glob 收录）。
+设计思路：**先造一份真值，再派生成各种文件形态**，这样跨形态一致性才有基准。
 
 ## 先跑这三个
 
@@ -17,6 +28,17 @@ python tests/verify_pipeline.py
 ```
 
 三个都退出码 0，说明算法层、数理口径、端到端链路都通。加起来约 10 秒。
+
+## 全套一键跑
+
+```bash
+python tools/run_all_tests.py           # 全部
+python tools/run_all_tests.py --core    # 跳过需要 HTTP/真实窗口的
+```
+
+`tests/README.md` 里那段 heredoc 在 PowerShell 5.1 与 cmd 下都跑不了，
+`tools/run_all_tests.py` 是 Windows 可用的等价物。
+需要 HTTP/窗口的脚本失败时标 `ENV` 而不是 `FAIL`——环境缺失不该被误读成代码回归。
 
 ## 全部清单
 
