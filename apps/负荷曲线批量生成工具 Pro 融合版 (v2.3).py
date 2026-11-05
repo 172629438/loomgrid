@@ -4805,9 +4805,9 @@ class ProfessionalWindow(QMainWindow):
         row2.addWidget(self.satisfy_days_label)
         planner_layout.addLayout(row2)
 
-        self.actual_satisfy_label = QLabel("实际满足天数: 0")
+        # v2.3.9fix: 删掉「实际满足天数」。它与上面的「满足天数」同一个变量赋两次值，
+        # 永远相等，没有任何口径差异——不是两种统计，只是两行标签。
         self.effective_satisfy_label = QLabel("等效满足天数: 0")
-        planner_layout.addWidget(self.actual_satisfy_label)
         planner_layout.addWidget(self.effective_satisfy_label)
 
         row3 = QHBoxLayout()
@@ -5267,7 +5267,6 @@ class ProfessionalWindow(QMainWindow):
                 if self._check_day_satisfied(month, d, cap):
                     days += 1
         self.satisfy_days_label.setText(f"满足天数: {days}")
-        self.actual_satisfy_label.setText(f"实际满足天数: {days}")
         effective = int(days * 365.0 / self.available_days) if self.available_days > 0 else 0
         self.effective_satisfy_label.setText(f"等效满足天数: {effective}")
 
