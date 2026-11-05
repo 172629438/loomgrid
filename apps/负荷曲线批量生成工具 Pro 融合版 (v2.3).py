@@ -107,9 +107,11 @@ from core.ingest import (  # noqa: E402
 )
 from services.config import Config, _validate_config_schema  # noqa: E402
 from services.provider import DataProvider, MemoryLimitedCache  # noqa: E402
-# v2.3.8fix: 逐日吞吐量的唯一实现。主程序原先三处各自算「逐段配对 min」，
-# 而同一索引的充段与放段是不同时段，配对 min 必然被占位零或错位压成 0。
-from services.capacity import daily_throughput_series  # noqa: E402
+# v2.3.10fix: 主程序不再从 services.capacity 取逐日吞吐量。
+# v2.3.8 曾用 daily_throughput_series 替换三处「逐段配对 min」，理由是
+# 「剔除占位零后索引不再对应」——那个理由是错的：_drop_zero_segments 保留原顺序，
+# 索引 i 就是第 i 次循环（充电1 ↔ 放电1）。总量口径会把两充两放合并成一次，
+# 掩盖「单次循环不够」的事实。该函数仍在 services/capacity.py 里（其他函数在用）。
 from ui.window_state import (  # noqa: E402
     get_window_geometry, set_window_geometry,
     get_splitter_state, set_splitter_state,
@@ -4974,16 +4976,26 @@ class ProfessionalWindow(QMainWindow):
             n_days = len(c_arrs[0]) if c_arrs else (len(d_arrs[0]) if d_arrs else 0)
             if n_days == 0:
                 continue
-            # v2.3.8fix: 满载分支把「逐段配对 min」改成「当日总充与总放取瓶颈」。
-            # 剔除占位零后 c_arrs[i] 与 d_arrs[i] 仍是不同时段的两段，配对无意义。
-            _tp = None if use_min else daily_throughput_series(c_arrs, d_arrs)
+            # v2.3.10fix: 回滚 v2.3.8 的错误改动。
+            # 当时以为「剔除占位零后 c_arrs[i] 与 d_arrs[i] 仍是不同时段的两段」，
+            # 实际不是：_drop_zero_segments 保留原顺序，
+            # c_arrs = [充电1, 充电2]，d_arrs = [放电1, 放电2]，
+            # 索引 i 就是第 i 次循环。配对 min 算的正是「第 i 次能搬多少」。
+            # 改成总量口径等于把两次循环合并，两充两放下会掩盖单次不够的事实。
             for d in range(n_days):
                 if use_min:
                     all_vals = [arr[d] for arr in c_arrs if d < len(arr)] + \
                                [arr[d] for arr in d_arrs if d < len(arr)]
                     daily_cap = min(all_vals) if all_vals else 0.0
                 else:
-                    daily_cap = float(_tp[d]) if _tp is not None and d < len(_tp) else 0.0
+                    n_pairs = max(len(c_arrs), len(d_arrs))
+                    daily_cap = 0.0
+                    for i in range(n_pairs):
+                        cv = c_arrs[i][d] if i < len(c_arrs) and d < len(c_arrs[i]) else float('inf')
+                        dv = d_arrs[i][d] if i < len(d_arrs) and d < len(d_arrs[i]) else float('inf')
+                        pair_min = min(cv, dv)
+                        if pair_min != float('inf'):
+                            daily_cap = max(daily_cap, pair_min)
                 if daily_cap > 0 or (c_arrs or d_arrs):
                     daily_mins.append(daily_cap)
         return daily_mins
@@ -4991,18 +5003,24 @@ class ProfessionalWindow(QMainWindow):
     def _check_day_satisfied(self, month, day_index, cap):
         """v3.2fix: 按充放配对判断——应用DOD折算可用容量后比较
 
-        v2.3.8fix: 原来要求「同一索引 i 的充段与放段同时 >= 可用容量」。
-        剔除占位零后两个列表已不再逐位对应，这条判据几乎恒假：
-        容量 > 0 时「满足天数」全是 0，容量 = 0 时又全真（0 >= 0）。
-        两端都错，且都看起来合理。改为当日吞吐量（总充与总放取瓶颈）>= 可用容量。
+        v2.3.10fix: 回滚 v2.3.8 的「总量口径」。原实现本来就对：
+        _get_relevant_segments_for_month 返回的 c_arrs / d_arrs 已剔除占位零且保留原顺序，
+        索引 i 就是第 i 次循环（充电1 ↔ 放电1，充电2 ↔ 放电2）。
+        一充一放时列表长度就是 1（或用户选了「合并」后的 1 项），同一套判据自然成立。
+
+        判据含义：存在某一次循环，其可充量与可放量都 ≥ 可用容量。
+        这反向验证「这个容量能不能完成一次完整充放」，与满载利用率同口径。
         """
         dod_val = self.dod_spin.value() if hasattr(self, 'dod_spin') else 95
         usable_cap = cap * dod_val / 100.0
         c_arrs, d_arrs = self._get_relevant_segments_for_month(month)
-        _tp = daily_throughput_series(c_arrs, d_arrs)
-        if day_index >= len(_tp):
-            return False
-        return float(_tp[day_index]) >= usable_cap
+        n_pairs = max(len(c_arrs), len(d_arrs))
+        for i in range(n_pairs):
+            cv = c_arrs[i][day_index] if i < len(c_arrs) and day_index < len(c_arrs[i]) else float('inf')
+            dv = d_arrs[i][day_index] if i < len(d_arrs) and day_index < len(d_arrs[i]) else float('inf')
+            if cv >= usable_cap and dv >= usable_cap:
+                return True
+        return False
 
     def _populate_space_table(self):
         months = sorted(self._get_work_data().keys())
@@ -5183,10 +5201,14 @@ class ProfessionalWindow(QMainWindow):
         self.daily_table.setHorizontalHeaderLabels(col_labels)
         n_days = len(dates)
         self.daily_table.setRowCount(n_days)
-        # v2.3.8fix: 满载口径改为「当日总充与总放取瓶颈」，
-        # 唯一实现见 services/capacity.daily_throughput_series。
-        # 原逐段配对 min 因占位零/错位，整列恒为 0.000。
-        _thr = daily_throughput_series(c_segs, d_segs)
+        # v2.3.10fix: 满载列回滚为「逐段配对」。
+        # v2.3.8 当时改成了总量口径，那等于把多次循环合并成一次；
+        # 真正的错在于原实现用的是含占位零的 c_segs/d_segs（配对 min 恒为 0），
+        # 而不是「逐段配对」这个口径本身。先剔除占位零，索引 i 就是第 i 次循环。
+        # 日表展示的是这个月的全貌（不按 capacity_mode 筛选段），所以直接过滤全量。
+        _nz = lambda arrs: [a for a in arrs
+                            if float(np.nansum(np.nan_to_num(a, nan=0.0))) != 0.0]
+        _c_pair, _d_pair = _nz(c_segs), _nz(d_segs)
 
         for d in range(n_days):
             self.daily_table.setItem(d, 0, QTableWidgetItem(str(dates[d])))
@@ -5204,7 +5226,14 @@ class ProfessionalWindow(QMainWindow):
             # v3.0: 日需求跟策略走
             est_mode = self.est_combo.currentText() if hasattr(self, 'est_combo') else '最小可行容量'
             if '满载' in est_mode:
-                daily_need = float(_thr[d]) if d < len(_thr) else 0.0
+                _n = max(len(_c_pair), len(_d_pair))
+                daily_need = 0.0
+                for _i in range(_n):
+                    _cv = _c_pair[_i][d] if _i < len(_c_pair) and d < len(_c_pair[_i]) else float('inf')
+                    _dv = _d_pair[_i][d] if _i < len(_d_pair) and d < len(_d_pair[_i]) else float('inf')
+                    _pm = min(_cv, _dv)
+                    if _pm != float('inf'):
+                        daily_need = max(daily_need, _pm)
             else:
                 daily_need = min_val
             # v2.3.9fix(P2-16): 当天所有段都是 0 时显示 —，而不是 0.000。

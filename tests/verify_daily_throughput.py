@@ -1,29 +1,27 @@
 # -*- coding: utf-8 -*-
-"""逐日吞吐量口径：三处消费点必须共用同一个实现。
+"""逐段配对口径：一充一放与两充两放共用同一套判据，但索引含义是「第 i 次循环」。
 
-背景
-----
-`compute_segmented_spaces` 返回的四个平行列表里，每个段在非本方向那一侧是
-**占位零**（充电段在放电侧为 0），目的是让列表等长。
+背景（v2.3.8 → v2.3.10 的一次回滚）
+------------------------------------
+v2.3.8 曾把主程序三处「逐段配对 min」改成「当日总充与总放取瓶颈」，
+理由是「剔除占位零后 c_arrs[i] 与 d_arrs[i] 不再是同一循环」。
 
-主程序原先三处各自实现「逐段配对 min」：
+**那个理由是错的。** `_drop_zero_segments` 保留原顺序：
 
-  `_get_all_filtered_daily_mins`  满载分支
-  `_check_day_satisfied`          「满足天数」判据
-  `_fill_daily_table`             日明细表「日最小值」列
+    c_segs = [300,   0, 250,   0]      四个段：充电1 / 放电1 / 充电2 / 放电2
+    d_segs = [  0, 280,   0, 240]
+    剔除全零后
+    c_arrs = [300, 250]                充电1、充电2
+    d_arrs = [280, 240]                放电1、放电2
 
-同一索引的充段与放段是**不同时段**，`min(cv, dv)` 必然被占位零压成 0。
-后果：
-  - 日表该列恒为 0.000
-  - 容量 > 0 时「满足天数」恒为 0（用户会误判容量太小而往大调，方向反了）
-  - 容量 = 0 时 `0 >= 0` 又全真（显示全部满足）
+索引 i 就是第 i 次循环。逐段配对 `min(c_arrs[i], d_arrs[i])` 算的正是
+「第 i 次循环能搬多少」，`max(...)` 取最好那次，`min(...)` 取最差那次。
 
-正确口径在 `services/capacity.daily_throughput_series`：
-**当日总充与当日总放取瓶颈侧**，与 `services/capacity.py` 的注释一致。
+总量口径会把两次循环合并，掩盖「单次循环不够」的事实：
 
-本脚本做两件事：
-  ① 纯函数对拍（占位零 / 单侧为零 / 多段求和）
-  ② AST 契约：主程序三处必须都调用 daily_throughput_series，且不再有 n_pairs 配对 min
+    两次循环各 120/120，容量 200
+      逐段配对 → 不满足（单次 120 < 200）
+      总量口径 → 满足（min(240, 240) = 240 >= 200）
 
 跑法：python tests/verify_daily_throughput.py
 """
@@ -34,10 +32,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-sys.path.insert(0, REPO)
 sys.stdout.reconfigure(encoding="utf-8")
-
-from services.capacity import daily_throughput_series  # noqa: E402
 
 PASS = FAIL = 0
 
@@ -52,41 +47,47 @@ def check(name, cond, detail=""):
         print(f"[FAIL] {name}  {detail}")
 
 
-# ── ① 纯函数对拍 ────────────────────────────────────────────
-# 充电段 300/天，放电段 280/天（各带一个占位零段）
-c = [[300.0, 300.0], [0.0, 0.0]]
-d = [[0.0, 0.0], [280.0, 280.0]]
-tp = daily_throughput_series(c, d)
-check("占位零场景：min(总充 300, 总放 280) = 280",
-      list(tp) == [280.0, 280.0], list(tp))
+# ── ① 两种口径的分歧点（纯函数对照）────────────────────────
+def pair_based(c_arrs, d_arrs, day, cap):
+    """某一次循环的充放都够 → 满足"""
+    n = max(len(c_arrs), len(d_arrs))
+    for i in range(n):
+        cv = c_arrs[i][day] if i < len(c_arrs) and day < len(c_arrs[i]) else float("inf")
+        dv = d_arrs[i][day] if i < len(d_arrs) and day < len(d_arrs[i]) else float("inf")
+        if cv >= cap and dv >= cap:
+            return True
+    return False
 
-# 旧口径会算成 0：min(300, 0) 与 min(0, 280) 都非正
-check("旧口径（逐段配对 min 取 max）= 0，与正确值不同",
-      max(min(300.0, 0.0), min(0.0, 280.0)) == 0.0)
 
-# 多段求和：2 个充电段各 150，1 个放电段 280 → 总充 300，取 280
-c2 = [[150.0], [150.0]]
-d2 = [[280.0]]
-check("多段求和：min(150+150, 280) = 280",
-      list(daily_throughput_series(c2, d2)) == [280.0], list(daily_throughput_series(c2, d2)))
+def total_based(c_arrs, d_arrs, day, cap):
+    tc = sum(a[day] for a in c_arrs if day < len(a))
+    td = sum(a[day] for a in d_arrs if day < len(a))
+    return min(tc, td) >= cap
 
-# 单侧为零
-check("放电全零 → 吞吐 0",
-      list(daily_throughput_series([[100.0]], [[0.0]])) == [0.0])
-check("充电全零 → 吞吐 0",
-      list(daily_throughput_series([[0.0]], [[100.0]])) == [0.0])
 
-# 空输入
-check("空输入不崩", list(daily_throughput_series([], [])) == [])
+# 两次循环各 120/120，容量 200
+c2 = [[120.0], [120.0]]
+d2 = [[120.0], [120.0]]
+check("两次循环各 120、容量 200 → 逐段配对判不满足", pair_based(c2, d2, 0, 200.0) is False)
+check("同场景 → 总量口径会判满足（说明两种口径确实不同）", total_based(c2, d2, 0, 200.0) is True)
 
-# 「满足天数」语义：cap=200, dod=95 → usable=190，吞吐 280 >= 190 应为满足
-check("cap=200 dod=95 时 280 >= 190（满足）", 280.0 >= 200 * 95 / 100.0)
-# 若沿用旧口径日需求为 0，则 0 >= 190 不成立 → 判不满足（错误）
-check("旧口径日需求 0 会判为不满足（复现缺陷）", not (0.0 >= 200 * 95 / 100.0))
+# 一次循环够即满足（两充两放里只要有一次能搬够）
+c3 = [[300.0], [120.0]]
+d3 = [[280.0], [110.0]]
+check("第一次循环 300/280、第二次 120/110，容量 200 → 满足",
+      pair_based(c3, d3, 0, 200.0) is True)
 
-# ── ② AST 契约 ──────────────────────────────────────────────
+# 一充一放：列表长度 1，同一套判据
+check("一充一放 250/240、容量 200 → 满足", pair_based([[250.0]], [[240.0]], 0, 200.0) is True)
+check("一充一放 150/140、容量 200 → 不满足", pair_based([[150.0]], [[140.0]], 0, 200.0) is False)
+
+# 单侧缺失按 inf 处理（不影响判定）
+check("某侧缺段按 inf 处理", pair_based([[250.0]], [], 0, 200.0) is True)
+
+# ── ② AST 契约：三处必须用逐段配对 ─────────────────────────
 MAIN = os.path.join(REPO, "apps", "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
-tree = ast.parse(io.open(MAIN, encoding="utf-8", errors="replace").read())
+src = io.open(MAIN, encoding="utf-8", errors="replace").read()
+tree = ast.parse(src)
 
 
 def find_method(tree, cls_name, meth_name):
@@ -98,18 +99,34 @@ def find_method(tree, cls_name, meth_name):
     return None
 
 
+pw = None
+for n in tree.body:
+    if isinstance(n, ast.ClassDef) and n.name == "ProfessionalWindow":
+        pw = n
+        break
+
+check("主程序存在 ProfessionalWindow", pw is not None)
+
 for meth in ("_check_day_satisfied", "_get_all_filtered_daily_mins", "_fill_daily_table"):
     node = find_method(tree, "ProfessionalWindow", meth)
     check(f"ProfessionalWindow.{meth} 存在", node is not None)
     if node is None:
         continue
-    src = ast.unparse(node)
-    check(f"{meth} 调用 daily_throughput_series", "daily_throughput_series" in src)
-    check(f"{meth} 不再有 n_pairs 配对 min", "n_pairs" not in src, "仍存在 n_pairs")
+    body = ast.unparse(node)
+    has_pair = ("min(cv, dv)" in body) or ("min(_cv, _dv)" in body) or \
+               ("cv >= usable_cap and dv >= usable_cap" in body)
+    check(f"{meth} 使用逐段配对", has_pair)
+    check(f"{meth} 不调用 daily_throughput_series", "daily_throughput_series" not in body)
 
-check("主程序已 import daily_throughput_series",
-      "from services.capacity import daily_throughput_series" in
-      io.open(MAIN, encoding="utf-8", errors="replace").read())
+# 主程序不应再 import daily_throughput_series（总量口径已回滚）
+check("主程序不再 import daily_throughput_series",
+      "from services.capacity import daily_throughput_series" not in src)
+
+# 该函数本身仍保留在 services 层（其他函数在用）
+cap_src = io.open(os.path.join(REPO, "services", "capacity.py"),
+                  encoding="utf-8", errors="replace").read()
+check("services/capacity.py 仍定义 daily_throughput_series",
+      "def daily_throughput_series" in cap_src)
 
 print()
 print(f"结果：PASS {PASS}   FAIL {FAIL}")
