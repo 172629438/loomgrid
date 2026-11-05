@@ -175,8 +175,18 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
 
 
 def calc_capacity_for_days(target_days, charge_kwh, discharge_kwh=None):
-    """v3.0fix: 满充满放——挑target_days个最好的天,
-    跳过最差的(总数-target_days)天,容量=升序[总数-target_days]"""
+    """容量反推：要满足 target_days 天，电池得装多大。
+
+    逻辑：把日需求升序排列，要「满足 N 天」就是取最小的 N 个需求，
+    容量 = 其中最大的那个 → sorted[N-1]。
+
+    v2.3.13fix: 原实现是 `idx = len - target_days`，方向反了。
+    实测 [100..1000] 十日需求：
+      target=10（满足全部）→ 返回 100（应 1000）
+      target=1（只需一天）→ 返回 1000（应 100）
+    两者只在 target_days = (len+1)/2 时碰巧相等，所以长期没被发现。
+    这段代码从旧版逐字搬来，错误一直是错的。
+    """
     if discharge_kwh is None:
         mins = np.asarray(charge_kwh)
     else:
@@ -184,7 +194,7 @@ def calc_capacity_for_days(target_days, charge_kwh, discharge_kwh=None):
     if target_days > len(mins) or target_days <= 0:
         return 0.0
     sorted_mins = np.sort(mins)  # 升序
-    idx = max(0, len(sorted_mins) - target_days)
+    idx = min(len(sorted_mins) - 1, max(0, target_days - 1))
     return sorted_mins[idx]
 
 
