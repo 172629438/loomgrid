@@ -346,14 +346,19 @@ def _convert_accumulated_to_power(df, date_col, time_col, load_col, asset_col=No
             delta_hours_shifted = delta_hours.shift(-1)
             safe_delta = delta_hours_shifted.clip(lower=0.05, upper=3.0)
             power = raw_diff / safe_delta
+            # v2.3.12fix: 跨天边界的点是伪差值（次日首点 − 当日本末点），
+            # 日重置表里必然是大负数，必须置 NaN。
+            # 原实现（v2.3.3fix I7）只把它从「换表/清零报警」名单里摘出来，
+            # 值本身仍保留——于是曲线上出现 -1520 这种尖刺，还把均值拉低
+            # （实测 96 点日重置表均值从 16 掉到 7.96）。
+            if '__crossday__' in grp.columns:
+                _cross = grp['__crossday__'].fillna(False).astype(bool)
+                if _cross.any():
+                    power[_cross] = np.nan
             # v2.3.3fix(I4): 换表/清零导致的负跳变标记为 NaN（同 Ultra v2.9c）
             if len(power.dropna()) > 1:
                 avg_step = max(power.dropna().abs().median(), 0.001)
                 neg_spikes = power[power < -5.0 * avg_step]
-                # v2.3.3fix(I7): 跨天回落不算换表/清零
-                if '__crossday__' in grp.columns and len(neg_spikes) > 0:
-                    _keep = ~grp.loc[neg_spikes.index, '__crossday__'].fillna(False).astype(bool)
-                    neg_spikes = neg_spikes[_keep]
                 if len(neg_spikes) > 0:
                     log.warning(f'检测到 {len(neg_spikes)} 处可能的换表/清零导致的负跳变,已标记为 NaN')
                     power[neg_spikes.index] = np.nan
