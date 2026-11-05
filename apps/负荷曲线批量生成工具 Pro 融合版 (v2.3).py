@@ -5001,19 +5001,39 @@ class ProfessionalWindow(QMainWindow):
         return daily_mins
 
     def _check_day_satisfied(self, month, day_index, cap):
-        """v3.2fix: 按充放配对判断——应用DOD折算可用容量后比较
+        """按当前评估策略判定某一天是否「满足」。
 
-        v2.3.10fix: 回滚 v2.3.8 的「总量口径」。原实现本来就对：
-        _get_relevant_segments_for_month 返回的 c_arrs / d_arrs 已剔除占位零且保留原顺序，
-        索引 i 就是第 i 次循环（充电1 ↔ 放电1，充电2 ↔ 放电2）。
-        一充一放时列表长度就是 1（或用户选了「合并」后的 1 项），同一套判据自然成立。
+        两种策略的业务定义取自旧版 v2.3 的 tooltip（作者原话）：
+          · 最小可行容量: min(所有充放段) → 全天候可行, 最保守
+          · 满载利用率: max(min(c₁,d₁), min(c₂,d₂)) → 最苛刻循环跑满
 
-        判据含义：存在某一次循环，其可充量与可放量都 ≥ 可用容量。
-        这反向验证「这个容量能不能完成一次完整充放」，与满载利用率同口径。
+        v2.3.11fix: 旧版 `_calc_days_from_capacity` 里有一个 `if use_min_all` 分支，
+        但它取到的列表只用来算 n_days（长度），而 `_check_day_satisfied` 内部
+        固定走 _get_relevant_segments_for_month——那个分支一段也不影响结果。
+        即：作者想区分两种策略，但没接上。本版补上。
+
+        判据：
+          最小可行 → 所有充放段的空间都 >= 可用容量（全天候可行）
+          满载     → 存在某一次循环，其充量与放量都 >= 可用容量
+        一充一放时 _get_relevant_segments_for_month 只返回 1 项（或合并后的 1 项），
+        两充两放时返回 2 项，索引 i 就是第 i 次循环。
         """
         dod_val = self.dod_spin.value() if hasattr(self, 'dod_spin') else 95
         usable_cap = cap * dod_val / 100.0
         c_arrs, d_arrs = self._get_relevant_segments_for_month(month)
+
+        # 与 _get_all_filtered_daily_mins 保持同一判据：只有「满载利用率」算满载
+        use_min = (not hasattr(self, 'est_combo')) or (self.est_combo.currentText() != "满载利用率")
+
+        if use_min:
+            # 最保守：每一个充放段都得够，否则这天不算「全天候可行」
+            vals = [arr[day_index] for arr in c_arrs if day_index < len(arr)] + \
+                   [arr[day_index] for arr in d_arrs if day_index < len(arr)]
+            if not vals:
+                return False
+            return min(vals) >= usable_cap
+
+        # 最苛刻循环跑满：任一次循环的充与放都够即可
         n_pairs = max(len(c_arrs), len(d_arrs))
         for i in range(n_pairs):
             cv = c_arrs[i][day_index] if i < len(c_arrs) and day_index < len(c_arrs[i]) else float('inf')
@@ -5276,13 +5296,13 @@ class ProfessionalWindow(QMainWindow):
         cap = self.config_cap_spin.value()
         days = 0
         work_data = self._get_work_data()
-        use_min_all = (hasattr(self, 'est_combo') and "最小可行" in self.est_combo.currentText())
+        # v2.3.11fix: 删掉失效的 `if use_min_all` 分支。
+        # 旧版那个分支取到的列表只用来算 n_days（长度），而判定在
+        # _check_day_satisfied 里、内部固定走 _get_relevant_segments_for_month，
+        # 所以那段 if/else 一段也影响不到结果。
+        # 现在两种策略的差异由 _check_day_satisfied 自己按 est_combo 判断。
         for month in work_data.keys():
-            if use_min_all:
-                c_arrs = list(self.charge_segments_dict.get(month, []))
-                d_arrs = list(self.discharge_segments_dict.get(month, []))
-            else:
-                c_arrs, d_arrs = self._get_relevant_segments_for_month(month)
+            c_arrs, d_arrs = self._get_relevant_segments_for_month(month)
             if not c_arrs and not d_arrs:
                 continue
             n_days = 0
