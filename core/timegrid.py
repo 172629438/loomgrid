@@ -448,12 +448,34 @@ def invalidate_day_type_cache():
 
 
 def _normalize_time_column_name(col_name: str) -> str:
-    m = re.match(r'^(\d{1,2})\s*[时点](?:钟)?$', col_name)
+    # v2.3.15fix: 下面三条都是真实存在的表头写法，原实现认不全：
+    #   ① “8点30分”—— 原正则只写了「时」，同一种写法漏一半
+    #   ② “零点” —— [时点] 前要求数字，中文数字进不来
+    #   ③ “0800”/“2400” —— 四位纯数字 HHMM，采集系统导出常见
+    _s = str(col_name).strip()
+    if _s in ('零点', '零点钟', '零时'):
+        return '0:00'
+    m = re.match(r'^(\d{1,2})\s*[时点](?:钟)?$', _s)
     if m:
         hour = int(m.group(1))
         return f"{hour}:00"
-    m = re.match(r'^(\d{1,2})\s*时\s*(\d{1,2})\s*分$', col_name)
+    # 关键修法：[时点] 而不是 时；末尾的「分」可省略（"8点30" 也常见）
+    m = re.match(r'^(\d{1,2})\s*[时点]\s*(\d{1,2})\s*分?$', _s)
     if m:
         hour, minute = int(m.group(1)), int(m.group(2))
         return f"{hour}:{minute:02d}"
+    # 四位纯数字 HHMM：仅当 HH<=24 且 MM<60 才算时刻，否则原样返回
+    m = re.fullmatch(r'(\d{2})(\d{2})', _s)
+    if m:
+        hh, mi = int(m.group(1)), int(m.group(2))
+        if mi < 60 and hh < 24:
+            return f"{hh}:{mi:02d}"
+        if hh == 24 and mi == 0:
+            return '24:00'
+    # 三位纯数字 HMM（"800" → 08:00）。H 只能是个位数，否则歧义太大。
+    m = re.fullmatch(r'(\d)(\d{2})', _s)
+    if m:
+        hh, mi = int(m.group(1)), int(m.group(2))
+        if mi < 60:
+            return f"{hh}:{mi:02d}"
     return col_name

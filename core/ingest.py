@@ -413,7 +413,13 @@ def _parse_long_to_standard(df, date_col, time_col, load_col, multiplier=1.0,
     df['__dt__'] = _to_dt(combined)
     load_series = _safe_get_col(df, load_col)
     before = len(df)
-    df['__load__'] = pd.to_numeric(load_series, errors='coerce') * multiplier
+    # v2.3.15fix: 千分位数字（"1,234.5"）会被 to_numeric 变成 NaN，整行丢掉。
+    # 真实场景：Excel 单元格存成文本 + 千分位格式，或 CSV 里带引号的 "1,234.5"。
+    # 只剥离「逗号后正好三位数字」的情况，不动欧洲小数逗号（"1,5" → 仍是 1.5 的意思，不剥）。
+    load_text = _clean_series(load_series)
+    if load_text.str.contains(',', na=False).any():
+        load_text = load_text.str.replace(r'(?<=\d),(?=\d{3}(?:\D|$))', '', regex=True)
+    df['__load__'] = pd.to_numeric(load_text, errors='coerce') * multiplier
     df_clean = df.dropna(subset=['__dt__', '__load__'])
     dropped = before - len(df_clean)
     ratio = dropped / before if before > 0 else 0.0
@@ -683,6 +689,26 @@ def _to_dt(series, fmt=None):
     # v3.2fix: 日期列无年份时补今年
     if isinstance(series, pd.Series):
         s_str = series.astype(str)
+        # v2.3.15fix: 中文日期先归一。Excel 里显示为「2026年7月1日」的列，
+        # 如果被读成文本（常见于 CSV / 合并单元格 / 文本格式单元格），
+        # pd.to_datetime 直接给 NaT，整批行被静默丢掉。
+        # 顺序：先带年的，再处理无年的（无年的会接下面的补今年逻辑）。
+        if s_str.str.contains('年', na=False).any():
+            s_str = s_str.str.replace(
+                r'(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?', r'\1-\2-\3', regex=True)
+            s_str = s_str.str.replace(
+                r'(\d{4})\s*年\s*(\d{1,2})\s*月', r'\1-\2', regex=True)
+        if s_str.str.contains('月', na=False).any():
+            s_str = s_str.str.replace(
+                r'(\d{1,2})\s*月\s*(\d{1,2})\s*日', r'\1-\2', regex=True)
+        # v2.3.15fix: 6 位纯数字 YYMMDD（"260701"）原实现被 pandas 当杂格式，
+        # 实测解成 2001-07-26——不报错但整批日期错位 25 年。
+        # 只在整体都是 6 位数字时才按 YYMMDD 处理，不掺到其他格式里。
+        _m6 = s_str.str.fullmatch(r'\d{6}', na=False)
+        if _m6.any() and _m6.all():
+            s_str = ('20' + s_str.str[:2] + '-' + s_str.str[2:4] + '-' + s_str.str[4:6])
+        series = s_str if not s_str.equals(series.astype(str)) else series
+        s_str = series.astype(str)
         # 检测月-日格式 (如"01-01", "01-01 00:00", "6/20 14:30", 无年份)
         needs_year = s_str.str.match(r'^\d{1,2}[-/.]\d{1,2}(\s+\d{1,2}:\d{2}(:\d{2})?)?$', na=False)
         if needs_year.any():
@@ -895,7 +921,14 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
     # 若排在真「时间」列之前就会抢占 time_col，导致整表时刻解析失败。
     # '点' 原本想匹配的「时间点」已被 '时间' 覆盖，删掉不丢能力。
     time_kw = ['时间','time','时刻','时分','时']
-    asset_kw = ['资产','户号','编号','表号','id','用户','meter']
+    # v2.3.15fix: 原词表只有「资产/户号/编号/表号/id/用户/meter」，而工商业项目
+    # 里资产列常叫「回路名称」「支路」「出线」「设备名称」——识别不出就意味着
+    # 多个回路的数据混在一起算，出一张图而不是 N 张。
+    # 注意：加的全是双字以上的词，不单用「线」「名」——否则「1#线总有功」
+    # 这种负荷列会被误判成资产列。
+    asset_kw = ['资产','户号','编号','表号','id','用户','meter',
+                '回路','支路','线路','出线','干线','馈线','进线',
+                '设备名称','测点名称','站点名称','变压器名称','开关名称']
     # v2.3.2fix(N9): 原词表把「无功 / 电流 / 电压」与有功并列为负荷列，
     # 且累计词表里混进了 '点' / '时' 这两个时间词。后果：
     #   · 电表表里「四象限无功功率」可能先于「正向有功功率」被选中作负荷列；
@@ -918,7 +951,10 @@ def _smart_classify_columns(cols, sample_df=None, max_sample=100):
             result.setdefault('date_col', c)
         if any(k in cl for k in time_kw):
             result.setdefault('time_col', c)
-        if any(k in cl for k in asset_kw):
+        # v2.3.15fix: 命中资产词之外还要排除负荷强词。
+        # 否则「2#进线有功功率」会因为带「进线」被判成资产列，
+        # 结果一列同时当 asset_col 和 load_col。
+        if any(k in cl for k in asset_kw) and not any(k in cl for k in load_kw_strong):
             result.setdefault('asset_col', c)
         if any(k in cl for k in load_kw_strong) and not (_is_energy_word and not _is_power_word):
             if _is_reactive_word:
