@@ -177,15 +177,20 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
 def calc_capacity_for_days(target_days, charge_kwh, discharge_kwh=None):
     """容量反推：要满足 target_days 天，电池得装多大。
 
-    逻辑：把日需求升序排列，要「满足 N 天」就是取最小的 N 个需求，
-    容量 = 其中最大的那个 → sorted[N-1]。
+    ★ 业务语义（改这个函数前必须读）
+    --------------------------------
+    **容量越小越容易满足。** 电池装得比当天的充放空间大，就会充不满、放不完，
+    那一天就不算「满足」。所以：
 
-    v2.3.13fix: 原实现是 `idx = len - target_days`，方向反了。
-    实测 [100..1000] 十日需求：
-      target=10（满足全部）→ 返回 100（应 1000）
-      target=1（只需一天）→ 返回 1000（应 100）
-    两者只在 target_days = (len+1)/2 时碰巧相等，所以长期没被发现。
-    这段代码从旧版逐字搬来，错误一直是错的。
+        容量 c 满足某天  ⟺  c ≤ 当天的最小容量（四个空间里最小的那个）
+        若 c = 第 m 小的值（无重复）→ 满足天数 = len - m + 1
+        要满足 N 天 → 取第 (len-N+1) 小 → sorted[len-N]
+
+    例：365 天要满足 330 天 → sorted[365-330] = sorted[35]（第 36 小）
+
+    v2.3.14fix：v2.3.13 曾把它改成 sorted[target_days-1]（第 target 小），
+    方向正好反了——「满足 330 天」会变成「满足 36 天」。这不只是数字错，
+    是业务语义理解反了：误把「满足」当成「容量 ≥ 需求」，而实际是「容量 ≤ 空间」。
     """
     if discharge_kwh is None:
         mins = np.asarray(charge_kwh)
@@ -194,7 +199,8 @@ def calc_capacity_for_days(target_days, charge_kwh, discharge_kwh=None):
     if target_days > len(mins) or target_days <= 0:
         return 0.0
     sorted_mins = np.sort(mins)  # 升序
-    idx = min(len(sorted_mins) - 1, max(0, target_days - 1))
+    # 取第 (len - target_days + 1) 小，即索引 len-target_days
+    idx = max(0, len(sorted_mins) - target_days)
     return sorted_mins[idx]
 
 

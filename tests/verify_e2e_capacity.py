@@ -124,19 +124,35 @@ print()
 print("=" * 78)
 print("⑤ 容量-天数互算：同一组日需求，两个方向必须自洽")
 print("=" * 78)
+print("  语义：容量越小越容易满足（装得比当天空间大会充不满/放不完）。")
+print("  「满足 N 天」→ 取第 (总天数-N+1) 小的最小容量。")
 
 # 日需求序列：100,200,...,1000（10 天）
 daily = np.array([100.0 * (i + 1) for i in range(10)])
-cap = calc_capacity_for_days(5, daily)          # 满足 5 天所需容量
-days = calc_days_for_capacity(cap, daily, daily)  # 该容量能满足几天（充放分开传）
-check("容量反推后，天数应 >= 目标 5", days >= 5, f"cap={cap} days={days}")
-check("反推结果落在日需求序列内", 100.0 <= cap <= 1000.0, f"cap={cap}")
 
-cap_max = calc_capacity_for_days(10, daily)
-check("满足全部 10 天 → 容量 = 最大值 1000", close(cap_max, 1000.0), f"实得 {cap_max}")
+# 满足全部 10 天 → 容量 = 最小（100）
+cap_all = calc_capacity_for_days(10, daily)
+check("满足全部 10 天 → 容量 = 最小值 100", close(cap_all, 100.0), f"实得 {cap_all}")
 
-cap_min = calc_capacity_for_days(1, daily)
-check("只满足 1 天 → 容量 = 最小值 100", close(cap_min, 100.0), f"实得 {cap_min}")
+# 只满足 1 天 → 容量 = 最大（1000）
+cap_one = calc_capacity_for_days(1, daily)
+check("只满足 1 天 → 容量 = 最大值 1000", close(cap_one, 1000.0), f"实得 {cap_one}")
+
+# 满足 5 天 → 第 (10-5+1)=6 小 = 600
+cap_mid = calc_capacity_for_days(5, daily)
+check("满足 5 天 → 第 6 小 = 600", close(cap_mid, 600.0), f"实得 {cap_mid}")
+
+# 两个方向自洽：给定容量，反查天数
+for target in (1, 5, 10):
+    c = calc_capacity_for_days(target, daily)
+    d = calc_days_for_capacity(c, daily, daily)
+    check(f"满足 {target} 天 → 容量 {c:.0f} → 反查能得到 {target} 天",
+          int(d) >= target, f"反查 {d} 天")
+
+# 单调性：目标天数越大，容量越小（越容易满足）
+caps = [calc_capacity_for_days(t, daily) for t in (1, 3, 5, 8, 10)]
+check("目标天数越大 → 容量越小（单调不增）",
+      all(caps[i] >= caps[i + 1] for i in range(len(caps) - 1)), str(caps))
 
 print()
 print("=" * 78)

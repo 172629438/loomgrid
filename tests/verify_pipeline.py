@@ -257,10 +257,11 @@ def group_G():
         days = F.calc_days_for_capacity(290.0, np.array(charge), np.array(discharge))
         check("G2 容量反查天数一致", int(days) == 3, f"{days}")
         cap_all = F.calc_capacity_for_days(5, charge, discharge)
-        # v2.3.13fix: 原断言写的是「全取时容量 = 最小值 100」——那是旧实现的方向错误。
-        # 要满足全部 5 天，容量必须能覆盖最大的那天 470。
-        # （G1 的 target=3 两种实现碰巧同值 290，所以只有这条能暴露方向问题。）
-        check("G3 全取 5 天 → 容量 = 最大值 470（要覆盖所有天）", abs(cap_all - 470.0) < 1e-9, f"{cap_all}")
+        # 业务语义：容量越小越容易满足（装得比当天空间大会充不满/放不完）。
+        # 所以「满足全部 5 天」要取下限——只要最小的那天能容下这个容量就行。
+        # v2.3.13 曾把它改成「= 最大值 470」，那是方向反了，本行已改回。
+        check("G3 全取 5 天 → 容量 = 最小值 100（容量越小越容易满足）",
+              abs(cap_all - 100.0) < 1e-9, f"{cap_all}")
         cap_zero = F.calc_capacity_for_days(0, charge, discharge)
         check("G4 取 0 天返回 0", cap_zero == 0.0, f"{cap_zero}")
         cap_over = F.calc_capacity_for_days(99, charge, discharge)
