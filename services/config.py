@@ -334,6 +334,12 @@ class Config:
                     continue
                 if '|' not in k:
                     continue
+                # v2.3.15fix: 相似度兜底也必须校验列存在性。
+                # 原实现只算 _sim，于是「采集时间」相同、负荷列名略异（A线/B线）时
+                # 会返回一个 load_col 根本不在本文件里的映射——用户看到的是
+                # 「映射套上了」，实际取数会报缺列或取错列。宁可让他重选。
+                if not self._valid_map(m, cols):
+                    continue
                 try:
                     sc = self._sim(m,cols)
                     if sc>best:
