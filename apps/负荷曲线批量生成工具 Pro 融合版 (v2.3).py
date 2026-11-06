@@ -1435,6 +1435,15 @@ class MappingDialog(QDialog):
             _fmt_warn.setStyleSheet("color: #c62828;")
             fmt_layout.addWidget(_fmt_warn)
         fmt_layout.addWidget(self.fmt_long)
+        # v2.3.13fix: 长表也可以是指数表（采集日期 + 采集时间 + 累计电度，一行一个时刻）。
+        # 原来「指数表」只是宽表模式下的选项，选长表时 convert_accumulated 恒为 False，
+        # 累计读数会被当成功率直接画（曲线单调上升、无任何提示）。
+        # 后端 _scan_long_chunk 一直支持，只是 UI 没入口。
+        self.long_acc_cb = QCheckBox("该负荷列是累计示数（自动差分为功率）")
+        self.long_acc_cb.setToolTip("长表形态：一行一个时刻，负荷列是累计电度（正向有功电度）。\n"
+                                    "日重置表会自动差分成功率；跳天不回落（月度累计）的会报错而不是静默出图。")
+        self.long_acc_cb.setVisible(False)  # 只在长表模式显示
+        fmt_layout.addWidget(self.long_acc_cb)
         fmt_layout.addWidget(self.fmt_accumulated)
         fmt_layout.addWidget(self.fmt_wide)
         self.fmt_group_btns = QButtonGroup()
@@ -1768,7 +1777,8 @@ class MappingDialog(QDialog):
             'load': self.load_combo.currentText() if self.load_combo.isVisible() else '',
             'load_list': [self.load_list.item(i).text() for i in range(self.load_list.count()) if self.load_list.item(i).isSelected()],
             'fmt_wide': self.fmt_wide.isChecked(),
-            'fmt_accumulated': self.fmt_accumulated.isChecked()
+            'fmt_accumulated': self.fmt_accumulated.isChecked(),
+            'long_acc': self.long_acc_cb.isChecked()   # v2.3.13fix
         }
         self.undo_auto_btn.setEnabled(True)
 
@@ -1791,6 +1801,9 @@ class MappingDialog(QDialog):
             self.fmt_long.setChecked(True)
             self._fmt_chg()
             self.load_combo.setCurrentText(state['load'])
+            # v2.3.13fix: 撤销自动识别时，长表指数表的勾选状态也要回去
+            if hasattr(self, 'long_acc_cb'):
+                self.long_acc_cb.setChecked(state.get('long_acc', False))
         self._pre_auto_state = None
         self.undo_auto_btn.setEnabled(False)
         self.confidence_label.setText("已撤销智能识别")
@@ -1831,6 +1844,9 @@ class MappingDialog(QDialog):
             self.time_combo.setEnabled(True)
             self.time_label.setToolTip("")
             self.accumulated_hint_label.setVisible(False)
+        # v2.3.13fix: 长表指数表的勾选框只在长表模式出现
+        if hasattr(self, 'long_acc_cb'):
+            self.long_acc_cb.setVisible(not is_wide_or_accum)
 
     def _ok(self):
         d = self.date_combo.currentText().strip()
@@ -1865,7 +1881,9 @@ class MappingDialog(QDialog):
             'format_type': fmt,
             'header_row': self.header_row_spin.value() - 1,
             'delimiter': delim,
-            'convert_accumulated': fmt == 'accumulated'
+            # v2.3.13fix: 长表 + 指数表勾选框也要触发转换
+            'convert_accumulated': (fmt == 'accumulated') or
+                                   (fmt == 'long' and self.long_acc_cb.isChecked())
         }
         if apply_all:
             self.result['__apply_to_all_sheets'] = True
