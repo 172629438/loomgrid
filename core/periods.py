@@ -44,10 +44,23 @@ def _segment_periods(periods):
             current_start = p['start']
             current_end = p['end']
             current_sub = [p]
-        elif ptype == current_type and abs(p['start'] - current_end) < 0.01:
-            current_end = p['end']
+        elif ptype == current_type and p['start'] <= current_end + 0.01:
+            # v2.3.15fix: 原来只合并「相邻」（abs(start-end)<0.01），重叠时段会
+            # 变成两个独立段。而 compute_segmented_spaces 是逐段积分再相加的，
+            # 重叠区间会被算两次——实测 Mode A 下 0-8 充 + 6-12 充，充电空间
+            # 从 800 涨到 1400，其中 200 是 6-8 这两小时的重复量。
+            # 同方向重叠语义上就是「这些时间都算充电」，合并是对的；
+            # end 取较大值，防止被更短的段截短。
+            current_end = max(current_end, p['end'])
             current_sub.append(p)
         else:
+            # v2.3.15fix: 不同方向重叠是矛盾配置（同一时刻既充又放），
+            # 不能静默合并。界面保存时有 _valid_periods 拦，但 api/routes_calc
+            # 与程序内构造的时段不过那条路，所以在这里兜底。
+            if p['start'] < current_end - 0.01:
+                raise ValueError(
+                    f"时段重叠且方向不同：{current_start}-{current_end} 与 "
+                    f"{p['start']}-{p['end']}，请修改电价策略时段")
             label = ''
             if current_type in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
                 charge_idx += 1
