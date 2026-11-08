@@ -6755,6 +6755,12 @@ class FileListWidget(QListWidget):
         self._empty_label.setAlignment(Qt.AlignCenter)
         self._empty_label.setStyleSheet("color: gray; font-size: 12px; border: none;")
         self._empty_label.setWordWrap(True)
+        # v2.3.16fix: 这个 label 铺满整个列表（resizeEvent 里 setGeometry(self.rect())），
+        # 而 QLabel 默认 acceptDrops=False——它会把拖拽事件吃掉，不转发给父控件 QListWidget。
+        # 后果：**列表为空时拖不进去**，而有文件时 label 隐藏反而正常。
+        # 用户感受就是“有时能拖有时不能”，且失效的正是最需要拖的空列表状态。
+        # 修法：鼠标事件穿透，让拖拽直接落到 QListWidget 上。
+        self._empty_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.model().rowsInserted.connect(self._update_empty_label)
         self.model().rowsRemoved.connect(self._update_empty_label)
         self.model().modelReset.connect(self._update_empty_label)
@@ -6768,13 +6774,40 @@ class FileListWidget(QListWidget):
         self._empty_label.setGeometry(self.rect())
 
     def dragEnterEvent(self, event: QDragEnterEvent):
-        if event.mimeData().hasUrls():
+        # v2.3.16fix: 原来只判 hasUrls()，拖一个不支持的格式进来也会显示“可放”，
+        # 但 dropEvent 过滤后 files 为空 —— 什么都不发生且无任何提示。
+        # 现在先扫一遍有没有可用文件，没有就 refuse，光标直接显示“禁止”，
+        # 比“看起来能放但没反应”诚实。
+        if event.mimeData().hasUrls() and self._has_supported(event.mimeData().urls()):
             event.acceptProposedAction()
             self.setProperty("dragOver", True)
             self.style().unpolish(self)
             self.style().polish(self)
         else:
             super().dragEnterEvent(event)
+
+    @staticmethod
+    def _has_supported(urls, max_probe=64):
+        """快速探一下这批 URL 里有没有可导入的文件。
+
+        只看前 max_probe 个条目，以及文件夹的第一层——避免拖一个大目录时
+        在 dragEnter 阶段就 os.walk 全盘递归（那会让整个界面卡住）。
+        真正递归在 dropEvent 里做。
+        """
+        for url in urls[:max_probe]:
+            p = url.toLocalFile()
+            if not p:
+                continue
+            if os.path.isfile(p) and p.lower().endswith(SUPPORTED_EXTS):
+                return True
+            if os.path.isdir(p):
+                try:
+                    for fn in os.listdir(p)[:max_probe]:
+                        if fn.lower().endswith(SUPPORTED_EXTS):
+                            return True
+                except OSError:
+                    continue
+        return False
 
     def dragLeaveEvent(self, event):
         self.setProperty("dragOver", False)
@@ -6788,20 +6821,48 @@ class FileListWidget(QListWidget):
         self.style().polish(self)
         if event.mimeData().hasUrls():
             files = []
+            skipped = 0
             for url in event.mimeData().urls():
                 p = url.toLocalFile()
                 if os.path.isfile(p) and p.lower().endswith(SUPPORTED_EXTS):
                     files.append(p)
                 elif os.path.isdir(p):
-                    for root, _, fns in os.walk(p):
-                        for fn in fns:
-                            if fn.lower().endswith(SUPPORTED_EXTS):
-                                files.append(os.path.join(root, fn))
+                    # v2.3.16fix: 原实现对目录无限递归，拖一个盘符根或超大目录
+                    # 会当场卡死（UI 线程同步遍历）。现在限制深度与文件数，
+                    # 超过上限就停并告知——宁可漏几个也不能假装在工作。
+                    got, hit_limit = self._walk_dir(p)
+                    files.extend(got)
+                    if hit_limit:
+                        skipped += 1
+                else:
+                    skipped += 1
             if files:
                 self.files_added.emit(files)
+                if skipped:
+                    log.warning("拖放：%d 个条目被跳过（格式不支持或目录过大）", skipped)
+            else:
+                # v2.3.16fix: 原来拖了不支持的东西（或全被过滤）就什么都不发生，
+                # 用户以为是程序卡了。现在给一句可读提示。
+                log.warning("拖放：没有找到可导入的文件（支持 %s）",
+                            "/".join(sorted(SUPPORTED_EXTS)))
             event.acceptProposedAction()
         else:
             super().dropEvent(event)
+
+    @staticmethod
+    def _walk_dir(root, max_depth=6, max_files=5000):
+        """限深限量地扫目录，返回 (文件列表, 是否触顶)。"""
+        got = []
+        root_depth = root.rstrip(os.sep).count(os.sep)
+        for dirpath, dirnames, filenames in os.walk(root):
+            if dirpath.rstrip(os.sep).count(os.sep) - root_depth >= max_depth:
+                dirnames[:] = []          # 不再深入
+            for fn in filenames:
+                if fn.lower().endswith(SUPPORTED_EXTS):
+                    got.append(os.path.join(dirpath, fn))
+                    if len(got) >= max_files:
+                        return got, True
+        return got, False
 
     def add_file_item(self, filepath):
         fname = os.path.basename(filepath)
