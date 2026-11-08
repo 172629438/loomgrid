@@ -159,13 +159,24 @@ class Config:
     def _migrate(self):
         with self._lock:
             old_version = self.cfg.get('config_version', 0)
+            # v2.3.15fix: 只在真的改变了配置时才 save。
+            # 原实现末尾无条件 self.save()，于是每次启动都写盘 +
+            # 生成一个备份（save() 里存在旧文件就 copy 一份）。
+            # 备份上限 5 个，启动 10 次就能把用户改配置前的历史备份全挤掉——
+            # 而那些备份正是「配置坏了要回滚」唯一的依靠。实测：3 个历史备份剩 0。
+            need_save = False
             if old_version < 14:
                 old_strategies = self.cfg.get('price_strategies', {})
                 if 'charge_discharge_strategies' in self.cfg:
                     old_strategies.update(self.cfg.pop('charge_discharge_strategies'))
                 new_strategies = {}
                 for name, strat_data in old_strategies.items():
-                    if isinstance(strat_data, dict) and 'type' not in strat_data:
+                    # v2.3.15fix: 判「旧格式」不该看有没有 type，而该看有没有 groups。
+                    # 新格式的定义特征就是 groups。原写法下，若旧策略里恰好带了
+                    # 一个 type 键（手改过配置 / 某个历史版本写入的），
+                    # 会被当成新格式原样保留，后续 get_periods_for_month 取不到
+                    # groups → 静默返回 0 条时段。实测：这样的策略「看着在、实际没用」。
+                    if isinstance(strat_data, dict) and 'groups' not in strat_data:
                         groups = []
                         for month_key, periods in strat_data.items():
                             try:
@@ -182,6 +193,9 @@ class Config:
                                 "type": "province",
                                 "groups": groups
                             }
+                        else:
+                            # 没有任何月份键：保留原数据，不要默默丢掉
+                            new_strategies[name] = strat_data
                     else:
                         new_strategies[name] = strat_data
                 self.cfg['price_strategies'] = new_strategies
@@ -193,12 +207,20 @@ class Config:
                         self.cfg['active_province'] = self.cfg['active_strategy']
                 self.cfg['config_version'] = self.CONFIG_VERSION
                 log.info("配置已从旧版升级到v14（策略架构重构）")
-            self.cfg['config_version'] = self.CONFIG_VERSION
-            self.cfg.setdefault('app_settings', {})
+                need_save = True
+            if self.cfg.get('config_version') != self.CONFIG_VERSION:
+                self.cfg['config_version'] = self.CONFIG_VERSION
+                need_save = True
+            if 'app_settings' not in self.cfg:
+                self.cfg['app_settings'] = {}
+                need_save = True
             app = self.cfg['app_settings']
             for key, val in self.DEFAULT_CONFIG['app_settings'].items():
-                app.setdefault(key, val)
-            self.save()
+                if key not in app:
+                    app[key] = val
+                    need_save = True
+            if need_save:
+                self.save()
 
     def _validate_highlight_dependency(self):
         with self._lock:
