@@ -5808,24 +5808,23 @@ class ProfessionalWindow(QMainWindow):
                             rgt = int(np.searchsorted(hours, b, side='left'))
                             if rgt <= lft:
                                 continue
-                            # v2.3.17fix9: 段末点收窄到负荷值（高度归零）。
+                            # 完整空间：左边界、右边界都垂直收口。
                             #
-                            # 前面两版在末端各错一次：
-                            #   版A：末点用前一个采样点的值 → 高度不收敛，
-                            #        8:00 处还撑着 520 的高（实际只剩 180），画成矩形；
-                            #   版B：末点用 b 自己的值 → 充电2 在 18:00 用上了放电段的
-                            #        负荷 480（高度 220），和放电段的 [0,480] 拼成一整条，
-                            #        看着像两段连成一片。
+                            # 用户红线要求的形状（充电1）：
+                            #   (0,150) → 沿负荷 → (6,180) → (8,520)
+                            #   → 垂直上到 (8,700) → 沿容量线回 (0,700) → 垂直下到 0
+                            # 即：下边界跟负荷曲线，上边界是容量线，两端垂直。
                             #
-                            # 正解：末点的上下边界都收在负荷线上 → 高度 0，
-                            # 形成一个向右收窄的三角，既不撑过头也不缺块。
+                            # 中间两版都错了：
+                            #   · 末点用前一采样点 → 高度不收敛（8:00 还撑 520 的高）
+                            #   · 末点收窄成尖 → 右边界没了，空间不完整
+                            # 正解：末点用边界 b 自己的负荷与上限 → 右边界垂直。
                             bi = min(rgt, len(hours) - 1)
                             x = np.concatenate(([a], hours[lft:rgt], [b]))
                             y_lo = np.concatenate(([base[lft]], base[lft:rgt],
                                                    [base[bi]]))
-                            y_hi = y_lo.copy()
-                            y_hi[:-1] = np.concatenate(([curve[lft]],
-                                                        curve[lft:rgt]))
+                            y_hi = np.concatenate(([curve[lft]], curve[lft:rgt],
+                                                   [curve[bi]]))
                             ax.fill_between(x, y_lo, y_hi,
                                             color=color, alpha=0.38, linewidth=0,
                                             label=(label if first else None),

@@ -176,8 +176,9 @@ check("按段分别填充（_fill_by_segment）", "_fill_by_segment" in _code_on
 check("段按 [start, end) 取点，末点归零收口",
       "np.searchsorted(hours, b, side='left')" in _code_only
       and "np.concatenate(([a], hours[lft:rgt], [b]))" in _code_only)
-check("段末点收窄成三角尖（高度归零，不撑到下一段）",
-      "y_hi = y_lo.copy()" in _code_only)
+check("空间完整：上下边界都用边界点自己的值（两端垂直收口）",
+      "np.concatenate(([curve[lft]], curve[lft:rgt],\n                                                   [curve[bi]]))" in _code_only
+      or "[curve[bi]]))" in _code_only)
 check("上下边界 clamp 到 0 以上（负负荷不填到轴下）",
       "np.maximum(np.asarray(curve, dtype=float), 0.0)" in _code_only)
 check("填充去描边（零高度段不画成线）",
