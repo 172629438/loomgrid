@@ -172,7 +172,13 @@ _code_only = "\n".join(ln.split("#", 1)[0] for ln in _draw.splitlines())
 _has_step = "step=" in _code_only
 check("填充用折线，不套 step（与 plot 曲线逐点重合）",
       not _has_step, "代码行里出现了 step=" if _has_step else "")
-check("按段分别填充（_fill_by_segment）", "_fill_by_segment" in _code_only)
+check("按段分别着色（四段四色 + 逐段标 kWh）",
+      "_CHARGE_COLORS" in _code_only and "_DISCHARGE_COLORS" in _code_only
+      and "kWh" in _code_only)
+check("每段能量标注取空间量本身（ch / dis），不是 load+ch",
+      "ch if is_ch else dis" in _code_only)
+check("全时段物理空间淡色底（避免空白被读成漏算）",
+      "充电潜力（全时段）" in _draw and "放电潜力（全时段）" in _draw)
 check("段按 [start, end) 取点，末点归零收口",
       "np.searchsorted(hours, b, side='left')" in _code_only
       and "np.concatenate(([a], hours[lft:rgt], [b]))" in _code_only)

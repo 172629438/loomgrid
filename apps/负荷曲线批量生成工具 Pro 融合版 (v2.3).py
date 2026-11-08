@@ -5782,53 +5782,85 @@ class ProfessionalWindow(QMainWindow):
 
                 ax.plot(hours, load_row, color='#1c1c1a', lw=1.2, zorder=6, label='负荷')
 
-                # v2.3.17fix3: 段覆盖 [start, end)，末点归零收口。
+                # v2.3.17fix4: 按「段」分别上色，不再把两充两放合并成两色。
                 #
-                # 前两版的问题都在「边界点归谁」：
-                #   18:00 既属于 14-18 充电段（末尾）又属于 18-21 放电段（开头），
-                #   两段都在这条竖线上画了色块 → 「18 点之后还有充电」「18 点前有放电」。
-                #   11:00 负荷转负、放电空间归 0，但折线把 10:45 的 520 斜降到负值
-                #   → 红色区域串到 X 轴下方，语义上就是逆流。
+                # 两充两放有四段：充电1 / 放电1 / 充电2 / 放电2。表格也是四列。
+                # 合并成「充电空间 / 放电空间」两色后，图上有几块与表格几列对不上，
+                # 用户无法逐段核对「这段面积是不是等于那一列的数字」——
+                # 而逐段核对恰恰是这张图存在的理由。
                 #
-                # 修法两条：
-                #   ① rgt 用 'left'（不含 end 点），末点补到 b 但高度归零；
-                #   ② 空间为 0 的点置 NaN，fill_between 会直接断开，不连斜线。
-                def _fill_by_segment(curve, base, color, label, zorder):
-                    first = True
-                    for seg in segments or []:
-                        s_start = float(seg['start'])
-                        s_end = float(seg['end'])
-                        subs = ([(s_start, 24.0), (0.0, s_end)] if s_start > s_end
-                                else [(s_start, s_end)])
-                        for a, b in subs:
-                            lft = int(np.searchsorted(hours, a, side='left'))
-                            rgt = int(np.searchsorted(hours, b, side='left'))
-                            if rgt <= lft:
-                                continue
-                            # 段内采样点（不含 end）+ 两端边界；末点高度归零
-                            x = np.concatenate(([a], hours[lft:rgt], [b]))
-                            y_lo = np.concatenate(([base[lft]], base[lft:rgt],
-                                                   [base[rgt - 1]]))
-                            y_hi = np.concatenate(([curve[lft]], curve[lft:rgt],
-                                                   [base[rgt - 1]]))
-                            # 空间为 0 的点断开，不参与连线
-                            span = np.abs(y_hi - y_lo)
-                            y_lo = np.where(span > 1e-12, y_lo, np.nan)
-                            y_hi = np.where(span > 1e-12, y_hi, np.nan)
-                            ax.fill_between(x, y_lo, y_hi,
-                                            color=color, alpha=0.38,
-                                            label=(label if first else None),
-                                            zorder=zorder)
-                            first = False
+                # 现在每段一个颜色 + 图例里直接标该段 kWh。
+                _CHARGE_COLORS = ['#2e7d32', '#66bb6a', '#1b5e20', '#a5d6a7']
+                _DISCHARGE_COLORS = ['#c62828', '#ef5350', '#8e0000', '#ef9a9a']
+                ci = di = 0
+                for seg in segments or []:
+                    s_start = float(seg['start'])
+                    s_end = float(seg['end'])
+                    is_ch = seg['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL)
+                    curve = (load_row + ch) if is_ch else load_row
+                    base = load_row if is_ch else (load_row - dis)
+                    if is_ch:
+                        color = _CHARGE_COLORS[ci % len(_CHARGE_COLORS)]
+                        seg_no = ci + 1
+                        ci += 1
+                        tag = '充电'
+                    else:
+                        color = _DISCHARGE_COLORS[di % len(_DISCHARGE_COLORS)]
+                        seg_no = di + 1
+                        di += 1
+                        tag = '放电'
+                    # 算本段能量：积分对象必须是「空间量」本身（ch 或 dis），
+                    # 不是 load+ch（那等于容量线，会算成 700×8=5600）
+                    seg_energy = integrate_by_segments(
+                        ch if is_ch else dis, hours,
+                        [{'start': s_start, 'end': s_end, 'type': seg['type']}],
+                        'charge' if is_ch else 'discharge')
+                    label = f'{tag}{seg_no} {seg_energy:.0f} kWh'
+                    subs = ([(s_start, 24.0), (0.0, s_end)] if s_start > s_end
+                            else [(s_start, s_end)])
+                    first_sub = True
+                    for a, b in subs:
+                        lft = int(np.searchsorted(hours, a, side='left'))
+                        rgt = int(np.searchsorted(hours, b, side='left'))
+                        if rgt <= lft:
+                            continue
+                        x = np.concatenate(([a], hours[lft:rgt], [b]))
+                        y_lo = np.concatenate(([base[lft]], base[lft:rgt],
+                                               [base[rgt - 1]]))
+                        y_hi = np.concatenate(([curve[lft]], curve[lft:rgt],
+                                               [base[rgt - 1]]))
+                        span = np.abs(y_hi - y_lo)
+                        y_lo = np.where(span > 1e-12, y_lo, np.nan)
+                        y_hi = np.where(span > 1e-12, y_hi, np.nan)
+                        ax.fill_between(x, y_lo, y_hi, color=color, alpha=0.45,
+                                        label=(label if first_sub else None),
+                                        zorder=zorder)
+                        first_sub = False
 
-                _fill_by_segment(load_row + ch, load_row, '#2e7d32',
-                                 '充电空间（向上）', 3)
-                _fill_by_segment(load_row, load_row - dis, '#c62828',
-                                 '放电空间（向下）', 3)
                 # 光伏返送就是负荷为负的那一块，从 0 填到负荷
                 ax.fill_between(hours, 0, load_row, where=(load_row < 0),
                                 color='#f9a825', alpha=0.55, zorder=4,
                                 label='光伏返送')
+
+                # v2.3.17fix6: 先铺「全时段物理空间」淡色底，再叠四段深色。
+                #
+                # 用户反馈「面积少画了」：四个深色块只盖住配置的充放时段，
+                # 而 8-10、12-14、21-24 这些时段负荷远低于容量线，
+                # 物理上同样有充放空间，却什么都没画——看起来就像漏算。
+                #
+                # 现在两层：
+                #   淡色 = 全时段物理空间（充电：负荷→容量线；放电：0→负荷）
+                #   深色 = 实际计入测算的部分（四段）
+                # 两者之差就是「策略没去用的空间」，直接可见。
+                if cap and cap > 0:
+                    ax.fill_between(hours,
+                                    np.minimum(load_row, cap), cap,
+                                    color='#a5d6a7', alpha=0.30, zorder=1,
+                                    label='充电潜力（全时段）')
+                    ax.fill_between(hours, 0,
+                                    np.minimum(np.maximum(load_row, 0.0), cap),
+                                    color='#ef9a9a', alpha=0.25, zorder=1,
+                                    label='放电潜力（全时段）')
 
                 # 时段竖线：让用户能看出「哪些区间参与了计算」
                 for seg in segments or []:
