@@ -26,13 +26,17 @@ from core.models import (
     DEFAULT_WEEKDAY_COLOR, DEFAULT_WEEKEND_COLOR, DEFAULT_HOLIDAY_COLOR,
     DEFAULT_WEEKEND_LINE_WIDTH, DEFAULT_HOLIDAY_LINE_WIDTH,
 )
-from core.timegrid import (
-    _is_holiday_available, _normalize_fullwidth_chars, _set_24h_belong,
+from core.timegrid import (    _is_holiday_available, _normalize_fullwidth_chars, _set_24h_belong,
 )
 
 log = logging.getLogger(__name__)
 
 __all__ = ["Config"]
+
+# v2.3.18: 内置省份电价数据与推导函数。
+# 放在 services/tou.py 而不写进配置文件：政策会变，写在代码里才能随升级更新。
+from services.tou import PROVINCE_TOU as _BUILTIN_TOU  # noqa: E402
+from services.tou import derive_periods as _derive_periods  # noqa: E402
 
 
 def _default_scan_workers():
@@ -418,16 +422,62 @@ class Config:
         return max(SequenceMatcher(None, norm_tar.lower(), _normalize_fullwidth_chars(str(c)).lower()).ratio() for c in cand)
 
     def provinces(self):
+        """省份名单 = 内置省份 + 用户自建省份（去重，排序）。
+
+        v2.3.18：内置数据放在 services/tou.py，不写进配置文件——
+        政策会变，写进去就无法通过升级代码来更新了。
+        用户自建的省份仍存在 cfg['price_strategies'] 里，两者合并呈现。
+        """
         with self._lock:
-            return list(self.cfg.get('price_strategies', {}).keys())
+            custom = list(self.cfg.get('price_strategies', {}).keys())
+        builtin = list(_BUILTIN_TOU.keys())
+        return sorted(set(custom) | set(builtin))
+
+    def _builtin_groups(self, name):
+        """把内置的按月数据按「同策略月份」合成 groups。"""
+        spec = _BUILTIN_TOU.get(name)
+        if not spec:
+            return []
+        buckets = {}   # periods 指纹 → [月份]
+        for m, tou in spec['months'].items():
+            periods = _derive_periods(tou)
+            key = tuple((p['start'], p['end'], p['type']) for p in periods)
+            buckets.setdefault(key, {'periods': periods, 'months': []})
+            buckets[key]['months'].append(int(m))
+        groups = []
+        for key, b in buckets.items():
+            months = sorted(b['months'])
+            label = '、'.join(str(x) for x in months)
+            groups.append({
+                'name': f"内置（{label} 月）",
+                'months': months,
+                'periods': b['periods'],
+                'source': spec.get('source', ''),
+                'checked': spec.get('checked', ''),
+            })
+        groups.sort(key=lambda g: g['months'][0] if g['months'] else 0)
+        return groups
 
     def get_province_data(self, name):
         with self._lock:
-            return self.cfg.get('price_strategies', {}).get(name, {}).copy()
+            d = self.cfg.get('price_strategies', {}).get(name)
+        if d:
+            return d.copy()
+        spec = _BUILTIN_TOU.get(name)
+        if spec:
+            return {'type': 'province', 'builtin': True,
+                    'source': spec.get('source', ''),
+                    'checked': spec.get('checked', ''),
+                    'groups': self._builtin_groups(name)}
+        return {}
 
     def get_province_groups(self, name):
-        province = self.get_province_data(name)
-        return province.get('groups', [])
+        # 用户自建的优先（他可能改了内置的某些细节）
+        with self._lock:
+            custom = self.cfg.get('price_strategies', {}).get(name)
+        if custom and custom.get('groups'):
+            return custom['groups']
+        return self._builtin_groups(name)
 
     def add_province(self, name):
         with self._lock:
