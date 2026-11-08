@@ -29,6 +29,10 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 PASS = FAIL = 0
 
+# 主程序源码：多节断言都要用，所以先读一次
+MAIN_PATH = os.path.join(REPO, "apps", "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
+src = open(MAIN_PATH, encoding="utf-8").read()
+
 
 def check(name, cond, detail=""):
     global PASS, FAIL
@@ -116,10 +120,27 @@ for target in (1, 3, 5, 7, 10):
 
 print()
 print("=" * 78)
-print("⑤ 源码契约：主程序三处都用 _combined_factor，没有残留只除 DOD")
+print("⑤ 93% 是往返效率（充+放一整轮），不得再乘一次")
 print("=" * 78)
-main = os.path.join(REPO, "apps", "负荷曲线批量生成工具 Pro 融合版 (v2.3).py")
-src = open(main, encoding="utf-8").read()
+# 用户口径（2026-11-04）：「93% 是充和放一整轮的效率」——即 AC-AC RTE。
+# 所以 k = DOD × 0.93，不能再 × 0.93。
+# 如果被误当单程：0.95 × 0.93 × 0.93 = 0.8218，比正确的 0.8835 低 7.5%。
+k_rte = k_of(95, 93)
+k_oneway = 0.95 * 0.93 * 0.93
+check(f"往返口径 k = 0.95 × 0.93 = {k_rte:.4f}", close(k_rte, 0.8835), f"{k_rte}")
+check(f"若误当单程则 k = 0.95 × 0.93² = {k_oneway:.6f}（比正确值低 {(1-k_oneway/k_rte)*100:.2f}%）",
+      close(k_oneway, 0.95 * 0.93 * 0.93), f"{k_oneway:.6f}")
+check("两者必须不相等（防止口径回退）", not close(k_rte, k_oneway), f"{k_rte:.4f} vs {k_oneway:.4f}")
+
+# 源码侧：注释里必须写明「往返」，不能只写「效率」而让人误解
+check("常量注释写明往返", "往返效率" in src or "往返" in src)
+check("tooltip 写明充+放", "充 + 放" in src or "充+放" in src)
+
+print()
+print("=" * 78)
+print("⑥ 源码契约：主程序三处都用 _combined_factor，没有残留只除 DOD")
+print("=" * 78)
+main = MAIN_PATH
 
 check("定义了 _combined_factor()", "def _combined_factor(self)" in src)
 check("常量 BESS_SYS_EFF_DEFAULT 存在", "BESS_SYS_EFF_DEFAULT" in src)
