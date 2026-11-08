@@ -5792,9 +5792,15 @@ class ProfessionalWindow(QMainWindow):
                 # 正解：末点用「段内最后一点的曲线值」（不归零），
                 # 坐标推到 b（真正的段边界）。段外不参与绘制，
                 # 所以到 b 就自然垂直收口，不会越界。
-                def _fill_by_segment(curve, base, color, label, zorder):
-                    # v2.3.17fix9: 上下边界都 clamp 到 0 以上。
-                    # 负负荷处（光伏返送）直接用原值会填到 0 轴以下。
+                # v2.3.17fix10: 交界点两段都不占；光伏硬切到负荷为负的区间。
+                #
+                # 用户红线要求：
+                #   充电2 在 18:00 处那块三角（620→480）多余 → 末点归零
+                #   放电2 在 18:00 处那块多余 → 首点归零
+                #   即：18:00 这个交界点两段都不占，中间留一格空白。
+                def _fill_by_segment(curve, base, color, label, zorder,
+                                     zero_at='end'):
+                    # 上下边界 clamp 到 0 以上：负负荷处不填到轴下
                     curve = np.maximum(np.asarray(curve, dtype=float), 0.0)
                     base = np.maximum(np.asarray(base, dtype=float), 0.0)
                     first = True
@@ -5808,23 +5814,18 @@ class ProfessionalWindow(QMainWindow):
                             rgt = int(np.searchsorted(hours, b, side='left'))
                             if rgt <= lft:
                                 continue
-                            # 完整空间：左边界、右边界都垂直收口。
-                            #
-                            # 用户红线要求的形状（充电1）：
-                            #   (0,150) → 沿负荷 → (6,180) → (8,520)
-                            #   → 垂直上到 (8,700) → 沿容量线回 (0,700) → 垂直下到 0
-                            # 即：下边界跟负荷曲线，上边界是容量线，两端垂直。
-                            #
-                            # 中间两版都错了：
-                            #   · 末点用前一采样点 → 高度不收敛（8:00 还撑 520 的高）
-                            #   · 末点收窄成尖 → 右边界没了，空间不完整
-                            # 正解：末点用边界 b 自己的负荷与上限 → 右边界垂直。
                             bi = min(rgt, len(hours) - 1)
                             x = np.concatenate(([a], hours[lft:rgt], [b]))
                             y_lo = np.concatenate(([base[lft]], base[lft:rgt],
                                                    [base[bi]]))
                             y_hi = np.concatenate(([curve[lft]], curve[lft:rgt],
                                                    [curve[bi]]))
+                            # 交界点收窄：充电段末点归零，放电段首点归零，
+                            # 两段都不侵占 18:00 那一格。
+                            if zero_at == 'end':
+                                y_hi[-1] = y_lo[-1]
+                            elif zero_at == 'start':
+                                y_hi[0] = y_lo[0]
                             ax.fill_between(x, y_lo, y_hi,
                                             color=color, alpha=0.38, linewidth=0,
                                             label=(label if first else None),
@@ -5832,13 +5833,14 @@ class ProfessionalWindow(QMainWindow):
                             first = False
 
                 _fill_by_segment(load_row + ch, load_row, '#2e7d32',
-                                 '充电空间（向上）', 3)
+                                 '充电空间（向上）', 3, zero_at='end')
                 _fill_by_segment(load_row, load_row - dis, '#c62828',
-                                 '放电空间（向下）', 3)
-                # 光伏返送：用 min(负荷, 0) 直接填，不套 where。
-                # 套 where 会在「负荷由负转正」的那一格留下空白，
-                # 而那一格真实值是斜升到 0 的。
+                                 '放电空间（向下）', 3, zero_at='start')
+                # 光伏返送：硬切在「负荷为负」的边界，两端垂直。
+                # 用 min(load,0) 不套 where 会在两端留斜坡（负荷由正转负那一格），
+                # 看起来就像溢出了负负荷区间。
                 ax.fill_between(hours, 0, np.minimum(load_row, 0.0),
+                                where=(load_row < 0),
                                 color='#f9a825', alpha=0.55, linewidth=0,
                                 zorder=4, label='光伏返送')
 
