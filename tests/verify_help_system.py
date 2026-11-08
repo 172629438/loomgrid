@@ -130,6 +130,24 @@ check("日需求分支用 est_mode == 'full_load'（不再 '满载' in text）",
 
 print()
 print("=" * 78)
+print("④之二 RTE 派生量：存在、只读、随两参数刷新")
+print("=" * 78)
+check("有 rte 帮助条目", '"rte": {' in src)
+check("有 rte_label 控件", "self.rte_label = QLabel" in src)
+check("RTE 是 QLabel 而非 QSpinBox（不可编辑）",
+      "self.rte_label = QLabel" in src and "self.rte_spin" not in src)
+check("_update_system_scale 会刷新 rte_label",
+      "self.rte_label.setText" in src)
+check("RTE 跟随 DOD 与系统效率变化",
+      "self.dod_spin.valueChanged.connect(lambda: self._update_system_scale())" in src
+      and "self.sys_eff_spin.valueChanged.connect(lambda: self._update_system_scale())" in src)
+# RTE 必须是 k × 100，不能另算一套
+m_rte = re.search(r"self\.rte_label\.setText\(f\"\{k \* 100:\.2f\}%\"\)", src)
+check("RTE 直接取 k（与容量换算同一个系数）", bool(m_rte),
+      "" if m_rte else "未找到 setText(f\"{k * 100:.2f}%\")")
+
+print()
+print("=" * 78)
 print("⑤ 行为等价：两种 data 值下的判定结果符合业务定义")
 print("=" * 78)
 

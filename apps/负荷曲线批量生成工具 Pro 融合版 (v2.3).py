@@ -425,6 +425,23 @@ HELP_TEXTS = {
             "两者画在一起，就能看出超了多少或还有多少余量。"
         ),
     },
+    "rte": {
+        "title": "RTE（整柜整体效率）",
+        "brief": "DOD × 系统效率，自动算出。实际可搬占铭牌的比例",
+        "detail": (
+            "RTE = DOD × 系统效率，自动跟随左边两个参数变化，不可单独编辑。\n"
+            "之所以锁死：三个数如果都能改，必然出现互相矛盾的组合，\n"
+            "反而不知道哪个可信。\n\n"
+            "261 柜：95% × 93% = 88.35%，约 88%。\n\n"
+            "它回答的是一个很实际的问题：\n"
+            "  铭牌 261 kWh 的柜子，实际能搬多少能量？\n"
+            "  261 × 88.35% = 230.6 kWh\n\n"
+            "与技术协议的对应：\n"
+            "这里显示的 RTE 含 DOD，是「实际可搬 / 铭牌」的比值；\n"
+            "有些技术协议里的 RTE 只指电芯往返效率（不含 DOD）。\n"
+            "报价时注意分清是哪一个口径。"
+        ),
+    },
     "est_strategy": {
         "title": "评估策略：一天算不算「满足」",
         "brief": "决定「一天算不算满足」的严格程度（原：最小可行容量 / 满载利用率）",
@@ -5198,12 +5215,29 @@ class ProfessionalWindow(QMainWindow):
         row2.addWidget(self.sys_eff_spin)
         row2.addWidget(make_help_icon("sys_eff", self))
 
+        # v2.3.16: RTE 是派生量（DOD × 系统效率），只读展示。
+        # 售前工程师最常用这个数对外沟通（技术协议写的也是它），
+        # 但不能让它可编辑——三个数都能改就会出现互相矛盾的组合。
+        row2.addWidget(QLabel("  RTE:"))
+        self.rte_label = QLabel("—")
+        self.rte_label.setStyleSheet("font-weight: 600; color: #7a5c2e; min-width: 54px;")
+        self.rte_label.setToolTip("RTE = DOD × 系统效率，自动计算，不可编辑")
+        row2.addWidget(self.rte_label)
+        row2.addWidget(make_help_icon("rte", self))
+        row2.addStretch()
+        planner_layout.addLayout(row2)
+
+        # v2.3.16: 满足天数从 row2 拆出来单独一行——
+        # 配置容量 / DOD / 系统效率 / RTE 四个参数已经占满一行，
+        # 再把按钮和结果塞进去会把每个控件压到看不见。
+        row2b = QHBoxLayout()
         self.calc_days_btn = QPushButton("计算满足天数")
         self.calc_days_btn.clicked.connect(self._calc_days_from_capacity)
-        row2.addWidget(self.calc_days_btn)
+        row2b.addWidget(self.calc_days_btn)
         self.satisfy_days_label = QLabel("满足天数: 0")
-        row2.addWidget(self.satisfy_days_label)
-        planner_layout.addLayout(row2)
+        row2b.addWidget(self.satisfy_days_label)
+        row2b.addStretch()
+        planner_layout.addLayout(row2b)
 
         # v2.3.9fix: 删掉「实际满足天数」。它与上面的「满足天数」同一个变量赋两次值，
         # 永远相等，没有任何口径差异——不是两种统计，只是两行标签。
@@ -5744,6 +5778,9 @@ class ProfessionalWindow(QMainWindow):
         eff_val = self.sys_eff_spin.value() if hasattr(self, 'sys_eff_spin') else int(BESS_SYS_EFF_DEFAULT * 100)
         k = self._combined_factor()
         movable = cap * k
+        # v2.3.16: RTE 标签跟随两个参数实时刷新
+        if hasattr(self, 'rte_label'):
+            self.rte_label.setText(f"{k * 100:.2f}%")
         dod_info = (f" | DOD={dod_val}% × 效率={eff_val}% = 综合{k * 100:.2f}%"
                     f"（可搬{movable:.1f}kWh）")
         if unit_cap > 0:
