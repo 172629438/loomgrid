@@ -47,8 +47,9 @@ MARK_DL = "<!-- dl-hint -->"
 MARK_VER = "<!-- ver-guide -->"
 
 # 当前生产版本：改版时只改这里
-# 2026-11-03：Fusion 推至 v2.3.7（公司那台发的）、Ultra 推至 v3.2.9。
-PROD_FUSION = "fusion-v2.3.14"
+# 2026-11-04：Fusion 推至 v2.3.15（测试套件 76→79 + 十五项静默缺陷修复）；
+# Ultra 仍停在 v3.2.9，那条线已冻结。
+PROD_FUSION = "fusion-v2.3.15"
 PROD_ULTRA = "ultra-v3.2.9"
 
 
