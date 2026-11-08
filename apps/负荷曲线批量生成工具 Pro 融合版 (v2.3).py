@@ -5782,17 +5782,15 @@ class ProfessionalWindow(QMainWindow):
 
                 ax.plot(hours, load_row, color='#1c1c1a', lw=1.2, zorder=6, label='负荷')
 
-                # v2.3.17fix: 按段分别填充，并在段的两端补边界点。
+                # v2.3.17fix2: 填充必须是折线，不能用 step。
                 #
-                # 原写法一次填整条曲线，导致段边界处的采样点仍带着值：
-                #   8:00 属于充电段（ch=180），8:15 已在段外（ch=0），
-                #   fill_between 把两点连成斜坡 → 图上看着「8 点之后还在充电」。
-                #   放电侧同一毛病：10:45 有 520、11:00 负荷转负归 0，
-                #   斜线看起来就像「功率已经为负了还在继续放电」——那确实就是逆流语义。
+                # 上一版用 step='post' 把边界收口了，但引出一个更难看的问题：
+                # 填充块是阶梯（水平底边），而负荷曲线是折线（斜着爬），
+                # 两者在负荷跳变处错开，填充块与曲线之间裂出三角缝，
+                # 看起来就像「充电空间跑到负荷曲线下方了」。
                 #
-                # 数值一直是对的（边界点权重仅 0.125h），错的是画出来让人读成另一种意思。
-                # 修法：逐段画，段内 step='post'，两端补上 (段边界, 首/末值)，
-                # 让面积在时段边界垂直收口，不出段外半步。
+                # 正确做法：逐段画（段外不参与，边界自然切断）+ 补边界点
+                # + 折线填充。这样填充的上下沿与 plot 的曲线逐点重合。
                 def _fill_by_segment(curve, base, color, label, zorder):
                     first = True
                     for seg in segments or []:
@@ -5804,10 +5802,15 @@ class ProfessionalWindow(QMainWindow):
                             lft, rgt = segment_indices(hours, a, b)
                             if lft >= rgt:
                                 continue
-                            x = np.concatenate(([a], hours[lft:rgt], [b]))
-                            y_lo = np.concatenate(([base[lft]], base[lft:rgt], [base[rgt - 1]]))
-                            y_hi = np.concatenate(([curve[lft]], curve[lft:rgt], [curve[rgt - 1]]))
-                            ax.fill_between(x, y_lo, y_hi, step='post',
+                            # 段内各采样点 + 两端边界（边界处的值取相邻端点值）
+                            x = np.concatenate(([max(a, hours[lft])],
+                                                hours[lft:rgt],
+                                                [min(b, hours[rgt - 1])]))
+                            y_lo = np.concatenate(([base[lft]], base[lft:rgt],
+                                                   [base[rgt - 1]]))
+                            y_hi = np.concatenate(([curve[lft]], curve[lft:rgt],
+                                                   [curve[rgt - 1]]))
+                            ax.fill_between(x, y_lo, y_hi,
                                             color=color, alpha=0.38,
                                             label=(label if first else None),
                                             zorder=zorder)

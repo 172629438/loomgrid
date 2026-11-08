@@ -155,9 +155,9 @@ check("有 space_preview 帮助条目", '"space_preview": {' in main)
 check("预览用 Agg 内存图画，不换后端",
       "fig.savefig(buf, format='png'" in main and "matplotlib.use('Agg')" in main)
 
-# v2.3.17fix：段边界必须垂直收口，不能连成斜坡
-# 原写法一次 fill 整条曲线，8:00 那个点带着值、下一采样点为 0，两点连成斜线，
-# 图上就变成「8 点之后还在充电」「负功率时还在放电」——后者就是逆流。
+# v2.3.17fix2：填充必须是折线，不能用 step。
+# 用 step='post' 虽然边界收口了，但填充是阶梯（水平底边）、曲线是折线（斜着爬），
+# 两者在负荷跳变处裂出三角缝——看起来就像「充电空间跑到曲线下方」。
 # 取整个 _draw_space_preview 函数体（到下一个顶层 def 为止）
 _lines = main.splitlines()
 _start = next(i for i, ln in enumerate(_lines)
@@ -168,10 +168,13 @@ for _i in range(_start + 1, len(_lines)):
         _end = _i
         break
 _draw = "\n".join(_lines[_start:_end])
-check("按段分别填充（_fill_by_segment）", "_fill_by_segment" in _draw)
-check("段内用 step='post'，边界垂直跳变", "step='post'" in _draw)
-check("段两端补了边界坐标（a / b）",
-      "np.concatenate(([a], hours[lft:rgt], [b]))" in _draw)
+_code_only = "\n".join(ln.split("#", 1)[0] for ln in _draw.splitlines())
+_has_step = "step=" in _code_only
+check("填充用折线，不套 step（与 plot 曲线逐点重合）",
+      not _has_step, "代码行里出现了 step=" if _has_step else "")
+check("按段分别填充（_fill_by_segment）", "_fill_by_segment" in _code_only)
+check("段两端补了边界坐标",
+      "np.concatenate(([max(a, hours[lft])]" in _draw)
 check("不再一次性 fill 整条曲线",
       "fill_between(hours, load_row, load_row + ch" not in _draw)
 
