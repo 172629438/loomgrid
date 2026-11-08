@@ -5782,17 +5782,16 @@ class ProfessionalWindow(QMainWindow):
 
                 ax.plot(hours, load_row, color='#1c1c1a', lw=1.2, zorder=6, label='负荷')
 
-                # v2.3.17fix3: 段覆盖 [start, end)，末点归零收口。
+                # v2.3.17fix7: 末点保持段内高度，延伸到真边界再垂直收口。
                 #
-                # 前两版的问题都在「边界点归谁」：
-                #   18:00 既属于 14-18 充电段（末尾）又属于 18-21 放电段（开头），
-                #   两段都在这条竖线上画了色块 → 「18 点之后还有充电」「18 点前有放电」。
-                #   11:00 负荷转负、放电空间归 0，但折线把 10:45 的 520 斜降到负值
-                #   → 红色区域串到 X 轴下方，语义上就是逆流。
+                # 上一版为了「不越界」，把末点高度归零（y_hi 末尾用 base），
+                # 结果把每段最后 15 分钟的空间整块砍掉了——8:00 前、
+                # 10:45、18:00、20:45 都缺一个三角。数值上那 0.125h 仍计入
+                # 表格，但图上没画，看着就是漏算。
                 #
-                # 修法两条：
-                #   ① rgt 用 'left'（不含 end 点），末点补到 b 但高度归零；
-                #   ② 空间为 0 的点置 NaN，fill_between 会直接断开，不连斜线。
+                # 正解：末点用「段内最后一点的曲线值」（不归零），
+                # 坐标推到 b（真正的段边界）。段外不参与绘制，
+                # 所以到 b 就自然垂直收口，不会越界。
                 def _fill_by_segment(curve, base, color, label, zorder):
                     first = True
                     for seg in segments or []:
@@ -5805,18 +5804,20 @@ class ProfessionalWindow(QMainWindow):
                             rgt = int(np.searchsorted(hours, b, side='left'))
                             if rgt <= lft:
                                 continue
-                            # 段内采样点（不含 end）+ 两端边界；末点高度归零
                             x = np.concatenate(([a], hours[lft:rgt], [b]))
                             y_lo = np.concatenate(([base[lft]], base[lft:rgt],
                                                    [base[rgt - 1]]))
                             y_hi = np.concatenate(([curve[lft]], curve[lft:rgt],
-                                                   [base[rgt - 1]]))
-                            # 空间为 0 的点断开，不参与连线
+                                                   [curve[rgt - 1]]))
                             span = np.abs(y_hi - y_lo)
-                            y_lo = np.where(span > 1e-12, y_lo, np.nan)
-                            y_hi = np.where(span > 1e-12, y_hi, np.nan)
+                            # 空间为 0 的点收敂到 0（而非 NaN 断开）：
+                            # NaN 会让相邻那段 15 分钟的过渡区整个不画（负荷从 520
+                            # 降到 -160 的那一格，真实空间是逐渐减小的）。
+                            # 用 0 收口就得到三角形，既不越界也不缺块。
+                            y_lo = np.where(span > 1e-12, y_lo, 0.0)
+                            y_hi = np.where(span > 1e-12, y_hi, 0.0)
                             ax.fill_between(x, y_lo, y_hi,
-                                            color=color, alpha=0.38,
+                                            color=color, alpha=0.38, linewidth=0,
                                             label=(label if first else None),
                                             zorder=zorder)
                             first = False
@@ -5825,10 +5826,12 @@ class ProfessionalWindow(QMainWindow):
                                  '充电空间（向上）', 3)
                 _fill_by_segment(load_row, load_row - dis, '#c62828',
                                  '放电空间（向下）', 3)
-                # 光伏返送就是负荷为负的那一块，从 0 填到负荷
-                ax.fill_between(hours, 0, load_row, where=(load_row < 0),
-                                color='#f9a825', alpha=0.55, zorder=4,
-                                label='光伏返送')
+                # 光伏返送：用 min(负荷, 0) 直接填，不套 where。
+                # 套 where 会在「负荷由负转正」的那一格留下空白，
+                # 而那一格真实值是斜升到 0 的。
+                ax.fill_between(hours, 0, np.minimum(load_row, 0.0),
+                                color='#f9a825', alpha=0.55, linewidth=0,
+                                zorder=4, label='光伏返送')
 
                 # 时段竖线：让用户能看出「哪些区间参与了计算」
                 for seg in segments or []:
