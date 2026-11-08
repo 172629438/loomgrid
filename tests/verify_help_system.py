@@ -130,6 +130,24 @@ check("日需求分支用 est_mode == 'full_load'（不再 '满载' in text）",
 
 print()
 print("=" * 78)
+print("④之三 问号位置：必须在控件右侧（水平布局），不能堆到下方")
+print("=" * 78)
+import re as _re2  # noqa: E402
+
+# 找出所有垂直布局变量名
+vbox_vars = set(_re2.findall(r'(\w+)\s*=\s*QVBoxLayout', src))
+print(f"  垂直布局变量: {sorted(vbox_vars)}")
+
+bad_help = []
+for _ln in src.splitlines():
+    _m = _re2.search(r'(\w+)\.addWidget\(make_help_icon\(', _ln)
+    if _m and _m.group(1) in vbox_vars:
+        bad_help.append(f"{_m.group(1)} ← {_ln.strip()[:50]}")
+check("没有问号被放进垂直布局", not bad_help,
+      "; ".join(bad_help[:3]) if bad_help else "")
+
+print()
+print("=" * 78)
 print("④之二 RTE 派生量：存在、只读、随两参数刷新")
 print("=" * 78)
 check("有 rte 帮助条目", '"rte": {' in src)
