@@ -5808,18 +5808,21 @@ class ProfessionalWindow(QMainWindow):
                             rgt = int(np.searchsorted(hours, b, side='left'))
                             if rgt <= lft:
                                 continue
-                            # 完整空间：左边界、右边界都垂直收口。
+                            # 完整空间，但共用边界时不越让。
                             #
-                            # 用户红线要求的形状（充电1）：
-                            #   (0,150) → 沿负荷 → (6,180) → (8,520)
-                            #   → 垂直上到 (8,700) → 沿容量线回 (0,700) → 垂直下到 0
-                            # 即：下边界跟负荷曲线，上边界是容量线，两端垂直。
+                            # 用户红线的要求：
+                            #   充电1 (0-8)：8:00 处垂直上到 700  → [520,700] ✓
+                            #   充电2 (14-18)：18:00 处不应该反而撑开到 220
                             #
-                            # 中间两版都错了：
-                            #   · 末点用前一采样点 → 高度不收敛（8:00 还撑 520 的高）
-                            #   · 末点收窄成尖 → 右边界没了，空间不完整
-                            # 正解：末点用边界 b 自己的负荷与上限 → 右边界垂直。
-                            bi = min(rgt, len(hours) - 1)
+                            # 差别在于：8:00 后面是空白（无段），
+                            # 18:00 是放电2 的起点（两段共用边界）。
+                            # 共用边界时，充电段不能拿下一段起始时刻的负荷，
+                            # 否则会向反方向撑开一块（620→480 那个三角）。
+                            _other_starts = {float(s['start']) for s in (segments or [])}
+                            if b > a and b in _other_starts:
+                                bi = rgt - 1        # 共用边界：停在段内最后一格
+                            else:
+                                bi = min(rgt, len(hours) - 1)
                             x = np.concatenate(([a], hours[lft:rgt], [b]))
                             y_lo = np.concatenate(([base[lft]], base[lft:rgt],
                                                    [base[bi]]))
