@@ -273,6 +273,12 @@ MEMORY_LOW_THRESHOLD = 1 * 1024 * 1024 * 1024  # 1 GB
 BESS_DOD_DEFAULT = 0.90     # 默认放电深度(SOC区间 5%~95%,与 BESS_SOC_MIN/MAX 一致)
 BESS_SOC_MIN = 0.05         # 最小SOC(5%保护)
 BESS_SOC_MAX = 0.95         # 最大SOC(95%)
+# v2.3.16: 系统往返效率（AC-AC，含 PCS + 线损 + 辅助能耗）
+# 它与 DOD 是两个独立参数，共同决定整柜实际可搬能量：
+#   综合系数 = DOD × 系统效率
+#   261 柜实例：95% × 93% = 88.35%（行业口径的「整柜整体效率」）
+# 注意：DOD 是 SOC 窗口深度，不是效率；把两者混为一谈会让容量算偏。
+BESS_SYS_EFF_DEFAULT = 0.93
 BESS_CYCLE_LIFE_DEFAULT = 6000  # v3.2fix: 默认循环寿命
 
 # PeriodType / CurveLabel / ColorConst 已搬到 core/models.py（阶段 1 · 第一块）
@@ -4483,6 +4489,12 @@ class ProfessionalWindow(QMainWindow):
                 self.rated_power = saved_power
             self.capacity_mode = self.config_manager.app_set('pw_capacity_mode', 'two_two')
             self.ignore_negative = self.config_manager.app_set('pw_ignore_negative', self.ignore_negative)
+            # v2.3.16: DOD 与系统效率上次的值。之前只有保存没有恢复，
+            # 改完 DOD 关窗口会悄悄滚回默认值，这里一并补上。
+            self._saved_dod = self.config_manager.app_set(
+                'pw_dod', int(round(BESS_DOD_DEFAULT * 100)))
+            self._saved_sys_eff = self.config_manager.app_set(
+                'pw_sys_eff', int(round(BESS_SYS_EFF_DEFAULT * 100)))
 
         self._init_ui()
         # v3.2fix: 容量线自动同步定时器(1.5s轮询)
@@ -4492,6 +4504,25 @@ class ProfessionalWindow(QMainWindow):
         self._cap_sync_timer.start()
 
     # ---------- 内部辅助 ----------
+    def _combined_factor(self):
+        """综合可用系数 = DOD × 系统往返效率。
+
+        v2.3.16 口径（用户明确）：
+          · DOD 是 SOC 窗口深度，不是效率；
+          · 系统效率是 AC-AC 往返效率（充 + 放，含 PCS/线损/辅助）；
+          · 两者相乘才是「整柜实际可搬能量 / 安装容量」的比例。
+
+        261 柜实例：DOD 95% × 系统效率 93% = 88.35%
+        （行业口径说的「整柜整体效率 88%」就是这个数）。
+
+        用在两处，方向相反，必须用同一个系数才闭环：
+          满足判定：可用容量 = 安装容量 × k
+          容量反推：安装容量 = 可搬能量 ÷ k
+        """
+        dod = self.dod_spin.value() if hasattr(self, 'dod_spin') else int(BESS_DOD_DEFAULT * 100)
+        eff = self.sys_eff_spin.value() if hasattr(self, 'sys_eff_spin') else int(BESS_SYS_EFF_DEFAULT * 100)
+        return (dod / 100.0) * (eff / 100.0)
+
     def _build_idx_map(self):
         self._summary_idx_map = {}
         for idx, s in enumerate(self.settings_model.summaries):
@@ -4812,15 +4843,34 @@ class ProfessionalWindow(QMainWindow):
         self.config_cap_spin.setDecimals(3)
         self.config_cap_spin.setValue(100.0)
         row2.addWidget(self.config_cap_spin)
-        # v3.0: DOD可调(默认95%)
+        # v2.3.16: DOD（SOC 窗口深度）与系统效率（AC-AC 往返）是两个独立参数。
+        # 综合可用系数 = DOD × 系统效率，如 95% × 93% = 88.35%。
         row2.addWidget(QLabel("  DOD:"))
         self.dod_spin = QSpinBox()
         self.dod_spin.setRange(50, 100)
-        self.dod_spin.setValue(int(BESS_DOD_DEFAULT * 100))
+        self.dod_spin.setValue(getattr(self, '_saved_dod', int(round(BESS_DOD_DEFAULT * 100))))
         self.dod_spin.setSuffix('%')
-        self.dod_spin.setToolTip("放电深度, 90%=SOC区间5%~95%. 推荐容量=日需求/DOD")
+        self.dod_spin.setToolTip(
+            "放电深度（SOC 窗口），不是效率。\n"
+            "90% = SOC 区间 5%~100%；95% = 5%~100% 可用 95 个点。\n"
+            "反推安装容量时：可搬能量 ÷ (DOD × 系统效率) = 安装容量"
+        )
         self.dod_spin.valueChanged.connect(lambda: self._update_system_scale())
         row2.addWidget(self.dod_spin)
+
+        row2.addWidget(QLabel("  系统效率:"))
+        self.sys_eff_spin = QSpinBox()
+        self.sys_eff_spin.setRange(80, 100)
+        self.sys_eff_spin.setValue(
+            getattr(self, '_saved_sys_eff', int(round(BESS_SYS_EFF_DEFAULT * 100))))
+        self.sys_eff_spin.setSuffix('%')
+        self.sys_eff_spin.setToolTip(
+            "AC-AC 往返效率（充 + 放），含 PCS、线损、辅助能耗，默认 93%。\n"
+            "综合系数 = DOD × 系统效率：95% × 93% = 88.35%\n"
+            "这就是 261 柜行业口径的「整柜整体效率」"
+        )
+        self.sys_eff_spin.valueChanged.connect(lambda: self._update_system_scale())
+        row2.addWidget(self.sys_eff_spin)
 
         self.calc_days_btn = QPushButton("计算满足天数")
         self.calc_days_btn.clicked.connect(self._calc_days_from_capacity)
@@ -5040,8 +5090,8 @@ class ProfessionalWindow(QMainWindow):
         一充一放时 _get_relevant_segments_for_month 只返回 1 项（或合并后的 1 项），
         两充两放时返回 2 项，索引 i 就是第 i 次循环。
         """
-        dod_val = self.dod_spin.value() if hasattr(self, 'dod_spin') else 95
-        usable_cap = cap * dod_val / 100.0
+        # v2.3.16: 可用容量 = 安装容量 × 综合系数（DOD × 系统效率）
+        usable_cap = cap * self._combined_factor()
         c_arrs, d_arrs = self._get_relevant_segments_for_month(month)
 
         # 与 _get_all_filtered_daily_mins 保持同一判据：只有「满载利用率」算满载
@@ -5308,9 +5358,10 @@ class ProfessionalWindow(QMainWindow):
             return
         daily_mins = np.array(daily_mins)
         cap = calc_capacity_for_days(target_days, daily_mins)  # 统一排序取百分位(可用容量)
-        # v3.2fix: 可用容量÷DOD=安装容量(电池额定容量必须大于可用容量)
-        dod_val = self.dod_spin.value() if hasattr(self, 'dod_spin') else 95
-        installed_cap = cap / (dod_val / 100.0) if dod_val > 0 else cap
+        # v2.3.16: 可搬能量 ÷ 综合系数（DOD × 系统效率）= 安装容量
+        # 例：可搬 800 kWh，DOD 95% × 效率 93% = 88.35% → 安装 905.5 kWh
+        k = self._combined_factor()
+        installed_cap = cap / k if k > 0 else cap
         self.config_cap_spin.setValue(round(installed_cap, 3))
         self._update_system_scale()
 
@@ -5345,9 +5396,13 @@ class ProfessionalWindow(QMainWindow):
         cap = self.config_cap_spin.value()
         unit_cap = self.unit_cap_spin.value()
         unit_pow = self.unit_power_spin.value()
-        dod_val = self.dod_spin.value() if hasattr(self, 'dod_spin') else 95
-        cap_before_dod = cap * dod_val / 100.0 if dod_val > 0 else cap
-        dod_info = f" | DOD={dod_val}%(实际可用{cap_before_dod:.1f}kWh)"
+        # v2.3.16: 综合系数 = DOD × 系统效率，展示两个因子与乘积
+        dod_val = self.dod_spin.value() if hasattr(self, 'dod_spin') else int(BESS_DOD_DEFAULT * 100)
+        eff_val = self.sys_eff_spin.value() if hasattr(self, 'sys_eff_spin') else int(BESS_SYS_EFF_DEFAULT * 100)
+        k = self._combined_factor()
+        movable = cap * k
+        dod_info = (f" | DOD={dod_val}% × 效率={eff_val}% = 综合{k * 100:.2f}%"
+                    f"（可搬{movable:.1f}kWh）")
         if unit_cap > 0:
             num_units = max(1, int(math.ceil(cap / unit_cap)))
             total_pow = num_units * unit_pow
@@ -5530,6 +5585,7 @@ class ProfessionalWindow(QMainWindow):
         if self.config_manager:
             self.config_manager.set_app('pw_rated_power', self.rated_power_spin.value() if hasattr(self, 'rated_power_spin') else 500)
             self.config_manager.set_app('pw_dod', self.dod_spin.value() if hasattr(self, 'dod_spin') else 90)
+            self.config_manager.set_app('pw_sys_eff', self.sys_eff_spin.value() if hasattr(self, 'sys_eff_spin') else 93)
             self.config_manager.set_app('pw_capacity_mode', getattr(self, 'capacity_mode', 'two_two'))
             self.config_manager.set_app('pw_ignore_negative', self.ignore_neg_cb.isChecked() if hasattr(self, 'ignore_neg_cb') else False)
             set_window_geometry(self.config_manager, "ProfessionalWindow", self.saveGeometry())
