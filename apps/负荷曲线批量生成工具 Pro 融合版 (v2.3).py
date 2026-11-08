@@ -3002,7 +3002,11 @@ class PreviewDialog(QDialog):
         self.holiday_lw_spin.valueChanged.connect(self._apply_global_display_options)
         self.show_weekend_bg_cb.stateChanged.connect(self._apply_global_display_options)
         self.legend_pos_combo.currentIndexChanged.connect(self._apply_global_display_options)
-        self.dark_theme_cb.stateChanged.connect(self._apply_global_display_options)
+        # v2.3.16fix: 这里原本还有一行
+        #     self.dark_theme_cb.stateChanged.connect(self._apply_global_display_options)
+        # 而它在 L2867 已经连过了——同一回调连两次，勾一下暗色主题会把下面这整套做两遍：
+        # clear_all_caches → 遍历全部分组 update_status → 调度重绘 → 重启预加载定时器。
+        # 用户感受到的就是「拨一下开关卡一下」。
         self.title_edit.textChanged.connect(self._update_title_preview)
         self.filename_edit.textChanged.connect(self._check_filename)
         self._update_multiplier_ui()
@@ -6928,9 +6932,14 @@ class DropOverlay(QWidget):
         self._label.setFixedSize(300, 80)
 
     def dragEnterEvent(self, event):
-        event.acceptProposedAction()
-        self.setVisible(True)
-        self.raise_()
+        # v2.3.16fix: 与 FileListWidget 对齐。原来不管拖什么进来都显示
+        # 「释放以添加文件」，松手后过滤为空那么浮层一闪什么都没发生。
+        if event.mimeData().hasUrls() and FileListWidget._has_supported(event.mimeData().urls()):
+            event.acceptProposedAction()
+            self.setVisible(True)
+            self.raise_()
+        else:
+            super().dragEnterEvent(event)
 
     def dragLeaveEvent(self, event):
         self.setVisible(False)
@@ -6944,12 +6953,14 @@ class DropOverlay(QWidget):
                 if os.path.isfile(p) and p.lower().endswith(SUPPORTED_EXTS):
                     paths.append(p)
                 elif os.path.isdir(p):
-                    for root, _, files in os.walk(p):
-                        for f in files:
-                            if f.lower().endswith(SUPPORTED_EXTS):
-                                paths.append(os.path.join(root, f))
+                    # v2.3.16fix: 原实现无限递归，拖盘符根会卡死 UI 线程。
+                    # 与 FileListWidget._walk_dir 共用同一套限深限量。
+                    got, _ = FileListWidget._walk_dir(p)
+                    paths.extend(got)
             if paths:
                 self.files_dropped.emit(paths)
+            else:
+                log.warning("拖放（主窗口）：没有找到可导入的文件")
             event.acceptProposedAction()
 
     def resizeEvent(self, event):
