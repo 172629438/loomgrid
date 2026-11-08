@@ -5781,19 +5781,46 @@ class ProfessionalWindow(QMainWindow):
                 ax = fig.add_subplot(111)
 
                 ax.plot(hours, load_row, color='#1c1c1a', lw=1.2, zorder=6, label='负荷')
-                # 三个空间都紧贴负荷曲线，而不是画到 0 轴——
-                # 用户要回答的问题是「这条曲线还能往上下走多少」，
-                # 所以充电向上贴（Mode A 时上边界正好是容量线），放电向下贴。
-                ax.fill_between(hours, load_row, load_row + ch,
-                                color='#2e7d32', alpha=0.38,
-                                label='充电空间（向上）', zorder=3)
-                ax.fill_between(hours, load_row - dis, load_row,
-                                color='#c62828', alpha=0.38,
-                                label='放电空间（向下）', zorder=3)
+
+                # v2.3.17fix: 按段分别填充，并在段的两端补边界点。
+                #
+                # 原写法一次填整条曲线，导致段边界处的采样点仍带着值：
+                #   8:00 属于充电段（ch=180），8:15 已在段外（ch=0），
+                #   fill_between 把两点连成斜坡 → 图上看着「8 点之后还在充电」。
+                #   放电侧同一毛病：10:45 有 520、11:00 负荷转负归 0，
+                #   斜线看起来就像「功率已经为负了还在继续放电」——那确实就是逆流语义。
+                #
+                # 数值一直是对的（边界点权重仅 0.125h），错的是画出来让人读成另一种意思。
+                # 修法：逐段画，段内 step='post'，两端补上 (段边界, 首/末值)，
+                # 让面积在时段边界垂直收口，不出段外半步。
+                def _fill_by_segment(curve, base, color, label, zorder):
+                    first = True
+                    for seg in segments or []:
+                        s_start = float(seg['start'])
+                        s_end = float(seg['end'])
+                        subs = ([(s_start, 24.0), (0.0, s_end)] if s_start > s_end
+                                else [(s_start, s_end)])
+                        for a, b in subs:
+                            lft, rgt = segment_indices(hours, a, b)
+                            if lft >= rgt:
+                                continue
+                            x = np.concatenate(([a], hours[lft:rgt], [b]))
+                            y_lo = np.concatenate(([base[lft]], base[lft:rgt], [base[rgt - 1]]))
+                            y_hi = np.concatenate(([curve[lft]], curve[lft:rgt], [curve[rgt - 1]]))
+                            ax.fill_between(x, y_lo, y_hi, step='post',
+                                            color=color, alpha=0.38,
+                                            label=(label if first else None),
+                                            zorder=zorder)
+                            first = False
+
+                _fill_by_segment(load_row + ch, load_row, '#2e7d32',
+                                 '充电空间（向上）', 3)
+                _fill_by_segment(load_row, load_row - dis, '#c62828',
+                                 '放电空间（向下）', 3)
                 # 光伏返送就是负荷为负的那一块，从 0 填到负荷
                 ax.fill_between(hours, 0, load_row, where=(load_row < 0),
-                                color='#f9a825', alpha=0.55,
-                                label='光伏返送', zorder=4)
+                                color='#f9a825', alpha=0.55, zorder=4,
+                                label='光伏返送')
 
                 # 时段竖线：让用户能看出「哪些区间参与了计算」
                 for seg in segments or []:

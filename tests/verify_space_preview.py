@@ -155,6 +155,26 @@ check("有 space_preview 帮助条目", '"space_preview": {' in main)
 check("预览用 Agg 内存图画，不换后端",
       "fig.savefig(buf, format='png'" in main and "matplotlib.use('Agg')" in main)
 
+# v2.3.17fix：段边界必须垂直收口，不能连成斜坡
+# 原写法一次 fill 整条曲线，8:00 那个点带着值、下一采样点为 0，两点连成斜线，
+# 图上就变成「8 点之后还在充电」「负功率时还在放电」——后者就是逆流。
+# 取整个 _draw_space_preview 函数体（到下一个顶层 def 为止）
+_lines = main.splitlines()
+_start = next(i for i, ln in enumerate(_lines)
+             if ln.strip().startswith("def _draw_space_preview"))
+_end = len(_lines)
+for _i in range(_start + 1, len(_lines)):
+    if _lines[_i].startswith("    def "):
+        _end = _i
+        break
+_draw = "\n".join(_lines[_start:_end])
+check("按段分别填充（_fill_by_segment）", "_fill_by_segment" in _draw)
+check("段内用 step='post'，边界垂直跳变", "step='post'" in _draw)
+check("段两端补了边界坐标（a / b）",
+      "np.concatenate(([a], hours[lft:rgt], [b]))" in _draw)
+check("不再一次性 fill 整条曲线",
+      "fill_between(hours, load_row, load_row + ch" not in _draw)
+
 print()
 print("=" * 76)
 print(f"结果：PASS {PASS}   FAIL {FAIL}")
