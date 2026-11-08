@@ -300,20 +300,61 @@ def _parse_min(t) -> int:
 
 
 def _to_hour(v):
-    """v3.2fix(P-30): 将时段端点统一转为小时数(float)。
-    支持 float/int、"HH:MM"、"HH:MM:SS"、datetime.time。"""
+    """将时段端点统一转为小时数(float)。
+
+    支持 float/int、"HH:MM"、"HH:MM:SS"、datetime.time，以及中文写法
+    （"8时" / "8点" / "8点30分" / "8时30分" / "零点"）与全角冒号（"8：00"）。
+
+    v2.3.15fix: 中文与全角写法原本会被吞成 0.0，而 0.0 恰好是合法午夜——
+    时段边界静默偏移到 00:00，不报错、不算错，只是结果错。桌面版走 core/
+    已能识别这些写法，两边不一致会让同一个项目算出两个结果。
+    本次只扩展可识别范围，解析失败仍返回 0.0（保持向后兼容）。
+    """
     if isinstance(v, bool):
         return 0.0
     if isinstance(v, (int, float)):
         return float(v)
     if isinstance(v, str):
         s = v.strip()
+        # 全角字符归一（数字与冒号）
+        try:
+            s = s.replace('：', ':').replace('．', '.')
+            s = ''.join(chr(ord(ch) - 0xFEE0) if 0xFF10 <= ord(ch) <= 0xFF19 else ch
+                        for ch in s)
+        except Exception:
+            pass
+        if s in ('零点', '零点钟', '零时'):
+            return 0.0
+        # 剥离中文时段前缀（上午/下午/晚上/中午/凌晨）+ 午后进位
+        pm = False
+        for _pre in ('凌晨', '早上', '上午', '中午', '下午', '晚上', '白天', '夜里'):
+            if s.startswith(_pre):
+                pm = _pre in ('下午', '晚上')
+                s = s[len(_pre):].strip()
+                break
+        # 中文时间：8时 / 8点 / 8点30分 / 8点半 / 8时刻
+        m = re.match(r'^(\d{1,2})\s*[时点]\s*(半|\d{1,2}\s*分?)?$', s)
+        if m:
+            hh = float(m.group(1))
+            tail = m.group(2)
+            if tail == '半':
+                mm = 30.0
+            elif tail:
+                mm = float(re.sub(r'\D', '', tail) or 0)
+            else:
+                mm = 0.0
+            if pm and hh < 12:
+                hh += 12
+            return hh + mm / 60.0
         if ':' in s:
             parts = s.split(':')
             try:
                 hh = float(parts[0])
                 mm = float(parts[1]) if len(parts) > 1 else 0.0
-                return hh + mm / 60.0
+                ss = float(parts[2]) if len(parts) > 2 else 0.0
+                if pm and hh < 12:
+                    hh += 12
+                return hh + mm / 60.0 + ss / 3600.0
             except (ValueError, IndexError):
                 return 0.0
         try:

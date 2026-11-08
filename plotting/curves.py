@@ -235,6 +235,11 @@ def _draw_curves_core(ax, dates, load_array, time_labels, title, opts=None, bill
     # 计费容量线
     if bill and bill.get('type') == 'capacity' and bill.get('value'):
         ax.axhline(y=bill['value'], color='red', ls=':', lw=2.0, label=f'{CurveLabel.CAPACITY_LINE}({bill["value"]:.2f})', zorder=30)
+    elif bill and bill.get('value') and not bill.get('type'):
+        # v2.3.15fix: 传了 value 但漏传 type 时，容量线会静默不画——
+        # 调用方以为标了，看图时才发现没有。不改行为（只认 capacity），但要说一声。
+        log.warning("bill 传了 value=%s 但缺 type，容量线不会绘制（需 type='capacity'）",
+                    bill.get('value'))
 
     # 坐标轴设置
     ax.set_title(_clean_plot(title), fontsize=16)

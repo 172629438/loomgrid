@@ -126,6 +126,11 @@ KNOWN_DRIFT = {
         "Ultra 独有 C1 修复（invalid_mask），algorithms 未同步；"
         "algorithms 仅用于 tools/demo_anim 生成演示数据，不进生产"
     ),
+    "_to_hour": (
+        "algorithms 独有：补中文时段（8时/8点/8点半/零点）、全角冒号、"
+        "上午/下午 前缀。Ultra 侧未同步（那条线已冻结）——"
+        "两边差异仅限「能识别的写法多寡」，失败时都返回 0.0"
+    ),
 }
 
 for name in shared:
