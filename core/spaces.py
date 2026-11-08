@@ -31,11 +31,48 @@ __all__ = [
     "compute_segmented_spaces",
     "calc_capacity_for_days",
     "calc_days_for_capacity",
+    "segment_weights",
+    "segment_indices",
+    "space_curves_for_day",
+    "integrate_by_segments",
 ]
 
 # v3.2fix: 充放电效率(单向93%),用于容量测算
 CHARGING_EFFICIENCY = 0.93
 DISCHARGING_EFFICIENCY = 0.93
+
+
+def segment_weights(sub_hours, s_start, s_end):
+    """段内各采样点的梯形积分权重（小时）。
+
+    v2.3.17: 从 compute_segmented_spaces 里抽出来，供预览绘图共用。
+    为什么必须共用：预览图上的填充面积积分，要能严格等于表格里的 kWh 值。
+    如果预览另写一套权重，两边就会出现「面积看着对、数字对不上」这种
+    最难查的不一致。
+
+    首点吃半个间隔、末点吃半个间隔，中间取前后间隔均值——
+    因此完整覆盖 [0,8] 的 33 个点加起来正好是 8.000 小时。
+    """
+    sub_hours = np.asarray(sub_hours, dtype=float)
+    n = len(sub_hours)
+    seg_dt = np.zeros(n, dtype=float)
+    if n == 0:
+        return seg_dt
+    if n == 1:
+        seg_dt[0] = s_end - s_start
+    else:
+        seg_dt[0] = (sub_hours[0] + sub_hours[1]) / 2.0 - s_start
+        seg_dt[-1] = s_end - (sub_hours[-1] + sub_hours[-2]) / 2.0
+        for i in range(1, n - 1):
+            seg_dt[i] = (sub_hours[i + 1] - sub_hours[i - 1]) / 2.0
+    return np.maximum(seg_dt, 0.0)
+
+
+def segment_indices(hours, s_start, s_end):
+    """时段在采样点数组中的切片区间 [left, right)。"""
+    left = int(np.searchsorted(hours, s_start, side='left'))
+    right = int(np.searchsorted(hours, s_end, side='right'))
+    return left, right
 
 
 def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mode='A',
@@ -94,21 +131,12 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
         space = np.zeros(n_days)
 
         for s_start, s_end in sub_ranges:
-            left = np.searchsorted(hours, s_start, side='left')
-            right = np.searchsorted(hours, s_end, side='right')
+            left, right = segment_indices(hours, s_start, s_end)
             if left >= right:
                 continue
             sub_hours = hours[left:right]
             sub_load = work_load[:, left:right]
-            seg_dt = np.zeros_like(sub_hours)
-            if len(sub_hours) == 1:
-                seg_dt[0] = s_end - s_start
-            else:
-                seg_dt[0] = (sub_hours[0] + sub_hours[1]) / 2 - s_start
-                seg_dt[-1] = s_end - (sub_hours[-1] + sub_hours[-2]) / 2
-                for i in range(1, len(sub_hours) - 1):
-                    seg_dt[i] = (sub_hours[i + 1] - sub_hours[i - 1]) / 2.0
-            seg_dt = np.maximum(seg_dt, 0.0)
+            seg_dt = segment_weights(sub_hours, s_start, s_end)
 
             if seg['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL):
                 if mode == 'A':
@@ -185,6 +213,95 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
             discharge_labels.append(seg['label'])
 
     return charge_segments, discharge_segments, charge_labels, discharge_labels
+
+
+def space_curves_for_day(load_row, hours, segments, mode='A', cap=None,
+                         rated_power=None, ignore_negative=False):
+    """逐点三个空间曲线（kW），供预览绘图使用。
+
+    v2.3.17: 从窗口代码里抽出来放这里，因为：
+      ① GUI 方法测不了，而这段算术恰恰是最该被测的——
+         预览图存在的全部意义就是「验算程序算得对不对」，它自己不能是黑盒；
+      ② 与 compute_segmented_spaces 放在同一个模块，两者用同一套
+         segment_weights，背靠背好对账。
+
+    返回 (charge, discharge, pv)，长度均等于 len(hours)。
+    用 segment_weights 回积后，charge 与 discharge 的能量必须分别等于
+    compute_segmented_spaces 对应段的值——这是本函数的存在前提。
+
+    pv（光伏返送）用**原始**负荷算，不受 ignore_negative 影响：
+    它要展示的恰恰是「这块能量正在被你忽略」这件事。
+    """
+    raw = np.asarray(load_row, dtype=float)
+    hours = np.asarray(hours, dtype=float)
+    n = len(hours)
+    if raw.shape[0] != n:
+        raise ValueError(f"load_row 长度 {raw.shape[0]} 与 hours 长度 {n} 不匹配")
+
+    load = np.maximum(raw, 0.0) if ignore_negative else raw.copy()
+    charge = np.zeros(n, dtype=float)
+    discharge = np.zeros(n, dtype=float)
+    pv = np.maximum(-raw, 0.0)
+
+    for seg in segments or []:
+        s_start = float(seg['start'])
+        s_end = float(seg['end'])
+        overnight = s_start > s_end
+        sub_ranges = ([(s_start, 24.0), (0.0, s_end)] if overnight
+                      else [(s_start, s_end)])
+        for a, b in sub_ranges:
+            left, right = segment_indices(hours, a, b)
+            if left >= right:
+                continue
+            sub = load[left:right]
+            is_charge = seg['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL)
+            if is_charge:
+                if mode == 'A':
+                    if cap and cap > 0:
+                        charge[left:right] = np.maximum(cap - sub, 0.0)
+                else:
+                    if rated_power and rated_power > 0:
+                        v = np.minimum(rated_power, np.maximum(-sub, 0.0))
+                        if cap and cap > 0:
+                            v = np.minimum(v, np.maximum(cap - sub, 0.0))
+                        charge[left:right] = v
+            else:
+                pos = np.maximum(sub, 0.0)
+                if mode == 'A':
+                    if cap and cap > 0:
+                        discharge[left:right] = np.minimum(pos, cap)
+                else:
+                    if rated_power and rated_power > 0:
+                        v = np.minimum(rated_power, pos)
+                        if cap and cap > 0:
+                            v = np.minimum(v, np.minimum(pos, cap))
+                        discharge[left:right] = v
+    return charge, discharge, pv
+
+
+def integrate_by_segments(curve, hours, segments, seg_type):
+    """把一条逐点曲线按指定方向的时段回积成能量（kWh）。"""
+    curve = np.asarray(curve, dtype=float)
+    hours = np.asarray(hours, dtype=float)
+    total = 0.0
+    for seg in segments or []:
+        if seg_type == 'charge':
+            hit = seg['type'] in (PeriodType.CHARGE, PeriodType.CHARGE_LABEL)
+        else:
+            hit = seg['type'] in (PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL)
+        if not hit:
+            continue
+        s_start = float(seg['start'])
+        s_end = float(seg['end'])
+        sub_ranges = ([(s_start, 24.0), (0.0, s_end)] if s_start > s_end
+                      else [(s_start, s_end)])
+        for a, b in sub_ranges:
+            left, right = segment_indices(hours, a, b)
+            if left >= right:
+                continue
+            w = segment_weights(hours[left:right], a, b)
+            total += float(np.sum(np.nan_to_num(curve[left:right]) * w))
+    return total
 
 
 def calc_capacity_for_days(target_days, charge_kwh, discharge_kwh=None):

@@ -78,6 +78,8 @@ from core.timegrid import (  # noqa: E402
 from core.spaces import (  # noqa: E402
     CHARGING_EFFICIENCY, DISCHARGING_EFFICIENCY,
     compute_segmented_spaces, calc_capacity_for_days, calc_days_for_capacity,
+    # v2.3.17: 预览图与测算共用同一套梯形权重，不另写一套
+    space_curves_for_day, integrate_by_segments,
 )
 from core.periods import _segment_periods  # noqa: E402
 from plotting.fonts import (  # noqa: E402
@@ -440,6 +442,25 @@ HELP_TEXTS = {
             "这里显示的 RTE 含 DOD，是「实际可搬 / 铭牌」的比值；\n"
             "有些技术协议里的 RTE 只指电芯往返效率（不含 DOD）。\n"
             "报价时注意分清是哪一个口径。"
+        ),
+    },
+    "space_preview": {
+        "title": "空间预览：用眼睛验算一遍",
+        "brief": "把三个空间画成色块，看面积对不对得上表格数字",
+        "detail": (
+            "把选定月份某一天的负荷曲线画出来，并把三个能量空间按颜色填在图上：\n"
+            "\n"
+            "  · 绿：充电空间（还能往上装多少）\n"
+            "  · 红：放电空间（还能往下卸多少）\n"
+            "  · 金：光伏返送（负荷为负的部分）\n\n"
+            "色块的高度 = 瞬时功率，色块的面积 = 能量（kWh）。\n"
+            "图上会标出每个空间的总面积，并与表格里的数字逐项比对。\n\n"
+            "怎么用：把图和表格对照看——\n"
+            "面积大的那个时段，表格里对应的段也应该大。\n"
+            "如果图上明明有大片空白，表格却写着 0，说明那一段没被识别进时段。\n\n"
+            "为什么可以信这张图：预览与表格用的是同一套梯形权重\n"
+            "（segment_weights），不是两套算法。图上积分与表格值不一致，\n"
+            "那就是真 bug。"
         ),
     },
     "est_strategy": {
@@ -4908,6 +4929,9 @@ class ProfessionalWindow(QMainWindow):
         self.charge_segments_dict.clear()
         self.discharge_segments_dict.clear()
         self._month_capacity_needs.clear()
+        # v2.3.17: 预览图用——每月实际使用的时段与容量线
+        self._month_segments = {}
+        self._month_cap = {}
         self.charge_labels = []
         self.discharge_labels = []
 
@@ -5000,6 +5024,12 @@ class ProfessionalWindow(QMainWindow):
             )
             self.charge_segments_dict[month_str] = c_segs
             self.discharge_segments_dict[month_str] = d_segs
+            # v2.3.17: 把本月实际使用的时段与容量线记下来，供预览图画色块用。
+            # 不这么做的话，预览要自己再推导一遍时段构造逻辑（Mode B/C 各有分支，
+            # 还有跨午夜处理），两边必然漂移——而预览的目的恰恰是验证算得对不对。
+            self._month_segments[month_str] = segments
+            self._month_cap[month_str] = (month_billing.get('value')
+                                         if month_billing and month_billing.get('value') else 0.0)
             # v2.30fix: 取所有月份标签的并集(最大集), 非第一个月的快照
             # 同一省份不同月份可能用不同策略(1C1D vs 2C2D), 标签必须覆盖全部
             for lab in c_labs:
@@ -5109,6 +5139,43 @@ class ProfessionalWindow(QMainWindow):
         self.daily_table = QTableWidget()
         daily_layout.addWidget(self.daily_table)
         self.tab_widget.addTab(daily_tab, "每日详情")
+
+        # v2.3.17: 空间预览——把三个空间画成色块，用眼睛验算一遍
+        preview_tab = QWidget()
+        preview_layout = QVBoxLayout(preview_tab)
+
+        prev_ctrl = QHBoxLayout()
+        prev_ctrl.addWidget(QLabel("月份:"))
+        self.preview_month_combo = QComboBox()
+        self.preview_month_combo.setMinimumWidth(90)
+        self.preview_month_combo.currentTextChanged.connect(self._refresh_space_preview)
+        prev_ctrl.addWidget(self.preview_month_combo)
+        prev_ctrl.addWidget(QLabel("  第几天:"))
+        self.preview_day_spin = QSpinBox()
+        self.preview_day_spin.setRange(1, 31)
+        self.preview_day_spin.setValue(1)
+        self.preview_day_spin.valueChanged.connect(self._refresh_space_preview)
+        prev_ctrl.addWidget(self.preview_day_spin)
+        prev_btn = QPushButton("重画")
+        prev_btn.clicked.connect(self._refresh_space_preview)
+        prev_ctrl.addWidget(prev_btn)
+        prev_ctrl.addWidget(make_help_icon("space_preview", self))
+        prev_ctrl.addStretch()
+        preview_layout.addLayout(prev_ctrl)
+
+        self.preview_check_label = QLabel("")
+        self.preview_check_label.setWordWrap(True)
+        self.preview_check_label.setTextFormat(Qt.RichText)
+        preview_layout.addWidget(self.preview_check_label)
+
+        self.preview_image = QLabel("选好月份后自动绘制")
+        self.preview_image.setAlignment(Qt.AlignCenter)
+        self.preview_image.setMinimumHeight(240)
+        self.preview_image.setStyleSheet(
+            "QLabel { background: #ffffff; border: 1px solid #d8d3c6; }")
+        preview_layout.addWidget(self.preview_image, 1)
+
+        self.tab_widget.addTab(preview_tab, "空间预览")
 
         # ---------- 储能容量规划器 ----------
         planner_group = QGroupBox("储能容量规划")
@@ -5293,6 +5360,10 @@ class ProfessionalWindow(QMainWindow):
         _mode_idx = 1 if getattr(self, 'capacity_mode', 'two_two') == 'one_one' else 0
         self.mode_combo.setCurrentIndex(_mode_idx)
         self._on_capacity_mode_changed(_mode_idx)
+
+        # v2.3.17: 空间预览初始化
+        self._populate_preview_month_combo()
+        self._refresh_space_preview()
 
         # 初始刷新
         self._populate_space_table()
@@ -5601,6 +5672,166 @@ class ProfessionalWindow(QMainWindow):
             self._cap_label.setText(f"容量线:{cap_val:.2f}")
         else:
             self._cap_label.setText("容量线:未设置")
+
+    # ---------- v2.3.17: 空间预览 ----------
+    def _populate_preview_month_combo(self):
+        """填充预览图的月份下拉（排序，保留当前选择）。"""
+        if not hasattr(self, 'preview_month_combo'):
+            return
+        cur = self.preview_month_combo.currentText()
+        months = sorted(self._get_work_data().keys())
+        self.preview_month_combo.blockSignals(True)
+        self.preview_month_combo.clear()
+        self.preview_month_combo.addItems(months)
+        if cur in months:
+            self.preview_month_combo.setCurrentText(cur)
+        self.preview_month_combo.blockSignals(False)
+
+    def _refresh_space_preview(self, *_args):
+        """重算并重画。图上的面积积分会与表格值逐项比对。"""
+        if not hasattr(self, 'preview_image'):
+            return
+        month = self.preview_month_combo.currentText()
+        work_data = self._get_work_data()
+        if not month or month not in work_data:
+            self.preview_image.setText("选好月份后自动绘制")
+            self.preview_check_label.setText("")
+            return
+
+        data = work_data[month]
+        labels = data.get('time_labels') or []
+        arr = np.asarray(data.get('load_array'), dtype=float)
+        if arr.ndim != 2 or arr.shape[1] != len(labels) or arr.shape[0] == 0:
+            self.preview_image.setText("该月数据形状异常，无法预览")
+            return
+
+        self.preview_day_spin.blockSignals(True)
+        self.preview_day_spin.setMaximum(arr.shape[0])
+        day_idx = min(max(1, self.preview_day_spin.value()), arr.shape[0]) - 1
+        self.preview_day_spin.blockSignals(False)
+
+        # 倍率：与测算保持一致
+        idx0 = self._summary_idx_map.get(
+            ((self.summaries[0].asset_value if self.summaries else None), month))
+        mult = (self.settings_model.effective_multiplier(idx0)
+                if idx0 is not None else self.global_multiplier)
+        load_row = arr[day_idx] * mult
+
+        hours = np.array([_parse_min(_normalize_time_column_name(t)) / 60.0 for t in labels])
+        valid = np.isfinite(hours) & (hours <= 24.0)
+        if not valid.all():
+            hours = hours[valid]
+            load_row = load_row[valid]
+        order = np.argsort(hours)
+        hours, load_row = hours[order], load_row[order]
+
+        segments = self._month_segments.get(month, [])
+        cap = self._month_cap.get(month, 0.0)
+        rated = self.rated_power if self.mode in ('B', 'C') else None
+
+        ch, dis, pv = space_curves_for_day(
+            load_row, hours, segments, mode=self.mode, cap=cap, rated_power=rated,
+            ignore_negative=self.ignore_negative)
+
+        # 面积回积 vs 表格值：这是这张图能当验证工具的前提
+        ch_area = integrate_by_segments(ch, hours, segments, 'charge')
+        dis_area = integrate_by_segments(dis, hours, segments, 'discharge')
+        c_dict = self.charge_segments_dict.get(month, [])
+        d_dict = self.discharge_segments_dict.get(month, [])
+        ch_table = sum(float(np.nan_to_num(a[day_idx], nan=0.0))
+                       for a in c_dict if day_idx < len(a))
+        dis_table = sum(float(np.nan_to_num(a[day_idx], nan=0.0))
+                        for a in d_dict if day_idx < len(a))
+
+        self._draw_space_preview(load_row, hours, ch, dis, pv, segments, cap,
+                                 month, day_idx + 1)
+
+        def _fmt(area, table):
+            ok = abs(area - table) <= max(1e-6, abs(table) * 1e-6)
+            mark = '✓' if ok else '✗'
+            color = '#3d6b3a' if ok else '#8a3b2e'
+            return (f"<span style='color:{color}'>{mark} 图示 {area:.1f} / "
+                    f"表格 {table:.1f} kWh</span>")
+
+        pv_area = integrate_by_segments(
+            pv, hours, [{'start': 0.0, 'end': 24.0, 'type': PeriodType.CHARGE}], 'charge')
+        self.preview_check_label.setText(
+            f"<b>{month} 第 {day_idx + 1} 天</b>　"
+            f"充电空间：{_fmt(ch_area, ch_table)}　｜　"
+            f"放电空间：{_fmt(dis_area, dis_table)}　｜　"
+            f"光伏返送（全天）：{pv_area:.1f} kWh"
+        )
+
+    def _draw_space_preview(self, load_row, hours, ch, dis, pv, segments, cap,
+                            month, day_no):
+        """把负荷与三个空间画成图，转成 QPixmap 塞进 QLabel。
+
+        为什么用内存图而不是 FigureCanvas：主程序顶部把 matplotlib 锁在 Agg 后端，
+        这是为了批量出图的线程安全。改成 QtAgg 能让这里可交互，但会动到那条线，
+        不值——预览要的是「看得清、能验算」，不是缩放。
+        """
+        fig = None
+        try:
+            # v2.3.17: 必须套中文字体上下文，否则标题/图例/轴标签全是豆腐块。
+            # 主程序内部画图都走 plt.rc_context({'font.sans-serif': [...]})，
+            # 预览是新加的代码路径，没套上就会丢字体设定。
+            with plt.rc_context({'font.sans-serif': [_get_cached_font()],
+                                 'axes.unicode_minus': False}):
+                fig = plt.figure(figsize=(9.0, 3.6), dpi=110)
+                ax = fig.add_subplot(111)
+
+                ax.plot(hours, load_row, color='#1c1c1a', lw=1.2, zorder=6, label='负荷')
+                # 三个空间都紧贴负荷曲线，而不是画到 0 轴——
+                # 用户要回答的问题是「这条曲线还能往上下走多少」，
+                # 所以充电向上贴（Mode A 时上边界正好是容量线），放电向下贴。
+                ax.fill_between(hours, load_row, load_row + ch,
+                                color='#2e7d32', alpha=0.38,
+                                label='充电空间（向上）', zorder=3)
+                ax.fill_between(hours, load_row - dis, load_row,
+                                color='#c62828', alpha=0.38,
+                                label='放电空间（向下）', zorder=3)
+                # 光伏返送就是负荷为负的那一块，从 0 填到负荷
+                ax.fill_between(hours, 0, load_row, where=(load_row < 0),
+                                color='#f9a825', alpha=0.55,
+                                label='光伏返送', zorder=4)
+
+                # 时段竖线：让用户能看出「哪些区间参与了计算」
+                for seg in segments or []:
+                    for edge in (float(seg['start']), float(seg['end'])):
+                        if 0 < edge < 24:
+                            ax.axvline(edge, color='#9a9384', lw=0.6, ls=':', zorder=1)
+
+                if cap and cap > 0 and self.mode == 'A':
+                    ax.axhline(cap, color='#7a5c2e', lw=0.9, ls='--', zorder=4,
+                               label=f'容量线 {cap:.0f}')
+
+                ax.axhline(0, color='#8a8579', lw=0.7, zorder=1)
+                ax.set_xlim(0, 24)
+                ax.set_xticks(range(0, 25, 2))
+                ax.set_xlabel('时刻', fontsize=8)
+                ax.set_ylabel('功率 (kW)', fontsize=8)
+                ax.tick_params(labelsize=7)
+                ax.grid(True, ls=':', lw=0.4, alpha=0.4, zorder=0)
+                ax.set_title(f'{month} 第 {day_no} 天　'
+                             f'绿=充电空间　红=放电空间　金=光伏返送', fontsize=9)
+                ax.legend(fontsize=7, loc='upper center', bbox_to_anchor=(0.5, -0.14),
+                          ncol=4, frameon=False)
+                for sp in ('top', 'right'):
+                    ax.spines[sp].set_visible(False)
+                fig.tight_layout(pad=0.5)
+
+                buf = io.BytesIO()
+                fig.savefig(buf, format='png', bbox_inches='tight')
+            buf.seek(0)
+            pm = QPixmap()
+            pm.loadFromData(buf.getvalue(), 'PNG')
+            self.preview_image.setPixmap(pm)
+        except Exception as e:
+            log.warning(f"[空间预览] 绘图失败: {e}", exc_info=True)
+            self.preview_image.setText(f"绘图失败：{type(e).__name__}: {e}")
+        finally:
+            if fig is not None:
+                plt.close(fig)
 
     def _populate_daily_month_combo(self):
         self.daily_month_combo.blockSignals(True)
