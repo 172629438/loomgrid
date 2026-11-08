@@ -6914,7 +6914,12 @@ class FileListWidget(QListWidget):
         else:
             act_clear = menu.addAction("清空列表")
             if menu.exec(self.viewport().mapToGlobal(pos)) == act_clear:
-                self.clear_files()
+                # v2.3.16fix: 原来直接 clear_files()，误点一下全部文件就没了，
+                # 没有任何确认。而主窗口的「清空」按钮是有确认框的——两条路径行为不一致，
+                # 细的那条是右键菜单。
+                from PySide6.QtWidgets import QMessageBox as _MB
+                if _MB.question(self, "确认", f"清空全部 {self.count()} 个文件？") == _MB.Yes:
+                    self.clear_files()
 
 # ======================= 拖放覆盖层 =======================
 class DropOverlay(QWidget):

@@ -109,6 +109,65 @@ def check_e(tree, src, lines):
     return sorted(out)
 
 
+def check_f(tree, src, lines):
+    """焦点链：Tab 键被吃 / 焦点策略 / 自定义控件焦点"""
+    out = {"tab_eaten": [], "focus_policy": [], "set_tab_order": []}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            body = ast.get_source_segment(src, node) or ""
+            if re.search(r"Qt\.Key_Tab|Key_Tab", body):
+                out["tab_eaten"].append((node.lineno, node.name))
+    for i, l in enumerate(lines):
+        if "setFocusPolicy" in l:
+            out["focus_policy"].append((i + 1, l.strip()[:90]))
+        if "setTabOrder" in l:
+            out["set_tab_order"].append((i + 1, l.strip()[:90]))
+    return out
+
+
+def check_g(tree, src, lines):
+    """右键菜单：动作数与分支数是否匹配（跨分支会误报，需人工看）"""
+    out = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        if "context_menu" not in node.name.lower():
+            continue
+        body = ast.get_source_segment(src, node) or ""
+        acts = len(re.findall(r"menu\.addAction\(", body))
+        branches = len(re.findall(r"==\s*act_", body))
+        has_none_guard = bool(re.search(r"if\s+item\b|item\s+is\s+not\s+None", body))
+        out.append((node.lineno, node.name, acts, branches, has_none_guard))
+    return out
+
+
+def check_h(tree, src, lines):
+    """模态嵌套：对话框 parent 是否传了 self / exec 嵌套"""
+    out = {"no_parent": [], "nested_exec": []}
+    dlg_names = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            bases = [ast.get_source_segment(src, b) or "" for b in node.bases]
+            if any("QDialog" in b for b in bases):
+                dlg_names.append(node.name)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            f = node.func
+            nm = f.id if isinstance(f, ast.Name) else (
+                f.attr if isinstance(f, ast.Attribute) else "")
+            if nm in dlg_names:
+                s = ast.get_source_segment(src, node) or ""
+                if "self" not in s:
+                    out["no_parent"].append((node.lineno, s[:80]))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            body = ast.get_source_segment(src, node) or ""
+            execs = re.findall(r"(\w+)\.exec\(\)", body)
+            if len(execs) >= 2:
+                out["nested_exec"].append((node.lineno, node.name, execs))
+    return out
+
+
 def main(argv):
     only = None
     target = None
@@ -180,6 +239,46 @@ def main(argv):
         print(f"  共 {len(pts)} 处")
         if pts:
             print(f"  行号: {pts}")
+        print()
+
+    if run("F"):
+        print("=" * 72)
+        print("F. 焦点链（Tab 能不能走完表单）")
+        print("=" * 72)
+        f = check_f(tree, src, lines)
+        print(f"  显式处理 Tab 的方法: {f['tab_eaten'] or '无'}")
+        print(f"  setTabOrder 调用 {len(f['set_tab_order'])} 处"
+              + ("（未使用，依赖 Qt 默认插入顺序）" if not f["set_tab_order"] else ""))
+        for ln, s in f["set_tab_order"]:
+            print(f"    L{ln}: {s}")
+        print(f"  setFocusPolicy 调用 {len(f['focus_policy'])} 处")
+        for ln, s in f["focus_policy"]:
+            print(f"    L{ln}: {s}")
+        print()
+
+    if run("G"):
+        print("=" * 72)
+        print("G. 右键菜单（动作数 vs 分支数）")
+        print("=" * 72)
+        g = check_g(tree, src, lines)
+        for ln, name, acts, br, guard in g:
+            flag = "" if br >= acts else "  ← 分支少于动作（也可能跨分支，看代码）"
+            print(f"  L{ln}: {name}  动作{acts} 分支{br} 空项检查={guard}{flag}")
+        if not g:
+            print("  （无）")
+        print()
+
+    if run("H"):
+        print("=" * 72)
+        print("H. 模态嵌套（parent 与 exec 嵌套）")
+        print("=" * 72)
+        h = check_h(tree, src, lines)
+        print(f"  未传 self 作父的对话框: {len(h['no_parent'])} 处")
+        for ln, s in h["no_parent"]:
+            print(f"    L{ln}: {s}")
+        print(f"  同函数内 exec×2+ : {len(h['nested_exec'])} 处")
+        for ln, name, calls in h["nested_exec"]:
+            print(f"    L{ln}: {name} {calls}（启动流程的 app.exec 除外）")
         print()
 
     print("=" * 72)
