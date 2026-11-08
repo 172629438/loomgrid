@@ -4,6 +4,53 @@
 
 ---
 
+## API 层错误包络 — 2026-11-04（未发版）
+
+版本号不变。API 成功返回 `{ok, data, error}`，业务错误也走同一结构，
+但 FastAPI 的参数校验失败（422）默认吐成 `{"detail": [...]}`——结构完全不同。
+
+### 修：422 也包成 Envelope
+
+```
+修前: POST /api/calc/spaces 空 body
+  HTTP 422  {"detail": [{"type": "missing", "loc": ["body", "session_id"], ...}]}
+
+修后: HTTP 422
+  {"ok": false, "data": null,
+   "error": {"code": "VALIDATION_ERROR",
+              "message": "session_id：Field required",
+              "detail": {"fields": [...], "path": "/api/calc/spaces"}}}
+```
+
+前端若统一按 `body.ok` 判断，原结构下拿到的是 undefined——要么当成功处理
+（拿到空数据），要么报一个没说清哪个字段错了的错。
+HTTP 状态码仍保持 422，前端既能只看 ok，也能靠状态码分支。
+
+### 顺带把两条错误文案说清楚
+
+- 未传 segments/periods 时，消息从「没有有效时段」改为「未传 segments 或 periods：
+  请在请求体里给出充放电时段」（错误码不变，前端不受影响）
+- 负荷数据本身无效（全 NaN）导致的 ValueError，消息里明说「不是时段问题」
+  并给 `hint: 检查列映射是否选错`
+
+### 探过没问题的
+
+| 项 | 结果 |
+|---|---|
+| session 管理 | `_SESSION_LOCK` 包裹读写，`drop_sessions_where` 先清后建 |
+| 业务错误 | 不存在的 session → 200 + `PREVIEW_GROUP_NOT_FOUND`，preview 与 calc 同一码 |
+| 404 / 405 | 默认结构（不属业务错误，不需要 Envelope）|
+| health | 能验证四个核心模块可导入（分层破了会红）|
+
+### 验证
+
+```
+tests/verify_api_envelope.py  39 项 PASS
+全套：PASS 75 / FAIL 0 / ENV·TIMEOUT 0
+```
+
+---
+
 ## 数值精度与 NaN 语义 — 2026-11-04（未发版）
 
 版本号不变。查浮点累加、极值、全 NaN 输入、效率乘数。

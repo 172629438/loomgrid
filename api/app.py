@@ -15,6 +15,7 @@ import logging
 import os
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -80,6 +81,34 @@ async def unhandled(request: Request, exc: Exception):
             "code": "INTERNAL_ERROR",
             "message": f"服务端异常：{type(exc).__name__}",
             "detail": {"path": request.url.path},
+        }).model_dump(),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_failed(request: Request, exc: RequestValidationError):
+    """参数校验失败（422）也包成 Envelope。
+
+    v2.3.15fix: FastAPI 默认把校验错误直接吐成 `{"detail": [...]}`，
+    而本 API 其余所有返回（成功与业务错误）都是 `{ok, data, error}`。
+    前端若统一按 `body.ok` 判断，遇到 422 拿到的是 undefined——
+    要么当成功处理（拿到空数据），要么报一个没说清楚哪个字段错了的错。
+
+    错误码仍用 422（不改成 200），只把 body 结构统一，前端既能只看 ok，
+    也能靠 HTTP 状态码分支。
+    """
+    fields = []
+    for e in exc.errors():
+        loc = [str(x) for x in (e.get("loc") or []) if x != "body"]
+        fields.append({"field": ".".join(loc) or "?",
+                       "why": str(e.get("msg") or e.get("type") or "invalid")})
+    summary = "；".join(f"{f['field']}：{f['why']}" for f in fields[:5]) or "请求参数不合法"
+    return JSONResponse(
+        status_code=422,
+        content=Envelope(ok=False, error={
+            "code": "VALIDATION_ERROR",
+            "message": summary,
+            "detail": {"fields": fields, "path": request.url.path},
         }).model_dump(),
     )
 

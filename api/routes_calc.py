@@ -120,7 +120,14 @@ def spaces(req: SpacesRequest):
     """
     segs = _to_internal_segments(req)
     if not segs:
-        return _err("CALC_INVALID_SEGMENT", "没有有效时段，请传 segments 或 periods")
+        # v2.3.15fix: 分清「没传参数」与「传了但无效」——原来两种都报
+        # 「没有有效时段」，而真正原因可能是 segments/periods 压根没传。
+        # 错误码保持不变（前端可能按 code 分支），只把文案说清楚。
+        if not req.segments and not req.periods:
+            return _err("CALC_INVALID_SEGMENT",
+                        "未传 segments 或 periods：请在请求体里给出充放电时段")
+        return _err("CALC_INVALID_SEGMENT",
+                    "时段列表为空或全部无效：segments[].start/end 需为 float 小时（0.0、8.0）")
 
     gs, data, err = _load_group(req.session_id, req.group)
     if err:
@@ -132,6 +139,13 @@ def spaces(req: SpacesRequest):
         ch, dis, cl, dl = compute_segmented_spaces(
             load, labels, segs, billing=req.billing, mode=req.mode,
             rated_power=req.rated_power, ignore_negative=req.ignore_negative)
+    except ValueError as e:
+        # v2.3.15fix: 负荷数据无效（全 NaN / 全 inf）不是「时段错」。
+        # 原来一律归成 CALC_INVALID_SEGMENT，用户会去查时段配置。
+        # 错误码保持兼容，但消息直指数据本身。
+        return _err("CALC_INVALID_SEGMENT",
+                    f"负荷数据本身有问题（不是时段问题）：{e}",
+                    {"type": type(e).__name__, "hint": "检查列映射是否选错"})
     except Exception as e:
         return _err("CALC_INVALID_SEGMENT", f"测算失败：{e}", {"type": type(e).__name__})
 
