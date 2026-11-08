@@ -5804,11 +5804,21 @@ class ProfessionalWindow(QMainWindow):
                             rgt = int(np.searchsorted(hours, b, side='left'))
                             if rgt <= lft:
                                 continue
+                            # v2.3.17fix8: 边界 b 处的高度用 b 自己的值，不是前一采样点的。
+                            #
+                            # 上一版末点用 base[rgt-1]（= 前一个采样点的负荷），
+                            # 于是 0-8 段在 8:00 处还保持 7:45 的高度（520），
+                            # 而 8:00 负荷已经是 520、余量只剩 180——
+                            # 多画了 340 kW×15min 一块矩形，应该是三角形。
+                            #
+                            # 取边界点的真实负荷：若 b 恰好是采样点就用它，
+                            # 否则用最后一个采样点。
+                            bi = min(rgt, len(hours) - 1)
                             x = np.concatenate(([a], hours[lft:rgt], [b]))
                             y_lo = np.concatenate(([base[lft]], base[lft:rgt],
-                                                   [base[rgt - 1]]))
+                                                   [base[bi]]))
                             y_hi = np.concatenate(([curve[lft]], curve[lft:rgt],
-                                                   [curve[rgt - 1]]))
+                                                   [curve[bi]]))
                             span = np.abs(y_hi - y_lo)
                             # 空间为 0 的点收敂到 0（而非 NaN 断开）：
                             # NaN 会让相邻那段 15 分钟的过渡区整个不画（负荷从 520
