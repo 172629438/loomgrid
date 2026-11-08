@@ -299,6 +299,132 @@ BESS_CYCLE_LIFE_DEFAULT = 6000  # v3.2fix: 默认循环寿命
 #   · 新参数入表不写代码：所有文案集中在这里，不在各处散写
 # ══════════════════════════════════════════════════════════════════
 HELP_TEXTS = {
+    "multiplier": {
+        "title": "倍率：把原始读数换算成真实功率",
+        "brief": "采集器存的是 CT/PT 二次侧值，乘倍率才是真实负荷",
+        "detail": (
+            "很多采集系统导出的是互感器二次侧数值，不是真实功率。\n"
+            "例如表里写 1~96，实际是 1~96 × 40 = 40~3840 kW。\n\n"
+            "怎么确定倍率：\n"
+            "· 看变压器铭牌或 CT/PT 变比（如 200/5 = 40 倍）；\n"
+            "· 或拿一个已知量级的月份对一下——若算出的容量比预期小两个\n"
+            "  数量级，很可能就是忘了乘。\n\n"
+            "三个按钮的区别：\n"
+            "· 应用至当前 —— 只改选中的那一个分组（资产 × 月份）\n"
+            "· 应用至勾选 —— 改树里打勾的所有分组\n"
+            "· 应用至全部 —— 改所有分组，相当于全局倍率\n\n"
+            "改完可以点「撤销」回退上一次操作。"
+        ),
+    },
+    "bill_capacity": {
+        "title": "计费容量线：需量控制的目标值",
+        "brief": "画一条水平线，并作为 Mode A 充电空间的上限",
+        "detail": (
+            "这条线有两个作用：\n"
+            "1. 图上画一条水平参考线，看负荷有没有超\n"
+            "2. Mode A（需量模式）下，它就是充电空间的封顶值：\n"
+            "   充电空间 = Σ max(容量线 − 负荷, 0) × dt\n\n"
+            "这意味着：负荷越接近容量线，可充的空间越小。\n"
+            "把线画低了，算出的容量建议会偏小；画高了则偏大。\n\n"
+            "「一键最大需量」会把当月负荷峰值填进来：\n"
+            "适合「不想超过去年峰值」的保守场景。\n\n"
+            "注意：勾选框只控制能不能编辑，不控制生效——\n"
+            "取消勾选再点应用，效果是清除容量线。"
+        ),
+    },
+    "ignore_negative": {
+        "title": "忽略负值（光伏返送）",
+        "brief": "勾上则负负荷算 0，光伏返送不再参与充电",
+        "detail": (
+            "负荷为负代表电流反向，通常就是光伏返送（倒送电网）。\n\n"
+            "【不勾】（默认）\n"
+            "负负荷参与充电空间计算：\n"
+            "  充电 = Σ min(额定功率, max(−负荷, 0)) × dt\n"
+            "光伏多发的部分可以用来给电池充电。\n\n"
+            "【勾上】\n"
+            "负负荷先清零，再算空间——等于「光伏不管，只看用电」。\n"
+            "适合：光伏已被单独消纳、或不允许储能吸收光伏的场景。\n\n"
+            "选错的影响：勾上后充电空间可能直接归 0（若全靠光伏充），\n"
+            "容量建议会变得极小甚至为 0。"
+        ),
+    },
+    "rated_power": {
+        "title": "额定功率：系统的功率上限（kW）",
+        "brief": "Mode B/C 下限制充放空间的功率天花板",
+        "detail": (
+            "电池不可能无限快充放，实际受 PCS 功率限制。\n\n"
+            "Mode B / C（功率模式）下：\n"
+            "  充电空间 = Σ min(额定功率, −负荷) × dt\n"
+            "  放电空间 = Σ min(额定功率, 负荷)  × dt\n\n"
+            "例：负荷峰值 500 kW，额定只填 100 kW，\n"
+            "那放电空间只按 100 kW 算，多出来的部分不算。\n\n"
+            "填多少：按拟配置柜型的额定功率×台数。\n"
+            "261 柜典型 125 kW/台。"
+        ),
+    },
+    "province": {
+        "title": "省份：决定分时电价时段",
+        "brief": "不同省份的峰谷时段不同，直接影响充放空间",
+        "detail": (
+            "选定省份后，程序会加载该省的分时电价时段划分\n"
+            "（尖、峰、平、谷各在几点到几点）。\n\n"
+            "它决定了：\n"
+            "· 图上哪些区间标峰色、哪些标谷色\n"
+            "· 专业模式里默认的充电段与放电段\n\n"
+            "选错的后果：时段划分不同，算出的充放空间完全不同。\n"
+            "例：某省谷段在凌晨，另一省还在深夜，充电时长差几个小时。\n\n"
+            "选「无」则不加载任何政策时段，只按你手动配的时段算。"
+        ),
+    },
+    "header_row": {
+        "title": "表头所在行",
+        "brief": "列名在第几行（上面可能有标题、单位、导出时间）",
+        "detail": (
+            "很多采集系统导出的 Excel 前几行不是列名：\n"
+            "第 1 行可能是报表标题，第 2 行是导出时间，第 3 行才是列名。\n\n"
+            "填错了会怎样：程序会把标题当成列名，于是找不到\n"
+            "「采集时间」「总有功」这类列，报「未找到所需列」。\n\n"
+            "怎么找：打开 Excel 看列名实际在第几行，从 1 开始数。\n"
+            "改完点「刷新」重新读取预览。"
+        ),
+    },
+    "long_accumulated": {
+        "title": "累计示数（自动差分为功率）",
+        "brief": "列里是电表累计读数而非瞬时功率时勾上",
+        "detail": (
+            "电表常导出累计电度（今天的 100，明天 200），\n"
+            "而负荷曲线需要的是瞬时功率（每 15 分钟用了多少 kW）。\n\n"
+            "【不勾】直接把数字当功率画\n"
+            "→ 累计读数是单调上升的，画出来是一条一路上涨的线，\n"
+            "  看着像「负荷一直在涨」，完全不是真实负荷。\n\n"
+            "【勾上】转差分：功率 = (本点 − 上一点) ÷ 时间间隔\n"
+            "→ 得到真实的功率曲线。\n\n"
+            "怎么判断：看数值是否只增不减。但注意换表或清零会让它回落，\n"
+            "程序会把回落点当异常处理，不会算出巨大负值。"
+        ),
+    },
+    "highlight_mode": {
+        "title": "峰谷高亮",
+        "brief": "按分时电价时段给背景上色，不参与测算",
+        "detail": (
+            "纯视觉选项，不影响任何计算。\n\n"
+            "· 仅背景 —— 只在峰谷区间填淡色\n"
+            "· 背景+图例 —— 额外在图上标出哪个颜色代表什么时段\n"
+            "· 关闭 —— 不上色\n\n"
+            "时段划分来自当前选定的省份。没选省份时不会有高亮。"
+        ),
+    },
+    "show_max_demand": {
+        "title": "最大需量线",
+        "brief": "在图上标出实际出现的最大需量，与目标线区分",
+        "detail": (
+            "在图上画一条标出「这一天实际出现的最高负荷」的线。\n\n"
+            "它和「计费容量线」不同：\n"
+            "· 计费容量线是你设定的目标/上限（可能需要填）\n"
+            "· 最大需量线是数据里实际出现的峰值（自动算）\n\n"
+            "两者画在一起，就能看出超了多少或还有多少余量。"
+        ),
+    },
     "est_strategy": {
         "title": "评估策略：一天算不算「满足」",
         "brief": "决定「一天算不算满足」的严格程度（原：最小可行容量 / 满载利用率）",
@@ -1563,6 +1689,7 @@ class MappingDialog(QDialog):
         self.header_row_spin.setRange(1, 20)
         self.header_row_spin.setValue(self.hrow + 1)
         hrow_layout.addWidget(self.header_row_spin)
+        hrow_layout.addWidget(make_help_icon("header_row", self))
 
         is_csv = os.path.splitext(self.fp)[1].lower() == '.csv'
         self.enc_combo = QComboBox()
@@ -1618,6 +1745,7 @@ class MappingDialog(QDialog):
                                     "日重置表会自动差分成功率；跳天不回落（月度累计）的会报错而不是静默出图。")
         self.long_acc_cb.setVisible(False)  # 只在长表模式显示
         fmt_layout.addWidget(self.long_acc_cb)
+        fmt_layout.addWidget(make_help_icon("long_accumulated", self))
         fmt_layout.addWidget(self.fmt_accumulated)
         fmt_layout.addWidget(self.fmt_wide)
         self.fmt_group_btns = QButtonGroup()
@@ -2885,6 +3013,7 @@ class PreviewDialog(QDialog):
         self.multiplier_spin.setValue(initial_multiplier)
         self.multiplier_spin.setToolTip("全局倍率，或当前分组的专属倍率")
         mult_row1.addWidget(self.multiplier_spin)
+        mult_row1.addWidget(make_help_icon("multiplier", self))
         mult_outer.addLayout(mult_row1)
 
         mult_btn_layout = QHBoxLayout()
@@ -2925,6 +3054,7 @@ class PreviewDialog(QDialog):
         self.capacity_spin.setEnabled(True)
         self.capacity_spin.setToolTip("勾选后可编辑，取消勾选依然可以应用（清除容量线）")
         bill_val_layout.addWidget(self.capacity_spin)
+        bill_val_layout.addWidget(make_help_icon("bill_capacity", self))
         bill_outer.addLayout(bill_val_layout)
 
         bill_btn_layout = QHBoxLayout()
@@ -2948,6 +3078,7 @@ class PreviewDialog(QDialog):
         self.max_demand_btn.setToolTip("将分组的当月最大需量（负荷峰值）设为计费容量线")
         self.max_demand_btn.clicked.connect(self._set_billing_to_max_demand)
         max_demand_layout.addWidget(self.max_demand_btn)
+        max_demand_layout.addWidget(make_help_icon("show_max_demand", self))
         max_demand_layout.addStretch()
         bill_outer.addLayout(max_demand_layout)
 
@@ -2965,6 +3096,10 @@ class PreviewDialog(QDialog):
         self.show_avg_cb.setChecked(self.config_manager.app_set('show_avg', True))
         self.show_max_demand_cb = QCheckBox(f"显示{CurveLabel.MAX_DEMAND}")
         self.show_max_demand_cb.setChecked(self._show_max_demand)
+        self.show_max_demand_cb.setToolTip(
+            "在图上标出这一天/月实际出现的最高负荷\n"
+            "注意：这是数据里实际出现的峰值，不是你要设定的目标\n"
+            "目标值在左侧「计费容量线」里填。点问号看详释。")
         self.mark_anomalies_cb = QCheckBox("标记异常值（零/负）")
         self.mark_anomalies_cb.setChecked(self._mark_anomalies)
         disp_layout.addWidget(self.show_daily_cb)
@@ -2981,6 +3116,7 @@ class PreviewDialog(QDialog):
         self._holiday_warning_label = QLabel("")
         self._setup_holiday_warning()
         highlight_layout.addWidget(self.highlight_combo)
+        highlight_layout.addWidget(make_help_icon("highlight_mode", self))
         disp_layout.addLayout(highlight_layout)
         disp_layout.addWidget(self._holiday_warning_label)
 
@@ -3054,6 +3190,7 @@ class PreviewDialog(QDialog):
         self.province_combo.setCurrentText("无")
         self._last_province_text = self.province_combo.currentText()
         strat_layout.addWidget(self.province_combo)
+        strat_layout.addWidget(make_help_icon("province", self))
         edit_btn = QPushButton("管理策略")
         edit_btn.clicked.connect(self._manage_strategies)
         strat_layout.addWidget(edit_btn)
@@ -4885,6 +5022,7 @@ class ProfessionalWindow(QMainWindow):
             self.ignore_neg_cb.setChecked(self.ignore_negative)
             self.ignore_neg_cb.stateChanged.connect(self._on_param_changed)
             left_layout.addWidget(self.ignore_neg_cb)
+            left_layout.addWidget(make_help_icon("ignore_negative", self))
 
         elif self.mode == 'B':
             left_layout.addWidget(QLabel("<b>储能参数</b>"))
@@ -4894,11 +5032,13 @@ class ProfessionalWindow(QMainWindow):
             self.rated_power_spin.setValue(100.0)
             self.rated_power_spin.valueChanged.connect(self._on_param_changed)
             left_layout.addWidget(self.rated_power_spin)
+            left_layout.addWidget(make_help_icon("rated_power", self))
             self.rated_power = self.rated_power_spin.value()
             self.ignore_neg_cb = QCheckBox("忽略负荷负值")
             self.ignore_neg_cb.setChecked(False)
             self.ignore_neg_cb.setEnabled(False)
             left_layout.addWidget(self.ignore_neg_cb)
+            left_layout.addWidget(make_help_icon("ignore_negative", self))
 
         elif self.mode == 'C':
             left_layout.addWidget(QLabel("<b>储能参数</b>"))
@@ -4908,6 +5048,7 @@ class ProfessionalWindow(QMainWindow):
             self.rated_power_spin.setValue(100.0)
             self.rated_power_spin.valueChanged.connect(self._on_param_changed)
             left_layout.addWidget(self.rated_power_spin)
+            left_layout.addWidget(make_help_icon("rated_power", self))
             self.rated_power = self.rated_power_spin.value()
             self.need_cap_cb = QCheckBox("启用需量限制（需设置容量线）")
             self.need_cap_cb.stateChanged.connect(self._on_param_changed)
@@ -4916,6 +5057,7 @@ class ProfessionalWindow(QMainWindow):
             self.ignore_neg_cb.setChecked(False)
             self.ignore_neg_cb.stateChanged.connect(self._on_param_changed)
             left_layout.addWidget(self.ignore_neg_cb)
+            left_layout.addWidget(make_help_icon("ignore_negative", self))
 
         self.simulate_btn = QPushButton("负荷模拟")
         self.simulate_btn.clicked.connect(self._open_simulation_dialog)
