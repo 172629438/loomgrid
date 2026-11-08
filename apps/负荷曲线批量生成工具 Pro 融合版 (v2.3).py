@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.17（2026-11-04 空间预览 + RTE）
+发布版本：LoomGrid Fusion v2.3.18（2026-11-04 无障碍与主题修复）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -62,6 +62,35 @@ if not os.path.isdir(os.path.join(_PKG_ROOT, 'core')):
         _PKG_ROOT = _up
 if _PKG_ROOT not in sys.path:
     sys.path.insert(0, _PKG_ROOT)
+
+
+def _asset_path(*parts):
+    """定位随程序分发的资源（图标等）。
+
+    v2.3.18：打包后（PyInstaller onedir）资源在 _internal/assets 下，
+    源码运行时在仓库根的 assets/ 下。两处都试一遍，找不到返回 None，
+    不报错——图标缺失不应该阻止程序启动。
+    """
+    roots = []
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        roots.append(meipass)
+    roots.append(_PKG_ROOT)
+    roots.append(os.path.dirname(_PKG_ROOT))      # apps/ 的上一层
+    for r in roots:
+        p = os.path.join(r, *parts)
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def _app_icon():
+    """全局应用图标（窗口左上角 + 任务栏都取它）。"""
+    for name in ("app.ico", "app.png"):
+        p = _asset_path("assets", name)
+        if p:
+            return QIcon(p)
+    return QIcon()
 from core.models import (  # noqa: E402
     DEFAULT_WEEKDAY_COLOR, DEFAULT_WEEKEND_COLOR, DEFAULT_HOLIDAY_COLOR,
     DEFAULT_WEEKEND_LINE_WIDTH, DEFAULT_HOLIDAY_LINE_WIDTH,
@@ -230,7 +259,7 @@ def _check_and_install_dependencies():
 # v2.3.6fix(K5): 版本号只能有一个来源。
 # 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
 # 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
-FUSION_VERSION = "2.3.17"
+FUSION_VERSION = "2.3.18"
 FUSION_APP_NAME = "LoomGrid Fusion"
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
 _SUPPORTED_EXTS_SET = frozenset(SUPPORTED_EXTS)  # v2.3.4fix(J6): O(1) 成员查找
@@ -991,7 +1020,34 @@ class GroupPeriodEditDialog(QDialog):
         layout.addLayout(name_layout)
 
         months_group = QGroupBox("适用月份")
-        months_layout = QGridLayout(months_group)
+        months_outer = QVBoxLayout(months_group)
+
+        # v2.3.18: 全选 / 全不选 / 反选 —— 十二个格子一个个点太繁。
+        # 季度快选也是同一条思路：电价策略常按季度配（夏 6-8、冬 12-2），
+        # 一次次手点四个月容易错月份。
+        quick_row = QHBoxLayout()
+        self._btn_all_months = QPushButton("全选")
+        self._btn_no_months = QPushButton("全不选")
+        self._btn_inv_months = QPushButton("反选")
+        for b in (self._btn_all_months, self._btn_no_months, self._btn_inv_months):
+            b.setFixedHeight(24)
+            b.setCursor(Qt.PointingHandCursor)
+            quick_row.addWidget(b)
+        quick_row.addSpacing(12)
+        self._quarter_btns = {}
+        for q, months in ((1, (1, 2, 3)), (2, (4, 5, 6)),
+                          (3, (7, 8, 9)), (4, (10, 11, 12))):
+            qb = QPushButton(f"Q{q}")
+            qb.setFixedHeight(24)
+            qb.setToolTip(f"只选第 {q} 季度：{months[0]}-{months[-1]} 月")
+            qb.setCursor(Qt.PointingHandCursor)
+            qb.clicked.connect(lambda _=False, m=months: self._pick_quarter(m))
+            self._quarter_btns[q] = qb
+            quick_row.addWidget(qb)
+        quick_row.addStretch()
+        months_outer.addLayout(quick_row)
+
+        months_layout = QGridLayout()
         self.month_checks = {}
         for i in range(1, 13):
             cb = QCheckBox(f"{i}月")
@@ -1001,7 +1057,12 @@ class GroupPeriodEditDialog(QDialog):
             row = (i-1) // 4
             col = (i-1) % 4
             months_layout.addWidget(cb, row, col)
+        months_outer.addLayout(months_layout)
         layout.addWidget(months_group)
+
+        self._btn_all_months.clicked.connect(lambda: self._set_all_months(True))
+        self._btn_no_months.clicked.connect(lambda: self._set_all_months(False))
+        self._btn_inv_months.clicked.connect(self._invert_months)
 
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(['开始', '结束', '类型'])
@@ -1144,6 +1205,21 @@ class GroupPeriodEditDialog(QDialog):
             self._push_history()
             self.current_periods = new_periods
         self._check_conflicts()
+
+    def _set_all_months(self, checked):
+        """全选 / 全不选。"""
+        for cb in self.month_checks.values():
+            cb.setChecked(checked)
+
+    def _invert_months(self):
+        """反选：已选的取消，未选的选上。"""
+        for cb in self.month_checks.values():
+            cb.setChecked(not cb.isChecked())
+
+    def _pick_quarter(self, months):
+        """只选指定季度（其他月份全部取消）。"""
+        for k, cb in self.month_checks.items():
+            cb.setChecked(int(k) in months)
 
     def _add_period(self):
         self._push_history()
@@ -1352,7 +1428,8 @@ class ProvinceStrategyEditDialog(QDialog):
             lbl = QLabel(f"{i}月")
             lbl.setAlignment(Qt.AlignCenter)
             lbl.setFixedSize(60, 28)
-            lbl.setStyleSheet("background-color: lightgray; border: 1px solid gray; border-radius: 4px;")
+            lbl.setStyleSheet("background-color: lightgray; color: #202020; "
+                               "border: 1px solid palette(dark); border-radius: 4px;")
             self.month_labels[i] = lbl
             month_grid.addWidget(lbl, (i-1)//4, (i-1)%4)
         layout.addWidget(QLabel("月份覆盖:"))
@@ -1383,9 +1460,11 @@ class ProvinceStrategyEditDialog(QDialog):
         for m in range(1, 13):
             lbl = self.month_labels[m]
             if m in used_months:
-                lbl.setStyleSheet("background-color: #90EE90; border: 1px solid gray; border-radius: 4px;")
+                lbl.setStyleSheet("background-color: #90EE90; color: #143014; "
+                                  "border: 1px solid palette(dark); border-radius: 4px;")
             else:
-                lbl.setStyleSheet("background-color: #FFB6C1; border: 1px solid gray; border-radius: 4px;")
+                lbl.setStyleSheet("background-color: #FFB6C1; color: #401820; "
+                                  "border: 1px solid palette(dark); border-radius: 4px;")
 
     def _add_group(self):
         dlg = GroupPeriodEditDialog(self, self.config_manager, self.province_name)
@@ -1913,7 +1992,10 @@ class MappingDialog(QDialog):
         self.load_list.addItems(cols)
 
     def _highlight_combo(self, combo, text):
-        combo.setStyleSheet(f"background-color: {ColorConst.HIGHLIGHT_BG};")
+        # v2.3.18: 必须显式给前景色。高亮底是浅黄 #FFF9C4，
+        # 深色主题下 palette(windowText) 是白色——白字配浅黄底看不见。
+        combo.setStyleSheet(f"background-color: {ColorConst.HIGHLIGHT_BG}; "
+                            f"color: #202020;")
         if combo not in self._highlighted_controls:
             self._highlighted_controls.append(combo)
 
@@ -3237,7 +3319,10 @@ class PreviewDialog(QDialog):
         edit_btn.clicked.connect(self._manage_strategies)
         strat_layout.addWidget(edit_btn)
         self.professional_btn = QPushButton("专业模式")
-        self.professional_btn.setToolTip("进入专业分析模式（需量管理/峰谷套利/光伏消纳）")
+        # v2.3.18: 快捷键写进 tooltip，用户才知道有
+        self.professional_btn.setToolTip(
+            "进入专业分析模式（需量管理/峰谷套利/光伏消纳）　Ctrl+P")
+        self.professional_btn.setShortcut("Ctrl+P")
         self.professional_btn.clicked.connect(self._open_professional_mode)
         strat_layout.addWidget(self.professional_btn)
         self.param_layout.addLayout(strat_layout)
@@ -3275,7 +3360,7 @@ class PreviewDialog(QDialog):
                                                clicked=lambda: self.title_edit.setText("{year_month}_负荷曲线")))
         title_layout.addLayout(title_quick_btns)
         self.title_preview = QLabel("")
-        self.title_preview.setStyleSheet("color: gray;")
+        self.title_preview.setStyleSheet("color: #9a9a9a;")
         title_layout.addWidget(self.title_preview)
         self.param_layout.addLayout(title_layout)
 
@@ -3704,7 +3789,10 @@ class PreviewDialog(QDialog):
         effective = self.settings_model.effective_multiplier(idx)
         self.multiplier_spin.setValue(effective)
         self.mult_status_label.setText("当前分组使用专属倍率" if is_custom else "")
-        self.multiplier_spin.setStyleSheet(f"background-color: {ColorConst.HIGHLIGHT_BG};" if is_custom else "")
+        # v2.3.18: 高亮底是浅黄，深色主题下必须显式给深色前景，否则白字看不见
+        self.multiplier_spin.setStyleSheet(
+            f"background-color: {ColorConst.HIGHLIGHT_BG}; color: #202020;"
+            if is_custom else "")
 
     def _update_billing_ui(self):
         idx = self.current_index
@@ -3718,9 +3806,11 @@ class PreviewDialog(QDialog):
         enabled = self.bill_enabled_cb.isChecked()
         self.capacity_spin.setReadOnly(not enabled)
         if is_custom:
-            self.capacity_spin.setStyleSheet(f"background-color: {ColorConst.HIGHLIGHT_BG};")
+            self.capacity_spin.setStyleSheet(
+                f"background-color: {ColorConst.HIGHLIGHT_BG}; color: #202020;")
         elif not enabled:
-            self.capacity_spin.setStyleSheet("background-color: #f0f0f0;")
+            self.capacity_spin.setStyleSheet(
+                "background-color: palette(alternate-base); color: palette(mid);")
         else:
             self.capacity_spin.setStyleSheet("")
 
@@ -3791,7 +3881,9 @@ class PreviewDialog(QDialog):
             mark_anomalies=self.mark_anomalies_cb.isChecked(),
             dark_theme=dark_theme,
         )
-        self._dark_theme = dark_theme
+        # v2.3.18: 这里原本写 self._dark_theme = dark_theme，把「图表暗色背景」
+        # 混进了「程序 UI 主题」。勾一次图表背景重启后整个界面变深色，
+        # 与用户意图相反。UI 主题只在视图菜单里改，图表背景只管图。
         self.render_scheduler.set_plot_options(opts)
         self.render_scheduler.clear_all_caches()
         for i in range(len(self.all_summaries)):
@@ -4779,6 +4871,10 @@ class ProfessionalWindow(QMainWindow):
     def __init__(self, mode, summaries, provider, config_manager, settings_model,
                  province_name, plot_options, global_multiplier, parent=None):
         super().__init__(parent)
+        # v2.3.18: 专业窗口也有自己的任务栏图标
+        _ic = _app_icon()
+        if not _ic.isNull():
+            self.setWindowIcon(_ic)
         self.mode = mode
         self.summaries = summaries
         self.provider = provider
@@ -7371,6 +7467,70 @@ class ProcessingThread(threading.Thread):
 # 注意：本部分代码紧跟第一至第四部分，共享同一命名空间
 
 # ======================= 全局样式表 =======================
+def build_light_palette() -> QPalette:
+    """显式浅色调色板——不看系统脸色。
+
+    v2.3.18: 原来切回浅色用的是 QApplication.style().standardPalette()，
+    那是随系统走的；系统开深色时程序也跟着暗。用户要求无论系统深浅
+    程序默认永远浅色，所以这里把每个 role 都写死。
+    """
+    p = QPalette()
+    p.setColor(QPalette.Window, QColor(245, 245, 245))
+    p.setColor(QPalette.WindowText, QColor(30, 30, 30))
+    p.setColor(QPalette.Base, QColor(255, 255, 255))
+    p.setColor(QPalette.AlternateBase, QColor(248, 248, 248))
+    p.setColor(QPalette.ToolTipBase, QColor(255, 255, 230))
+    p.setColor(QPalette.ToolTipText, QColor(30, 30, 30))
+    p.setColor(QPalette.Text, QColor(30, 30, 30))
+    p.setColor(QPalette.Button, QColor(240, 240, 240))
+    p.setColor(QPalette.ButtonText, QColor(30, 30, 30))
+    p.setColor(QPalette.BrightText, QColor(200, 0, 0))
+    p.setColor(QPalette.Link, QColor(0, 102, 204))
+    p.setColor(QPalette.Highlight, QColor(42, 130, 218))
+    p.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
+    p.setColor(QPalette.Disabled, QPalette.WindowText, QColor(150, 150, 150))
+    p.setColor(QPalette.Disabled, QPalette.Text, QColor(150, 150, 150))
+    p.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(150, 150, 150))
+    p.setColor(QPalette.Disabled, QPalette.Base, QColor(245, 245, 245))
+    p.setColor(QPalette.Disabled, QPalette.Button, QColor(235, 235, 235))
+    p.setColor(QPalette.Mid, QColor(180, 180, 180))
+    p.setColor(QPalette.Midlight, QColor(220, 220, 220))
+    p.setColor(QPalette.Dark, QColor(120, 120, 120))
+    p.setColor(QPalette.Light, QColor(255, 255, 255))
+    p.setColor(QPalette.PlaceholderText, QColor(140, 140, 140))
+    return p
+
+
+def build_dark_palette() -> QPalette:
+    """深色调色板。补了禁用态与中亮阶——原来没设，深灰底上的
+    禁用文字几乎看不见（“取消”按钮、空闲期的“开始处理”都是这状态）。"""
+    p = QPalette()
+    p.setColor(QPalette.Window, QColor(53, 53, 53))
+    p.setColor(QPalette.WindowText, QColor(240, 240, 240))
+    p.setColor(QPalette.Base, QColor(35, 35, 35))
+    p.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
+    p.setColor(QPalette.ToolTipBase, QColor(53, 53, 53))
+    p.setColor(QPalette.ToolTipText, QColor(240, 240, 240))
+    p.setColor(QPalette.Text, QColor(240, 240, 240))
+    p.setColor(QPalette.Button, QColor(53, 53, 53))
+    p.setColor(QPalette.ButtonText, QColor(240, 240, 240))
+    p.setColor(QPalette.BrightText, QColor(255, 90, 90))
+    p.setColor(QPalette.Link, QColor(86, 168, 255))
+    p.setColor(QPalette.Highlight, QColor(42, 130, 218))
+    p.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
+    p.setColor(QPalette.Disabled, QPalette.WindowText, QColor(140, 140, 140))
+    p.setColor(QPalette.Disabled, QPalette.Text, QColor(140, 140, 140))
+    p.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(128, 128, 128))
+    p.setColor(QPalette.Disabled, QPalette.Base, QColor(45, 45, 45))
+    p.setColor(QPalette.Disabled, QPalette.Button, QColor(48, 48, 48))
+    p.setColor(QPalette.Mid, QColor(90, 90, 90))
+    p.setColor(QPalette.Midlight, QColor(70, 70, 70))
+    p.setColor(QPalette.Dark, QColor(28, 28, 28))
+    p.setColor(QPalette.Light, QColor(80, 80, 80))
+    p.setColor(QPalette.PlaceholderText, QColor(130, 130, 130))
+    return p
+
+
 def apply_global_stylesheet(app: QApplication):
     app.setStyleSheet("""
         QPushButton {
@@ -7497,7 +7657,7 @@ class FileListWidget(QListWidget):
 
         self._empty_label = QLabel("📂  拖放 Excel / CSV 文件或文件夹到此处\n或点击「添加文件」按钮", self)
         self._empty_label.setAlignment(Qt.AlignCenter)
-        self._empty_label.setStyleSheet("color: gray; font-size: 12px; border: none;")
+        self._empty_label.setStyleSheet("color: #9a9a9a; font-size: 12px; border: none;")
         self._empty_label.setWordWrap(True)
         # v2.3.16fix: 这个 label 铺满整个列表（resizeEvent 里 setGeometry(self.rect())），
         # 而 QLabel 默认 acceptDrops=False——它会把拖拽事件吃掉，不转发给父控件 QListWidget。
@@ -7663,50 +7823,34 @@ class FileListWidget(QListWidget):
 
 # ======================= 拖放覆盖层 =======================
 class DropOverlay(QWidget):
-    files_dropped = Signal(list)
+    """拖拽时的全窗口高亮浮层——**只做视觉提示，不接收任何事件**。
+
+    v2.3.18 大改：以前它用 Qt.WindowStaysOnTopHint 做成了一个独立顶层窗，
+    而且自己 setAcceptDrops(True)。后果是——拖拽途中 setVisible(True) 弹出
+    新窗口，Windows 的拖放会话会被打断，用户看到的就是「拖不进去」；
+    即使没打断，它也抢走了本该给主窗口的 drop 事件。
+
+    现在：纯子控件 + WA_TransparentForMouseEvents，不参与事件链，
+    只负责把「释放以添加文件」这句话画出来。拖放全部交给 MainWindow。
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setAcceptDrops(True)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setVisible(False)
         self._label = QLabel("释放以添加文件", self)
         self._label.setAlignment(Qt.AlignCenter)
-        self._label.setStyleSheet("background: rgba(0,0,0,120); color: white; font-size:24px; border-radius:10px;")
+        self._label.setStyleSheet(
+            "background: rgba(0,0,0,140); color: white; font-size:24px;"
+            "border-radius:10px;")
         self._label.setFixedSize(300, 80)
-
-    def dragEnterEvent(self, event):
-        # v2.3.16fix: 与 FileListWidget 对齐。原来不管拖什么进来都显示
-        # 「释放以添加文件」，松手后过滤为空那么浮层一闪什么都没发生。
-        if event.mimeData().hasUrls() and FileListWidget._has_supported(event.mimeData().urls()):
-            event.acceptProposedAction()
-            self.setVisible(True)
-            self.raise_()
-        else:
-            super().dragEnterEvent(event)
 
     def dragLeaveEvent(self, event):
         self.setVisible(False)
 
     def dropEvent(self, event):
-        self.setVisible(False)
-        if event.mimeData().hasUrls():
-            paths = []
-            for url in event.mimeData().urls():
-                p = url.toLocalFile()
-                if os.path.isfile(p) and p.lower().endswith(SUPPORTED_EXTS):
-                    paths.append(p)
-                elif os.path.isdir(p):
-                    # v2.3.16fix: 原实现无限递归，拖盘符根会卡死 UI 线程。
-                    # 与 FileListWidget._walk_dir 共用同一套限深限量。
-                    got, _ = FileListWidget._walk_dir(p)
-                    paths.extend(got)
-            if paths:
-                self.files_dropped.emit(paths)
-            else:
-                log.warning("拖放（主窗口）：没有找到可导入的文件")
-            event.acceptProposedAction()
+        pass
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -7720,6 +7864,10 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{FUSION_APP_NAME} v{FUSION_VERSION}")
+        # v2.3.18: 窗口图标（任务栏图标在 Windows 上随窗口图标走）
+        _ic = _app_icon()
+        if not _ic.isNull():
+            self.setWindowIcon(_ic)
         self.setMinimumSize(900, 600)
 
         self.config_manager = Config()
@@ -7757,7 +7905,9 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
-        self._dark_theme = self.config_manager.app_set('dark_theme', False)
+        # v2.3.18: UI 主题独立键。旧 dark_theme 键存的是「图表暗色背景」，
+        # 不能直接拿来当 UI 主题——否则勾过图表背景的用户一升级就变深色。
+        self._ui_dark = self.config_manager.app_set('ui_dark_theme', False)
 
         self._cleanup_temp_files()
 
@@ -7768,14 +7918,24 @@ class MainWindow(QMainWindow):
         self._init_status_bar()
 
         self._overlay = DropOverlay(self)
-        self._overlay.files_dropped.connect(self._on_files_dropped)
+        # v2.3.18: 主窗口必须自己接收拖放。
+        # QMainWindow 默认 acceptDrops=False，所以写在它上面的
+        # dragEnterEvent / dropEvent 从来没被调过——拖到文件列表以外的
+        # 任何位置（菜单栏下、右侧空白、状态栏）都没反应。
+        self.setAcceptDrops(True)
 
         self._set_ui_state('idle')
         self._update_start_btn()
         self._log("程序启动，等待操作...")
 
-        if self._dark_theme:
+        # v2.3.18: 必须显式应用一套调色板——包括浅色。
+        # 原来只有 if self._ui_dark 一个分支，浅色时什么都不做，
+        # 调色板就停在系统默认上——系统开深色时程序也跟着暗。
+        # 用户要求“无论系统深浅，默认永远浅色”，所以 else 必须走。
+        if self._ui_dark:
             self._apply_dark_theme()
+        else:
+            self._apply_light_theme()
 
         sys.excepthook = self._gui_exception_handler
 
@@ -7805,6 +7965,15 @@ class MainWindow(QMainWindow):
         self.clear_files_action = QAction("清空文件列表", self)
         self.clear_files_action.triggered.connect(self._clear_files)
 
+        # v2.3.18: 高频操作补上快捷键。
+        # 原来只有 Ctrl+O / Ctrl+Q，开始处理只能点鼠标——
+        # 无障碍里“只用键盘能做完一件事”是硬指标。
+        # 注：专业分析的入口在预览窗口里，不在这里，所以 Ctrl+P 也放在那边。
+        self.start_action = QAction("开始处理", self)
+        self.start_action.setShortcut("F5")
+        self.start_action.setShortcutContext(Qt.ApplicationShortcut)
+        self.start_action.triggered.connect(self._start_processing)
+
         self.open_output_action = QAction("打开输出文件夹", self)
         self.open_output_action.triggered.connect(self._open_output)
 
@@ -7823,8 +7992,9 @@ class MainWindow(QMainWindow):
 
         self.toggle_theme_action = QAction("暗色主题", self)
         self.toggle_theme_action.setCheckable(True)
-        self.toggle_theme_action.setChecked(self._dark_theme)
-        self.toggle_theme_action.triggered.connect(self._toggle_dark_theme)
+        self.toggle_theme_action.setChecked(self._ui_dark)
+        self.toggle_theme_action.setShortcut("Ctrl+T")
+        self.toggle_theme_action.triggered.connect(self._toggle_ui_dark)
 
     def _create_menus(self):
         menubar = self.menuBar()
@@ -7832,6 +8002,8 @@ class MainWindow(QMainWindow):
         file_menu = menubar.addMenu("文件")
         file_menu.addAction(self.add_file_action)
         file_menu.addAction(self.clear_files_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.start_action)
         file_menu.addSeparator()
         file_menu.addAction(self.open_output_action)
         file_menu.addSeparator()
@@ -7901,7 +8073,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.phase_label)
 
         self.eta_label = QLabel("")
-        self.eta_label.setStyleSheet("color: gray;")
+        self.eta_label.setStyleSheet("color: #9a9a9a;")
         layout.addWidget(self.eta_label)
 
         splitter = QSplitter(Qt.Vertical)
@@ -7920,34 +8092,39 @@ class MainWindow(QMainWindow):
         self.statusBar().addWidget(self.status_label, 1)
 
     # ---------- 暗色主题 ----------
-    def _toggle_dark_theme(self):
-        self._dark_theme = not self._dark_theme
-        self.toggle_theme_action.setChecked(self._dark_theme)
-        self.config_manager.set_app('dark_theme', self._dark_theme)
-        if self._dark_theme:
+    def _toggle_ui_dark(self):
+        self._ui_dark = not self._ui_dark
+        self.toggle_theme_action.setChecked(self._ui_dark)
+        self.config_manager.set_app('ui_dark_theme', self._ui_dark)
+        if self._ui_dark:
             self._apply_dark_theme()
         else:
             self._apply_light_theme()
 
     def _apply_dark_theme(self):
-        dark_palette = QPalette()
-        dark_palette.setColor(QPalette.Window, QColor(53, 53, 53))
-        dark_palette.setColor(QPalette.WindowText, Qt.white)
-        dark_palette.setColor(QPalette.Base, QColor(35, 35, 35))
-        dark_palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-        dark_palette.setColor(QPalette.ToolTipBase, Qt.white)
-        dark_palette.setColor(QPalette.ToolTipText, Qt.white)
-        dark_palette.setColor(QPalette.Text, Qt.white)
-        dark_palette.setColor(QPalette.Button, QColor(53, 53, 53))
-        dark_palette.setColor(QPalette.ButtonText, Qt.white)
-        dark_palette.setColor(QPalette.BrightText, Qt.red)
-        dark_palette.setColor(QPalette.Link, QColor(42, 130, 218))
-        dark_palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-        dark_palette.setColor(QPalette.HighlightedText, Qt.black)
-        QApplication.instance().setPalette(dark_palette)
+        QApplication.instance().setPalette(build_dark_palette())
+        self._repolish_all()
 
     def _apply_light_theme(self):
-        QApplication.instance().setPalette(QApplication.style().standardPalette())
+        QApplication.instance().setPalette(build_light_palette())
+        self._repolish_all()
+
+    def _repolish_all(self):
+        """主题切换后强制所有控件重走样式解析。
+
+        v2.3.18: 样式表里写的是 palette(mid) / palette(text) 这类变量，
+        只在样式被解析时取值。只换 QPalette 不 repolish，已设过
+        setStyleSheet 的控件会停在旧颜色上——这就是“切了深色主题
+        但某些文字/背景没变”的根因。
+        """
+        app = QApplication.instance()
+        for w in app.allWidgets():
+            try:
+                w.style().unpolish(w)
+                w.style().polish(w)
+                w.update()
+            except Exception:
+                pass
 
     # ---------- 状态管理 ----------
     def _set_ui_state(self, state):
@@ -7978,11 +8155,10 @@ class MainWindow(QMainWindow):
         expanded = []
         for p in paths:
             if os.path.isdir(p):
-                for root, _, files in os.walk(p):
-                    for fn in files:
-                        fp = os.path.join(root, fn)
-                        if _is_supported_file(fp):
-                            expanded.append(fp)
+                # v2.3.18: 用限深限量的 _walk_dir。原来这里直接 os.walk
+                # 全递归，拖个盘符根会在 UI 线程里走几十万个文件。
+                got, _ = FileListWidget._walk_dir(p)
+                expanded.extend(got)
             elif _is_supported_file(p):
                 expanded.append(p)
         rejected = len(paths) - len(expanded) if not any(os.path.isdir(x) for x in paths) else 0
@@ -8787,15 +8963,20 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
             paths = []
             for url in event.mimeData().urls():
                 p = url.toLocalFile()
+                if not p:
+                    continue
                 if os.path.isfile(p) and p.lower().endswith(SUPPORTED_EXTS):
                     paths.append(p)
                 elif os.path.isdir(p):
-                    for root, _, files in os.walk(p):
-                        for f in files:
-                            if f.lower().endswith(SUPPORTED_EXTS):
-                                paths.append(os.path.join(root, f))
+                    # v2.3.18: 改用与 FileListWidget 同一套限深限量的 _walk_dir。
+                    # 原实现直接 os.walk 全递归——拖个盘符根会在 UI 线程里
+                    # 走几十万个文件，界面假死，用户只能强杀。
+                    got, _ = FileListWidget._walk_dir(p)
+                    paths.extend(got)
             if paths:
                 self._on_files_dropped(paths)
+            else:
+                log.warning("拖放（主窗口）：没有找到可导入的文件")
             event.acceptProposedAction()
         else:
             super().dropEvent(event)
@@ -8852,8 +9033,36 @@ def main():
     app.setStyle("Fusion")
     app.setApplicationName("负荷曲线批量生成工具 Pro")
     app.setOrganizationName("PowerCurve")
+    # v2.3.18: 全局应用图标。窗口左上角与任务栏都取它。
+    # 之前只在打包时给 exe 加了 --icon，代码里一次都没设过 setWindowIcon，
+    # 所以任务栏和标题栏一直显示 Qt 默认图标。
+    _icon = _app_icon()
+    if not _icon.isNull():
+        app.setWindowIcon(_icon)
 
     apply_global_stylesheet(app)
+
+    # v2.3.18: 在创建任何窗口前就把调色板钉死。
+    # 原来是 MainWindow.__init__ 里才应用，导致启动提示框（QMessageBox）、
+    # 文件对话框这些「先于主窗口出现」的控件走系统主题——系统深色时
+    # 一闪一个暗框，和程序默认的浅色不搭。
+    # 主题偏好存在配置里，这里提前读一次；MainWindow 后面还会再应用一次，
+    # 幂等，不影响。
+    try:
+        _early_dark = Config().app_set('ui_dark_theme', False)
+    except Exception:
+        _early_dark = False
+    app.setPalette(build_dark_palette() if _early_dark
+                   else build_light_palette())
+    # Qt 6.5+ 会跟随系统深浅色，而且优先级在 setPalette 之上。
+    # 显式把 styleHints 的 colorScheme 钉死，光靠 QPalette 才压得住。
+    try:
+        _hints = app.styleHints()
+        if hasattr(_hints, "setColorScheme"):
+            _hints.setColorScheme(Qt.ColorScheme.Dark if _early_dark
+                                  else Qt.ColorScheme.Light)
+    except Exception:
+        pass
 
     # 启动提示
     msg_box = QMessageBox()

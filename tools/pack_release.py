@@ -99,6 +99,13 @@ def build(target: str, version: str) -> int:
     icon = os.path.join(REPO, "assets", "app.ico")
     if os.path.exists(icon):
         cmd += ["--icon", icon]
+        # v2.3.18: 把图标文件本身也打进产物。
+        # --icon 只设 exe 文件图标；窗口标题栏与任务栏图标靠运行时
+        # setWindowIcon()，那需要 assets/app.ico 真的在产物里能找到。
+        cmd += ["--add-data", f"{icon}{os.pathsep}assets"]
+    icon_png = os.path.join(REPO, "assets", "app.png")
+    if os.path.exists(icon_png):
+        cmd += ["--add-data", f"{icon_png}{os.pathsep}assets"]
     for mod in EXCLUDES:
         cmd += ["--exclude-module", mod]
     for mod in HIDDEN:

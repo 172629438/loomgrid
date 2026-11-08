@@ -4,7 +4,129 @@
 
 ---
 
-## v2.3.17 — 2026-11-04（Fusion，空间预览 + RTE）
+## v2.3.18 — 2026-11-04（Fusion，无障碍与主题修复）
+
+四项需求，其中两项挖出了旧缺陷。
+
+### 一、月份快选：全选 / 全不选 / 反选 / 季度
+
+充放时段策略里新建策略组时，十二个月份格子上面加了一行快选按钮：
+
+```
+全选   全不选   反选   |   Q1  Q2  Q3  Q4
+```
+
+季度按钮是「**只选该季度**」而不是叠加——电价策略常按季配（夏 6-8、冬 12-2），
+叠加语义会让月份越点越多。
+
+同类批量操作核查了全程序：分组列表和导出对话框已有全选/全不选，
+只缺这一处。
+
+### 二、全局图标：窗口左上角与任务栏
+
+**根因：打包脚本只给 exe 加了 `--icon`，代码里一次都没调过 `setWindowIcon()`。**
+
+exe 文件图标是对的，但窗口标题栏和任务栏取的是运行时设定的图标，
+所以一直显示 Qt 默认图标。
+
+修法三处：
+- `_asset_path()` / `_app_icon()`：源码树（`assets/`）与打包产物
+  （`_internal/assets/`）两种布局都能找到图标；找不到返回空图标，不阻止启动
+- `app.setWindowIcon()`（应用级）+ `MainWindow` / `ProfessionalWindow`（窗口级）
+- 打包脚本加 `--add-data`，把图标文件本身也打进产物
+
+### 三、主题：默认浅色、不跟系统、深色可读
+
+这一项挖出了三个真缺陷。
+
+**① 「图表暗色背景」与「程序 UI 主题」共用一个状态和配置键。**
+
+```python
+# 修复前
+self.dark_theme_cb.stateChanged → _apply_global_display_options()
+    dark_theme = self.dark_theme_cb.isChecked()   # 图表背景
+    self._dark_theme = dark_theme                 # 覆盖了 UI 主题
+    set_app('dark_theme', dark_theme)             # 存进配置的也是图表背景
+
+# 主窗口启动
+self._ui_dark = app_set('dark_theme', False)      # 读到的其实是图表背景
+if self._ui_dark: _apply_dark_theme()             # → 整个界面变深色
+```
+
+勾一次「暗色图表背景」，重启后整个界面变深色，与用户意图相反。
+现在拆成两个键：`dark_theme`（图表背景，不变）与 `ui_dark_theme`（UI 主题，新增）。
+
+**② 浅色用的是 `standardPalette()`，那是跟随系统的。**
+
+系统开深色时程序也跟着暗。现在 `build_light_palette()` 把每个 role 写死，
+不看系统脸色；并且 `main()` 里在创建**任何窗口之前**就应用，
+启动提示框、文件对话框不会再闪一个暗框。
+
+另外显式钉死 `styleHints().setColorScheme()`——Qt 6.5+ 的 system color scheme
+优先级在 `setPalette` 之上，只设调色板压不住。
+
+**③ 深色主题下几处看不清。**
+
+- 深色调色板**没设 Disabled 组**：Fusion 自己推导出来的禁用色在深灰底上几乎
+  看不见（“取消”按钮、空闲期的“开始处理”都是这个状态）。补了 WindowText /
+  Text / ButtonText / Base / Button 五个 role
+- 深色调色板**没设 Mid/Midlight/Dark/Light**：GroupBox 边框、列表虚线边框
+  用 `palette(mid)`，深色下和背景撞色，框线消失。现在显式给了一套蓝灰阶
+- **浅色背景配白字**：月份覆盖标签（`#90EE90` / `#FFB6C1` / `lightgray`）、
+  自动匹配高亮（`#FFF9C4`）、只读容量框（`#f0f0f0`）都只设了背景没设前景，
+  深色主题下白字压在浅底上，直接看不见。全部补了深色前景
+- 次要文字从 `gray` 换成 `#9a9a9a`：浅色底上仍可读，深色底上对比度
+  从 4.0:1 提到 5.4:1
+- **切主题后样式表不刷新**：样式表里的 `palette(xxx)` 只在解析时取值，
+  只换 `QPalette` 不 repolish，已设过样式表的控件会停在旧颜色上。
+  新增 `_repolish_all()`，遍历所有控件 `unpolish → polish → update`
+
+### 四、拖拽：又两层原因
+
+上一版修了 `_empty_label` 吞事件，但还能复现。这版挖出两层：
+
+**① `MainWindow` 从来没调 `setAcceptDrops(True)`。**
+
+`QMainWindow` 默认 `acceptDrops=False`。写在它上面的 `dragEnterEvent` /
+`dropEvent` 从来没被调用过——**拖到文件列表以外的任何位置（菜单栏下、
+右侧空白、状态栏）全都没反应**。列表内能拖、列表外不能，用户感受就是
+“有时能拖有时不能”。
+
+**② `DropOverlay` 用 `WindowStaysOnTopHint` 把自己做成了独立顶层窗口。**
+
+拖拽途中 `setVisible(True)` 弹出一个新顶层窗，Windows 的拖放会话会被打断；
+即使没打断，它也 `setAcceptDrops(True)` 抢走了本该给主窗口的 drop 事件。
+
+现在改成纯子控件 + `WA_TransparentForMouseEvents`，只负责画“释放以添加文件”
+那句话，不参与事件链。
+
+**顺带统一了目录递归**：`MainWindow.dropEvent` 和 `_on_files_dropped` 里
+还在用无限递归的 `os.walk`，拖个盘符根会在 UI 线程里走几十万个文件。
+两处都改成 `FileListWidget._walk_dir`（限深 6 层、限 5000 个文件）。
+
+### 五、无障碍：键盘能做完事
+
+原有快捷键只有 `Ctrl+O` / `Ctrl+Q` / `Ctrl+Z` / `Ctrl+Y`。补了：
+
+```
+F5       开始处理（ApplicationShortcut，任意焦点下都生效）
+Ctrl+P   专业模式（挂预览窗口的按钮上，tooltip 里写明）
+Ctrl+T   切换深/浅主题
+```
+
+另外「全选/全不选/反选」类操作核查了全程序：分组列表、导出对话框都已有，
+只缺月份选择。
+
+### 新增测试
+
+`tests/verify_ux_a11y_theme.py`（49 项）——月份快选、图标资源路径、
+主题分离与可读性、拖拽两条根因、快捷键覆盖。
+
+其中「只验源码契约不验真窗口」的项在注释里逐条注明：`setAcceptDrops`
+是否被调、浮层是否还带 `WindowStaysOnTopHint`、样式表里是否有浅底配白字——
+这些能防倒退，但证明不了“点下去真有反应”。那层仍需人眼过。
+
+---
 
 这一版全部是「让人看懂程序在算什么」的东西。
 
