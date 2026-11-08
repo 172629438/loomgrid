@@ -173,9 +173,11 @@ _has_step = "step=" in _code_only
 check("填充用折线，不套 step（与 plot 曲线逐点重合）",
       not _has_step, "代码行里出现了 step=" if _has_step else "")
 check("按段分别填充（_fill_by_segment）", "_fill_by_segment" in _code_only)
-check("段按 [start, end) 取点，末点归零收口",
-      "np.searchsorted(hours, b, side='left')" in _code_only
-      and "np.concatenate(([a], hours[lft:rgt], [b]))" in _code_only)
+check("交界格两段都不占（充电末格/放电首格跳过）",
+      "_starts = {float(s['start']) for s in (segments or [])}" in _code_only
+      and "_ends = {float(s['end']) for s in (segments or [])}" in _code_only)
+check("后面无段时补真边界点（20:75→21:00 不丢）",
+      "if s1 not in _starts and s1 < 24.0:" in _code_only)
 check("空间完整：上下边界都用边界点自己的值（两端垂直收口）",
       "np.concatenate(([curve[lft]], curve[lft:rgt],\n                                                   [curve[bi]]))" in _code_only
       or "[curve[bi]]))" in _code_only)

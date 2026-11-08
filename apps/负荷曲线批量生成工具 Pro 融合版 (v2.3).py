@@ -5792,40 +5792,44 @@ class ProfessionalWindow(QMainWindow):
                 # 正解：末点用「段内最后一点的曲线值」（不归零），
                 # 坐标推到 b（真正的段边界）。段外不参与绘制，
                 # 所以到 b 就自然垂直收口，不会越界。
-                # v2.3.17fix10: 交界点两段都不占；光伏硬切到负荷为负的区间。
+                # v2.3.17fix11: 交界那一格两段都不画。
                 #
-                # 用户红线要求：
-                #   充电2 在 18:00 处那块三角（620→480）多余 → 末点归零
-                #   放电2 在 18:00 处那块多余 → 首点归零
-                #   即：18:00 这个交界点两段都不占，中间留一格空白。
-                def _fill_by_segment(curve, base, color, label, zorder,
-                                     zero_at='end'):
-                    # 上下边界 clamp 到 0 以上：负负荷处不填到轴下
+                # 规则（用集合判断，不看类型）：
+                #   starts = 所有段起点，ends = 所有段终点
+                #   充电段：[a, b) 的采样点；若 b 不在 starts 里（后面无段）
+                #           → 补 b 这个坐标（垂直收口在真边界）
+                #   放电段：若 a 在 ends 里（紧接上一段结束）
+                #           → 从 a 的下一格开始；否则从 a 开始
+                # 这样 18:00 这一格两段都不占。
+                _starts = {float(s['start']) for s in (segments or [])}
+                _ends = {float(s['end']) for s in (segments or [])}
+                def _fill_by_segment(curve, base, color, label, zorder, side):
                     curve = np.maximum(np.asarray(curve, dtype=float), 0.0)
                     base = np.maximum(np.asarray(base, dtype=float), 0.0)
                     first = True
                     for seg in segments or []:
-                        s_start = float(seg['start'])
-                        s_end = float(seg['end'])
-                        subs = ([(s_start, 24.0), (0.0, s_end)] if s_start > s_end
-                                else [(s_start, s_end)])
-                        for a, b in subs:
-                            lft = int(np.searchsorted(hours, a, side='left'))
-                            rgt = int(np.searchsorted(hours, b, side='left'))
+                        a = float(seg['start'])
+                        b = float(seg['end'])
+                        subs = ([(a, 24.0), (0.0, b)] if a > b else [(a, b)])
+                        for s0, s1 in subs:
+                            lft = int(np.searchsorted(hours, s0, side='left'))
+                            rgt = int(np.searchsorted(hours, s1, side='left'))
                             if rgt <= lft:
                                 continue
-                            bi = min(rgt, len(hours) - 1)
-                            x = np.concatenate(([a], hours[lft:rgt], [b]))
-                            y_lo = np.concatenate(([base[lft]], base[lft:rgt],
-                                                   [base[bi]]))
-                            y_hi = np.concatenate(([curve[lft]], curve[lft:rgt],
-                                                   [curve[bi]]))
-                            # 交界点收窄：充电段末点归零，放电段首点归零，
-                            # 两段都不侵占 18:00 那一格。
-                            if zero_at == 'end':
-                                y_hi[-1] = y_lo[-1]
-                            elif zero_at == 'start':
-                                y_hi[0] = y_lo[0]
+                            if side == 'discharge' and s0 in _ends:
+                                lft = min(rgt, lft + 1)   # 紧接上一段：跳到下一格
+                            if rgt <= lft:
+                                continue
+                            x = hours[lft:rgt]
+                            y_lo = base[lft:rgt]
+                            y_hi = curve[lft:rgt]
+                            # 段后面无段时，补真边界点，垂直收口
+                            # （充电、放电都要：20.75 → 21.00 那一格不能丢）
+                            if s1 not in _starts and s1 < 24.0:
+                                bi = min(rgt, len(hours) - 1)
+                                x = np.concatenate((x, [s1]))
+                                y_lo = np.concatenate((y_lo, [base[bi]]))
+                                y_hi = np.concatenate((y_hi, [curve[bi]]))
                             ax.fill_between(x, y_lo, y_hi,
                                             color=color, alpha=0.38, linewidth=0,
                                             label=(label if first else None),
@@ -5833,9 +5837,9 @@ class ProfessionalWindow(QMainWindow):
                             first = False
 
                 _fill_by_segment(load_row + ch, load_row, '#2e7d32',
-                                 '充电空间（向上）', 3, zero_at='end')
+                                 '充电空间（向上）', 3, 'charge')
                 _fill_by_segment(load_row, load_row - dis, '#c62828',
-                                 '放电空间（向下）', 3, zero_at='start')
+                                 '放电空间（向下）', 3, 'discharge')
                 # 光伏返送：硬切在「负荷为负」的边界，两端垂直。
                 # 用 min(load,0) 不套 where 会在两端留斜坡（负荷由正转负那一格），
                 # 看起来就像溢出了负负荷区间。
