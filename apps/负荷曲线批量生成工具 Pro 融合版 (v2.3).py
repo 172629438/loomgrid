@@ -286,6 +286,169 @@ BESS_SOC_MAX = 0.95         # 最大SOC(95%)
 BESS_SYS_EFF_DEFAULT = 0.93
 BESS_CYCLE_LIFE_DEFAULT = 6000  # v3.2fix: 默认循环寿命
 
+# ══════════════════════════════════════════════════════════════════
+# v2.3.16: 无障碍说明系统
+#
+# 用户不是开发者。一个叫「评估策略」的下拉框里写着「保守 · 每段都要够」，
+# 他不知道这意味着「一天里所有充放时段都得装得下」，也不知道换一个会怎样。
+# 所以每个非自明的参数旁边都挂一个问号：悬停出简述，点击出完整说明。
+#
+# 约定：
+#   · brief  —— 悬停 tooltip，一句话，不超过 40 字
+#   · detail —— 点击弹窗，讲清「是什么 / 怎么算 / 选错会怎样」三段
+#   · 新参数入表不写代码：所有文案集中在这里，不在各处散写
+# ══════════════════════════════════════════════════════════════════
+HELP_TEXTS = {
+    "est_strategy": {
+        "title": "评估策略：一天算不算「满足」",
+        "brief": "决定「一天算不算满足」的严格程度（原：最小可行容量 / 满载利用率）",
+        "detail": (
+            "两种策略的区别只有一句话：允不允许把多个时段加起来凑够一次。\n\n"
+            "【保守 · 每段都要够】（原「最小可行容量」）\n"
+            "一天里每一个充放时段的可用空间都 ≥ 配置容量，这天才算满足。\n"
+            "任何一段不够就否掉。举例：两个谷段各可充 120 kWh，配 200 kWh，\n"
+            "虽然合计 240 够，但单个只有 120 < 200，判定为不满足。\n"
+            "适用：要求每一个峰段都能独立放完一次满容量。\n\n"
+            "【宽松 · 任一次够即可】（原「满载利用率」）\n"
+            "一天里只要存在某一次充放循环，它的充量与放量都 ≥ 配置容量，\n"
+            "这天就算满足。同上例：单次 120 < 200，仍不满足；\n"
+            "但若两个谷段是 300 和 120，则算满足（第一次够）。\n"
+            "适用：储能作为跨时段搬运，只关心全天能不能搬动这么多。\n\n"
+            "选错的后果：\n"
+            "· 选保守 → 满足天数偏少、反推容量偏大（宁可多装）\n"
+            "· 选宽松 → 满足天数偏多、反推容量偏小（看着更划算，但可能带不动）"
+        ),
+    },
+    "capacity_mode": {
+        "title": "规划模式：一天充放几次",
+        "brief": "一天内的充放循环次数，决定取哪些时段参与测算",
+        "detail": (
+            "【两充两放（独立评估）】\n"
+            "一天内两组充放循环（如谷充-峰放、平充-尖放），\n"
+            "四个时段都参与评估，第 i 个充段与第 i 个放段配对成第 i 次循环。\n\n"
+            "【一充一放】\n"
+            "一天只算一次充电一次放电。下方会出现「充电段 / 放电段」\n"
+            "两个下拉框，让你指定具体用哪个时段；也可选「合并」把多个同类段加起来。\n\n"
+            "选错的后果：两充两放按一充一放算，会漏掉一半充放空间，\n"
+            "容量建议偏小；反之会高估。"
+        ),
+    },
+    "target_days": {
+        "title": "目标天数（全年基准）",
+        "brief": "希望一年中有多少天能满足满充满放",
+        "detail": (
+            "填你希望「满充满放」的天数，程序反推需要多大的电池。\n\n"
+            "注意方向：目标天数越多，需要的电池反而**越小**。\n"
+            "因为电池装得比当天空间大就充不满、放不完，那天就不算满足。\n\n"
+            "例：365 天要满足 330 天 → 取全年日需求里第 36 小的那个。\n\n"
+            "下方「实际数据天数」是你导入的数据实际覆盖天数，\n"
+            "「等效分析天数」是按 365 天折算后的天数。"
+        ),
+    },
+    "config_cap": {
+        "title": "配置容量（安装容量）",
+        "brief": "电池铭牌容量，即产品规格上的 kWh 数",
+        "detail": (
+            "这是铭牌上的安装容量，不是实际能搬的能量。\n\n"
+            "实际能搬 = 配置容量 × DOD × 系统效率\n"
+            "例：261 kWh × 95% × 93% = 230.6 kWh\n\n"
+            "由「计算配置容量」按钮填充，也可手动改。"
+        ),
+    },
+    "dod": {
+        "title": "DOD（放电深度）",
+        "brief": "SOC 可用窗口深度，不是效率。261 柜默认 95%",
+        "detail": (
+            "放电深度（Depth of Discharge）：电池从满电放到下限，\n"
+            "实际能放出多少比例。95% 大致对应 SOC 区间 5%~100%。\n\n"
+            "它**不是效率**。DOD 只说明「能用多少容量」，\n"
+            "不说明「用的时候损失多少」。后者是系统效率（右边那个）。\n\n"
+            "两者相乘才是整柜实际可搬能量的比例：\n"
+            "  95% × 93% = 88.35%（行业口径的「整柜整体效率」）\n\n"
+            "可调范围 50%~100%，默认 95%。"
+        ),
+    },
+    "sys_eff": {
+        "title": "系统效率（AC-AC 往返）",
+        "brief": "充 + 放一整轮的效率，含 PCS、线损、辅助能耗。默认 93%",
+        "detail": (
+            "从交流侧充电、再从交流侧放电，走完一整圈还剩多少比例。\n"
+            "已经把充电损失、放电损失、PCS 损耗、线损、辅助用电都含在内。\n\n"
+            "所以它是「往返」效率，**不要再乘两次**。\n"
+            "若误当单程：95% × 93% × 93% = 82.2%，比正确值（88.35%）低 7%。\n\n"
+            "可调范围 80%~100%，默认 93%。\n"
+            "数值可查产品技术协议里的 RTE（Round-Trip Efficiency）。"
+        ),
+    },
+    "unit_cap": {
+        "title": "单柜容量",
+        "brief": "一台储能柜的铭牌容量，用来算需要几台",
+        "detail": (
+            "按「配置容量 ÷ 单柜容量」向上取整得到柜数。\n"
+            "例：配置 905 kWh，单柜 261 kWh → 需要 4 台。\n\n"
+            "单柜容量填 0 时，不计算柜数。"
+        ),
+    },
+    "unit_power": {
+        "title": "单柜功率",
+        "brief": "一台储能柜的额定功率（kW），乘柜数得系统总功率",
+        "detail": (
+            "系统总功率 = 柜数 × 单柜功率。\n\n"
+            "注意：这个总功率只是显示值，不参与容量测算。\n"
+            "容量测算里限制功率的是「额定功率」参数（如有）。"
+        ),
+    },
+}
+
+
+class HelpIcon(QLabel):
+    """小圆形问号：悬停出简述，点击出完整说明。
+
+    v2.3.16 无障碍说明系统的一部分。用户不是开发者，
+    一个参数名字往往看不出「它到底影响什么」——所以每个非自明参数旁边挂一个它。
+
+    为什么不用 QLabel 的 tooltip 直挂参数本身：
+    用户不会去悬停一个下拉框，但会去点一个显眼的问号。
+    为什么 tooltip 之外还要点击：长说明放 tooltip 里会变成一个巨大的方块，
+    既难读又会在鼠标移动时意外消失。
+    """
+
+    def __init__(self, help_key, parent=None):
+        super().__init__("?", parent)
+        self._help_key = help_key
+        spec = HELP_TEXTS.get(help_key)
+        if spec is None:
+            self.setVisible(False)
+            return
+        self.setFixedSize(15, 15)
+        self.setAlignment(Qt.AlignCenter)
+        self.setCursor(Qt.WhatsThisCursor)
+        self.setStyleSheet(
+            "QLabel { background: #d8d3c6; color: #5a5750; border-radius: 7px;"
+            " font-size: 10px; font-weight: bold; }"
+            "QLabel:hover { background: #b9b2a0; color: #1c1c1a; }"
+        )
+        self.setToolTip(spec.get("brief", ""))
+
+    def mousePressEvent(self, event):
+        spec = HELP_TEXTS.get(self._help_key)
+        if spec and event.button() == Qt.LeftButton:
+            box = QMessageBox(self.window())
+            box.setWindowTitle(spec.get("title", "说明"))
+            box.setText(spec.get("title", ""))
+            box.setInformativeText(spec.get("detail", ""))
+            box.setIcon(QMessageBox.Information)
+            box.setStandardButtons(QMessageBox.Ok)
+            box.exec()
+        super().mousePressEvent(event)
+
+
+def make_help_icon(help_key, parent=None):
+    """工厂函数：给一个 help key，返回可直接 addWidget 的问号图标。"""
+    icon = HelpIcon(help_key, parent)
+    icon.setToolTip(HELP_TEXTS.get(help_key, {}).get("brief", ""))
+    return icon
+
 # PeriodType / CurveLabel / ColorConst 已搬到 core/models.py（阶段 1 · 第一块）
 
 
@@ -4795,18 +4958,30 @@ class ProfessionalWindow(QMainWindow):
         row0 = QHBoxLayout()
         row0.addWidget(QLabel("规划模式:"))
         self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["两充两放（独立评估）", "一充一放"])
+        # v2.3.16: 显示文本与逻辑值解耦——存 userData，不靠 currentText 判断。
+        # 原来的做法是 `currentText() != "满载利用率"`，改个显示名就会静默改行为。
+        self.mode_combo.addItem("两充两放（独立评估）", "two_two")
+        self.mode_combo.addItem("一充一放", "one_one")
         self.mode_combo.currentIndexChanged.connect(self._on_capacity_mode_changed)
         row0.addWidget(self.mode_combo)
+        row0.addWidget(make_help_icon("capacity_mode", self))
+
         row0.addWidget(QLabel("  评估策略:"))
         self.est_combo = QComboBox()
-        self.est_combo.addItems(["最小可行容量", "满载利用率"])
+        # v2.3.16: 两个名字改了——原名看不出实际判据：
+        #   「最小可行容量」听起来像容量反推的结果，实际是判据；
+        #   「满载利用率」里的「利用率」跟满足判定无关。
+        self.est_combo.addItem("保守 · 每段都要够", "min_feasible")
+        self.est_combo.addItem("宽松 · 任一次够即可", "full_load")
         self.est_combo.setToolTip(
-            "最小可行容量: min(所有充放段) → 全天候可行, 最保守\n"
-            "满载利用率: max(min(c₁,d₁), min(c₂,d₂)) → 最苛刻循环跑满"
+            "保守 · 每段都要够（原「最小可行容量」）\n"
+            "一天里每个充放时段都要装得下，否则这天不算满足。点问号看详释。\n\n"
+            "宽松 · 任一次够即可（原「满载利用率」）\n"
+            "一天里只要有一次循环装得下，这天就算满足。"
         )
         self.est_combo.currentIndexChanged.connect(self._on_est_combo_changed)
         row0.addWidget(self.est_combo)
+        row0.addWidget(make_help_icon("est_strategy", self))
         row0.addStretch()
         planner_layout.addLayout(row0)
 
@@ -4829,6 +5004,7 @@ class ProfessionalWindow(QMainWindow):
         self.target_days_spin.setRange(1, 365)
         self.target_days_spin.setValue(330)
         row1.addWidget(self.target_days_spin)
+        row1.addWidget(make_help_icon("target_days", self))
 
         self.available_days_label = QLabel(f"实际数据天数: {self.available_days} 天")
         row1.addWidget(self.available_days_label)
@@ -4848,6 +5024,7 @@ class ProfessionalWindow(QMainWindow):
         self.config_cap_spin.setDecimals(3)
         self.config_cap_spin.setValue(100.0)
         row2.addWidget(self.config_cap_spin)
+        row2.addWidget(make_help_icon("config_cap", self))
         # v2.3.16: DOD（SOC 窗口深度）与系统效率（AC-AC 往返）是两个独立参数。
         # 综合可用系数 = DOD × 系统效率，如 95% × 93% = 88.35%。
         row2.addWidget(QLabel("  DOD:"))
@@ -4862,6 +5039,7 @@ class ProfessionalWindow(QMainWindow):
         )
         self.dod_spin.valueChanged.connect(lambda: self._update_system_scale())
         row2.addWidget(self.dod_spin)
+        row2.addWidget(make_help_icon("dod", self))
 
         row2.addWidget(QLabel("  系统效率:"))
         self.sys_eff_spin = QSpinBox()
@@ -4876,6 +5054,7 @@ class ProfessionalWindow(QMainWindow):
         )
         self.sys_eff_spin.valueChanged.connect(lambda: self._update_system_scale())
         row2.addWidget(self.sys_eff_spin)
+        row2.addWidget(make_help_icon("sys_eff", self))
 
         self.calc_days_btn = QPushButton("计算满足天数")
         self.calc_days_btn.clicked.connect(self._calc_days_from_capacity)
@@ -4896,6 +5075,7 @@ class ProfessionalWindow(QMainWindow):
         self.unit_power_spin.setDecimals(3)
         self.unit_power_spin.setValue(125.0)
         row3.addWidget(self.unit_power_spin)
+        row3.addWidget(make_help_icon("unit_power", self))
 
         row3.addWidget(QLabel("单柜容量 (kWh):"))
         self.unit_cap_spin = QDoubleSpinBox()
@@ -4903,6 +5083,7 @@ class ProfessionalWindow(QMainWindow):
         self.unit_cap_spin.setDecimals(3)
         self.unit_cap_spin.setValue(261.248)
         row3.addWidget(self.unit_cap_spin)
+        row3.addWidget(make_help_icon("unit_cap", self))
         planner_layout.addLayout(row3)
 
         self.system_result_label = QLabel("系统规模：等待输入")
@@ -4930,7 +5111,12 @@ class ProfessionalWindow(QMainWindow):
 
         # 初始化模式选项下拉内容
         self._update_mode_options()
-        self._on_capacity_mode_changed(0)
+        # v2.3.16: 按上次保存的规划模式恢复下拉位置。
+        # 原来这里写死 _on_capacity_mode_changed(0)，于是 closeEvent 存的
+        # pw_capacity_mode 从来没生效——每次打开都回到「两充两放」。
+        _mode_idx = 1 if getattr(self, 'capacity_mode', 'two_two') == 'one_one' else 0
+        self.mode_combo.setCurrentIndex(_mode_idx)
+        self._on_capacity_mode_changed(_mode_idx)
 
         # 初始刷新
         self._populate_space_table()
@@ -4961,19 +5147,25 @@ class ProfessionalWindow(QMainWindow):
             self.discharge_option_combo.addItem("合并放电段")
 
     def _on_capacity_mode_changed(self, index):
-        if index == 0:  # 两充两放
-            self.capacity_mode = "two_two"
+        # v2.3.16: 用 userData 判定，不靠 index 也不靠显示文本
+        mode = self.mode_combo.currentData() if hasattr(self, 'mode_combo') else None
+        if mode is None:
+            mode = "two_two" if index == 0 else "one_one"
+        self.capacity_mode = mode
+        if mode == "two_two":
             self.charge_option_combo.setVisible(False)
             self.discharge_option_combo.setVisible(False)
-        else:  # 一充一放
-            self.capacity_mode = "one_one"
+        else:
             self.charge_option_combo.setVisible(True)
             self.discharge_option_combo.setVisible(True)
         self._calc_capacity_from_days()
 
     def _on_est_combo_changed(self, index):
-        """v3.0: 评估策略切换——最小可行时隐藏充放段选择, 满载利用率尊重模式."""
-        is_min = ("最小可行" in self.est_combo.currentText())
+        """v3.0: 评估策略切换——保守时隐藏充放段选择, 宽松尊重模式.
+
+        v2.3.16: 判断改用 currentData()，不再依赖显示文本。
+        """
+        is_min = (self.est_combo.currentData() == "min_feasible")
         is_two_two = (self.capacity_mode == "two_two")
         if hasattr(self, 'charge_option_combo'):
             self.charge_option_combo.setVisible(not is_min and not is_two_two)
@@ -5043,7 +5235,8 @@ class ProfessionalWindow(QMainWindow):
         v3.0: 双策略 - 满载利用率 | 最小可行容量
         v3.2fix: 两种策略都走_get_relevant_segments_for_month，尊重1C1D选段.
         """
-        use_min = (hasattr(self, 'est_combo') and self.est_combo.currentText() != "满载利用率")
+        use_min = (hasattr(self, 'est_combo')
+                   and self.est_combo.currentData() != "full_load")
         daily_mins = []
         work_data = self._get_work_data()
         for month in work_data.keys():
@@ -5099,8 +5292,9 @@ class ProfessionalWindow(QMainWindow):
         usable_cap = cap * self._combined_factor()
         c_arrs, d_arrs = self._get_relevant_segments_for_month(month)
 
-        # 与 _get_all_filtered_daily_mins 保持同一判据：只有「满载利用率」算满载
-        use_min = (not hasattr(self, 'est_combo')) or (self.est_combo.currentText() != "满载利用率")
+        # 与 _get_all_filtered_daily_mins 保持同一判据：只有「宽松」算宽松
+        # v2.3.16: 用 userData 判定，不依赖显示文本
+        use_min = (not hasattr(self, 'est_combo')) or (self.est_combo.currentData() != "full_load")
 
         if use_min:
             # 最保守：每一个充放段都得够，否则这天不算「全天候可行」
@@ -5321,8 +5515,10 @@ class ProfessionalWindow(QMainWindow):
                 col += 1
             min_val = min(vals) if vals else 0.0
             # v3.0: 日需求跟策略走
-            est_mode = self.est_combo.currentText() if hasattr(self, 'est_combo') else '最小可行容量'
-            if '满载' in est_mode:
+            # v2.3.16: 用 userData 判定（原为 '满载' in currentText()）
+            est_mode = (self.est_combo.currentData()
+                        if hasattr(self, 'est_combo') else 'min_feasible')
+            if est_mode == 'full_load':
                 _n = max(len(_c_pair), len(_d_pair))
                 daily_need = 0.0
                 for _i in range(_n):
