@@ -60,6 +60,34 @@ _warned_dup_cols = set()
 
 _warned_dup_lock = threading.Lock()
 
+def _resolve_col(df, col_name):
+    """返回 df 里与 col_name 对应的真实列名；找不到返回 None。
+
+    v2.3.15fix: 只做「完全等价」的归一化匹配（strip + 全角转半角），
+    不做模糊匹配——模糊匹配留给 _safe_get_col。
+
+    为什么需要它：前置检查原本用 `c not in df.columns` 精确匹配，于是列名带
+    前后空格（" 采集时间 "）或全角括号（"负荷（kW）"）时，整个文件被判为
+    「未找到所需列」——而 _safe_get_col 本来有能力处理这两种情况，只是
+    永远跑不到。实测：列名 " 采集时间 " + mapping "采集时间" → 直接报错。
+    """
+    if col_name in df.columns:
+        return col_name
+    # 常见全角标点折叠：_normalize_fullwidth_chars 不转括号，
+    # 而「负荷（kW）」与「负荷(kW)」在中文输入法下经常混用。
+    _PUNCT = str.maketrans({'（': '(', '）': ')', '：': ':', '，': ',',
+                            '；': ';', '、': ',', '／': '/', '　': ' '})
+
+    def _fold(s):
+        return _normalize_fullwidth_chars(str(s)).translate(_PUNCT)
+
+    target = _fold(col_name)
+    for c in df.columns:
+        if _fold(c) == target:
+            return c
+    return None
+
+
 def _safe_get_col(df, col_name):
     """安全获取列，支持近似匹配和全角字符处理"""
     from difflib import SequenceMatcher
@@ -387,10 +415,19 @@ def _parse_long_to_standard(df, date_col, time_col, load_col, multiplier=1.0,
         needed_cols.append(time_col)
     if asset_col:
         needed_cols.append(asset_col)
-    if any(c not in df.columns for c in needed_cols):
-        missing = [c for c in needed_cols if c not in df.columns]
+    resolved = {}
+    for c in needed_cols:
+        r = _resolve_col(df, c)
+        if r is None:
+            resolved[c] = None
+        else:
+            resolved[c] = r
+    if any(v is None for v in resolved.values()):
+        missing = [k for k, v in resolved.items() if v is None]
         raise KeyError(f"缺少列: {missing}")
-    df = df[needed_cols].copy()
+    # 按真实列名选列，再改名回规范名，下游代码不用改
+    df = df[[resolved[c] for c in needed_cols]].copy()
+    df = df.rename(columns={v: k for k, v in resolved.items()})
     if convert_accumulated:
         df = _convert_accumulated_to_power(df, date_col, time_col, load_col, asset_col, cancel_event)
         # v2.3.9fix(P1-8): 差分失败必须报错，不能拿累计示数当功率画
@@ -1184,12 +1221,29 @@ def _scan_long_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
         if len(load_col) > 1:
             log.warning(f"长表模式仅支持单负荷列，已自动选择'{load_col[0]}'，忽略列: {load_col[1:]}。文件: {fp}, 工作表: {sheet}")
         load_col = load_col[0]
-    if load_col not in df.columns:
-        return
+    # v2.3.15fix: 不能静默 return。原实现直接 return，导致 monthly_stats 为空，
+    # 上层返回 {'skipped': 'no_valid_rows'}，用户看到的文案是
+    # 「所有行的日期都无法识别」——而真正的问题是负荷列不存在，
+    # 他会去查日期格式，查到天亮也查不出来。
+    if _resolve_col(df, load_col) is None:
+        raise KeyError(f"负荷列不存在: {load_col}，可用列: {list(df.columns)[:12]}")
 
     convert_accumulated = mapping.get('convert_accumulated', False) or mapping.get('format_type') == 'accumulated'
+    # v2.3.15fix: 选列必须走 _resolve_col，否则列名带前后空格或全角括号时
+    # 这里直接 KeyError（"None of ['负荷(kW)', '采集时间'] are in the columns"），
+    # 前面几处检查就算放行也白搭。
+    _need = list(set([date_col, load_col] + ([time_col] if time_col else [])
+                     + ([asset_col] if asset_col else [])))
+    _resolved = {}
+    for _c in _need:
+        _r = _resolve_col(df, _c)
+        if _r is None:
+            raise KeyError(f"列不存在: {_c}，可用列: {list(df.columns)[:12]}")
+        _resolved[_c] = _r
+    _sub = df[[_resolved[c] for c in _need]].copy()
+    _sub = _sub.rename(columns={v: k for k, v in _resolved.items()})
     df_clean, dropped_ratio = _parse_long_to_standard(
-        df[list(set([date_col, load_col] + ([time_col] if time_col else []) + ([asset_col] if asset_col else [])))].copy(),
+        _sub,
         date_col, time_col, load_col, 1.0, asset_col, cancel_event, convert_accumulated,
         fallback_asset=_extract_asset_from_name(fp, sheet)
     )
@@ -1303,7 +1357,7 @@ def _scan_file_worker(args):
         # 由调用方向用户说明，否则用户只知道「少了这个 sheet」。
         if df is not None and len(df) == 0:
             return {'skipped': 'empty_sheet'}
-        if mapping['date_col'] not in df.columns and not mapping.get('transpose'):
+        if _resolve_col(df, mapping['date_col']) is None and not mapping.get('transpose'):
             return {'error': _translate_error(KeyError, f"日期列不存在，可用列: {list(df.columns)}")}
         monthly_stats = {}
         normative = mapping.copy()
