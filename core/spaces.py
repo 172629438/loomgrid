@@ -43,6 +43,14 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
     """v3.2fix: 分充放时段计算每日能量空间.
     ⚠️ 本函数 Pro(95行) 与 Ultra(200行) 独立实现, 修改任一侧需同步更新."""
     n_days, n_points = load_array.shape
+    # v2.3.15fix: 全 NaN 输入必须报错，不能静默返回全 0。
+    # 原实现下，整列选错 / 差分后全无效的数据会安静地算出「容量空间为 0」，
+    # 用户看到的是「这个月没有充放空间」，而不是「数据有问题」。
+    # 实测：2 天 96 点全 NaN → 四个返回列表全是 0，没有任何提示。
+    if load_array.size and not np.isfinite(load_array).any():
+        raise ValueError(
+            "负荷数据全部无效（全为 NaN 或空），无法测算。"
+            "请检查列映射是否选错、或该文件是否有有效数据")
     hours = np.array([_parse_min(_normalize_time_column_name(t)) / 60.0 for t in time_labels])
     # v2.3.5fix(C1): 无法识别的时间点原本会被静默丢弃。
     # _parse_min 解析失败返回 INVALID_MINUTES(9999)，/60 = 166.65；
