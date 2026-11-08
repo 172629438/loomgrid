@@ -154,8 +154,9 @@ def main():
         vals = {}
         for s in segs:
             vals[s["label"]] = round((s["charge"][0] if s["type"] == "charge" else s["discharge"][0]), 3)
-        check("④ 充电2 = 267.375", vals.get("充电2") == 267.375, str(vals.get("充电2")))
-        check("④ 放电2 = 372.0", vals.get("放电2") == 372.0, str(vals.get("放电2")))
+        # v2.3.16: 空间不乘效率（效率在容量层用 DOD 引入）
+        check("④ 充电2 = 287.5", vals.get("充电2") == 287.5, str(vals.get("充电2")))
+        check("④ 放电2 = 400.0", vals.get("放电2") == 400.0, str(vals.get("放电2")))
 
         out_dir = tempfile.mkdtemp(prefix="lg-xlsxout-")
         ex = requests.post(base + "/api/export/run", json={

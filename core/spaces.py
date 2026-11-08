@@ -121,10 +121,15 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
                         space += np.zeros(n_days)
                     else:
                         neg_load = np.maximum(-sub_load, 0)
-                        charge_space = np.sum(np.minimum(rated_power, neg_load) * seg_dt, axis=1) * CHARGING_EFFICIENCY
+                        # v2.3.16fix: 空间不再乘效率。
+                        # 业务口径：空间就是「负荷曲线里还剩多少能量可搬」——
+                        # 纯物理量，能搬多少就显示多少。效率是另一层的事，
+                        # 在专业模式窗口里以 DOD（可自定义 50%~100%）引入，
+                        # 作用于容量（可用容量 = 安装容量 × DOD），不作用于空间。
+                        charge_space = np.sum(np.minimum(rated_power, neg_load) * seg_dt, axis=1)
                         # v3.0fix: Mode B/C 充电同时受容量线约束
                         if cap and cap > 0:
-                            cap_space = np.sum(np.maximum(cap - sub_load, 0) * seg_dt, axis=1) * CHARGING_EFFICIENCY
+                            cap_space = np.sum(np.maximum(cap - sub_load, 0) * seg_dt, axis=1)
                             charge_space = np.minimum(charge_space, cap_space)
                         space += charge_space
                 else:
@@ -135,15 +140,15 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
                     if cap is None:
                         space += np.zeros(n_days)
                     else:
-                        space += np.sum(np.minimum(pos_sub_load, cap) * seg_dt, axis=1) * DISCHARGING_EFFICIENCY
+                        space += np.sum(np.minimum(pos_sub_load, cap) * seg_dt, axis=1)
                 elif mode in ('B', 'C'):
                     if rated_power is None or rated_power <= 0:
                         space += np.zeros(n_days)
                     else:
-                        discharge_space = np.sum(np.minimum(rated_power, pos_sub_load) * seg_dt, axis=1) * DISCHARGING_EFFICIENCY
+                        discharge_space = np.sum(np.minimum(rated_power, pos_sub_load) * seg_dt, axis=1)
                         # v3.0fix: Mode B/C 放电同时受容量线约束
                         if cap and cap > 0:
-                            cap_space = np.sum(np.minimum(pos_sub_load, cap) * seg_dt, axis=1) * DISCHARGING_EFFICIENCY
+                            cap_space = np.sum(np.minimum(pos_sub_load, cap) * seg_dt, axis=1)
                             discharge_space = np.minimum(discharge_space, cap_space)
                         space += discharge_space
                 else:

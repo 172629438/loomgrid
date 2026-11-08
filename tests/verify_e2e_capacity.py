@@ -69,9 +69,10 @@ c_segs, d_segs, c_lab, d_lab = compute_segmented_spaces(
 c_val = float(c_segs[0][0])
 check("mode A 充电空间 = (500−100)×8h = 3200", close(c_val, 3200.0), f"实得 {c_val}")
 
-# mode A 放电 = Σ min(额定, 负荷) × dt × ηd = min(300,100) × 4h × 0.93 = 372
+# v2.3.16: 空间不乘效率（纯物理空间，效率在容量层用 DOD 引入）
+# mode A 放电 = Σ min(额定, 负荷) × dt = min(300,100) × 4h = 400
 d_val = float(d_segs[1][0])
-check("mode A 放电空间 = min(300,100)×4h×0.93 = 372", close(d_val, 372.0), f"实得 {d_val}")
+check("mode A 放电空间 = min(300,100)×4h = 400", close(d_val, 400.0), f"实得 {d_val}")
 
 check("四个列表等长", len(c_segs) == len(d_segs) == len(c_lab) == len(d_lab),
       f"{len(c_segs)}/{len(d_segs)}/{len(c_lab)}/{len(d_lab)}")
@@ -87,9 +88,9 @@ load_neg = np.full((1, 96), -120.0)   # 全天负负荷（光伏返送）
 c_b, d_b, _, _ = compute_segmented_spaces(
     load_neg, TIMES, segs, billing={"value": 500.0, "type": "kva"},
     mode="B", rated_power=300.0)
-# 充电 = Σ min(300, 120) × 8h × 0.93 = 120×8×0.93 = 892.8
-check("mode B 充电 = min(300,120)×8h×0.93 = 892.8",
-      close(float(c_b[0][0]), 892.8), f"实得 {float(c_b[0][0])}")
+# v2.3.16: 空间不乘效率；充电 = Σ min(300, 120) × 8h = 960
+check("mode B 充电 = min(300,120)×8h = 960",
+      close(float(c_b[0][0]), 960.0), f"实得 {float(c_b[0][0])}")
 
 # 同一份负负荷、mode A：充电 = (500−(−120))×8h = 4960（正负荷也能充）
 c_a, _, _, _ = compute_segmented_spaces(

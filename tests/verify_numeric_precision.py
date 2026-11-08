@@ -103,21 +103,21 @@ print("=" * 74)
 c, d, _, _ = compute_segmented_spaces(np.full((1, 96), 1e9), TIMES, SEGS,
                                       mode="B", rated_power=1e8)
 got = float(np.nansum(d[1]))
-expect = 2.0 * 1e8 * 0.93
+expect = 2.0 * 1e8          # v2.3.16: 空间不乘效率
 check(f"负荷 1e9 / 额定 1e8 → {got:.4e}（期望 {expect:.4e}）",
       abs(got - expect) / expect < 1e-9, f"{got}")
 
 c, d, _, _ = compute_segmented_spaces(np.full((1, 96), 1e-9), TIMES, SEGS,
                                       mode="B", rated_power=1.0)
 got = float(np.nansum(d[1]))
-expect = 2.0 * 1e-9 * 0.93
+expect = 2.0 * 1e-9         # v2.3.16: 空间不乘效率
 check(f"负荷 1e-9 → {got:.4e}（期望 {expect:.4e}）",
       abs(got - expect) / expect < 1e-9, f"{got}")
 
 c, d, _, _ = compute_segmented_spaces(np.full((1, 96), 100.0), TIMES, SEGS,
                                       mode="B", rated_power=500.0)
-check(f"负荷 100 / 额定 500 → 放电 {float(np.nansum(d[1])):.1f}（期望 186）",
-      abs(float(np.nansum(d[1])) - 186.0) < 1e-6)
+check(f"负荷 100 / 额定 500 → 放电 {float(np.nansum(d[1])):.1f}（期望 200）",
+      abs(float(np.nansum(d[1])) - 200.0) < 1e-6)
 
 # ══════════════════════════════════════════════════════════
 print()

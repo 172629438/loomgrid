@@ -72,30 +72,48 @@ check("bool 返回 0.0（不当时刻）", _to_hour(True) == 0.0 and _to_hour(Fa
 # ══════════════════════════════════════════════════════════
 print()
 print("=" * 74)
-print("② compute_segmented_spaces 与 core 版等价")
+print("② compute_segmented_spaces：core 与 algorithms 的已知差异")
 print("=" * 74)
 LOAD = np.array([[100 + p * 0.5 for p in range(96)] for _ in range(2)], dtype=float)
 SEGS = [
     {"start": 0.0, "end": 8.0, "type": "charge", "label": "谷段"},
     {"start": 10.0, "end": 12.0, "type": "discharge", "label": "峰段"},
 ]
+# v2.3.16 业务口径变更（仅 core / 桌面版）：
+#   空间 = 纯物理空间（负荷曲线里还剩多少能量可搬），不乘充放电效率；
+#   效率在专业模式窗口以 DOD（50%~100% 可自定义）引入，作用于容量。
+# algorithms/（PyPI 包）仍乘 0.93 —— 两边只差这一个系数。
+# 这条断言的意义：如果哪天有人在 core 里又把 0.93 加回去，或改了
+# algorithms 而没同步，ratio 不再是 0.93，测试立刻红。
+EFF = 0.93
 for mode, kw in (("A", {"billing": {"value": 200}}),
                  ("B", {"rated_power": 500.0})):
     a = alg_css(LOAD, TIMES, SEGS, mode=mode, **kw)
     b = core_css(LOAD, TIMES, SEGS, mode=mode, **kw)
-    ok = True
-    for i in range(min(len(a), len(b))):
-        if not (isinstance(a[i], list) and isinstance(b[i], list)):
-            continue
+    n_cmp = 0
+    bad = []
+    for i in (0, 1):                      # 0=充电段列表，1=放电段列表
         for k in range(min(len(a[i]), len(b[i]))):
             try:
-                va = np.asarray(a[i][k], dtype=float)
-                vb = np.asarray(b[i][k], dtype=float)
-                if va.size and float(np.nanmax(np.abs(va - vb))) > 1e-9:
-                    ok = False
+                va = float(np.nansum(np.asarray(a[i][k], dtype=float)))
+                vb = float(np.nansum(np.asarray(b[i][k], dtype=float)))
             except (ValueError, TypeError):
-                pass
-    check(f"mode {mode}：两边结果逐元素一致", ok)
+                continue
+            if abs(va) < 1e-12 and abs(vb) < 1e-12:
+                continue                  # 占位零，两边都是 0，不比
+            n_cmp += 1
+            # 差异分两种情况：
+            #   ① Mode A 充电 —— 两边原本就都不乘效率（那个 * EFF 只在 cap>0
+            #      的 cap_space 分支里，本用例不传 cap）→ 应完全相等
+            #   ② 其余 —— algorithms 乘了、core 未乘 → core = alg / EFF
+            # va = algorithms（乘了效率）  vb = core（未乘）
+            charge_branch = (i == 0 and mode == "A")
+            want = va if charge_branch else va / EFF
+            tag = "相等" if charge_branch else "alg/0.93"
+            if abs(vb - want) > max(1e-6, abs(want) * 1e-9):
+                bad.append(f"i={i} k={k} alg={va:.6f} core={vb:.6f} 期望({tag})={want:.6f}")
+    check(f"mode {mode}：core 与 algorithms 的差异符合口径分叉（{n_cmp} 个非零值）",
+          n_cmp > 0 and not bad, "; ".join(bad[:3]))
 
 # ══════════════════════════════════════════════════════════
 print()
