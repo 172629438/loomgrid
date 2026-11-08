@@ -92,6 +92,8 @@ check("P-16 年循环已按观测天数折算",
 check("P-22 指纹键已改为内容元组", "cache_key = id(periods)" not in src)
 
 # ---------- P-23: 不改数值, 但要有显式说明 ----------
+# 注意：本脚本的 TARGET 是 Ultra，不是 Fusion。Ultra 的 DOD 默认仍为 0.90；
+# Fusion 已在 v2.3.16 改为 0.95（对齐 261 柜），由 verify_sys_eff_dod.py 管。
 check("P-23 SOC 口径已统一（5%~95%, DOD=0.90）",
       "BESS_SOC_MIN = 0.05" in src and "BESS_DOD_DEFAULT = 0.90" in src
       and "soc_min = 0.10 * capacity_kwh" not in src)

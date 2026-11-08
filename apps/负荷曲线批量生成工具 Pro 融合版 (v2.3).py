@@ -270,7 +270,12 @@ HUGE_FILE_SIZE = 200 * 1024 * 1024  # 200 MB，提示并降低并行度
 # 内存保护阈值 (字节)
 MEMORY_LOW_THRESHOLD = 1 * 1024 * 1024 * 1024  # 1 GB
 
-BESS_DOD_DEFAULT = 0.90     # 默认放电深度(SOC区间 5%~95%,与 BESS_SOC_MIN/MAX 一致)
+# v2.3.16: 默认 DOD 改为 95%，对齐 261 柜实参（原为 90%）。
+# 注意：DOD 与 BESS_SOC_MIN/MAX 不是同一个口径，不要用后者推导前者。
+#   · DOD 是厂商标称的可用放电深度（261 柜：95%）；
+#   · BESS_SOC_MIN/MAX 是 dispatch 递推用的 SOC 上下限约束（5%/95%，窗口 90%）；
+#   · 桌面版的 DOD 只进入容量换算（k = DOD × 系统效率），不参与 SOC 递推。
+BESS_DOD_DEFAULT = 0.95
 BESS_SOC_MIN = 0.05         # 最小SOC(5%保护)
 BESS_SOC_MAX = 0.95         # 最大SOC(95%)
 # v2.3.16: 系统往返效率（AC-AC，含 PCS + 线损 + 辅助能耗）
