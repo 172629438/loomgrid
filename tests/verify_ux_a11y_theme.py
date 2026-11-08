@@ -350,6 +350,63 @@ if flw:
           "WA_TransparentForMouseEvents" in finit,
           "标签铺满列表会吞掉拖拽事件")
 
+# 子控件截胡：这一层是“鼠标落在哪就决定能不能拖”的直接原因
+check("_disable_child_drops 已定义",
+      any(f.name == "_disable_child_drops" for f in mw.body) if mw else False)
+if mw:
+    dcd_init = body_src(func_in(mw, "__init__"), "__init__")
+    check("__init__ 里调了 _disable_child_drops",
+          "_disable_child_drops()" in dcd_init)
+    dcd = func_in(mw, "_disable_child_drops")
+    if dcd:
+        s = body_src(dcd, "_disable_child_drops")
+        check("_disable_child_drops 遍历 findChildren 并关掉 acceptDrops",
+              "findChildren(QWidget)" in s and "setAcceptDrops(False)" in s, s[:150])
+        check("_disable_child_drops 放过 FileListWidget",
+              "isinstance(w, FileListWidget)" in s,
+              "连列表自己的 drop 也关了 → 拖进去彻底没反应")
+
+# 真起一个窗口数控件（offscreen，不弹窗）
+try:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication as _QA, QWidget as _QW
+    _qa = _QA.instance() or _QA([])
+    _qa.setStyle("Fusion")
+    import importlib.util as _ilu
+    _s = _ilu.spec_from_file_location("fm_drop_probe", MAIN)
+    _m = _ilu.module_from_spec(_s)
+    _s.loader.exec_module(_m)
+    _win = _m.MainWindow()
+
+    check("实测：MainWindow.acceptDrops() 为 True", _win.acceptDrops() is True)
+    _fl = _win.findChild(_m.FileListWidget)
+    check("实测：FileListWidget 仍接收拖放",
+          _fl is not None and _fl.acceptDrops() is True)
+
+    _bad = [w for w in _win.findChildren(_QW)
+            if not isinstance(w, _m.FileListWidget) and w.acceptDrops()]
+    check(f"实测：无子控件再截获拖放（发现 {len(_bad)} 个）", not _bad,
+          f"{[type(w).__name__ for w in _bad][:8]}")
+
+    _log = getattr(_win, "log_area", None)
+    if _log is not None:
+        check("实测：日志区不再吃拖放（它占主窗口下半部分）",
+              _log.acceptDrops() is False)
+    _win.close()
+
+    # 系统级：管理员运行时 UIPI 会阻止拖放，程序改不了但得提示
+    check("有 _is_elevated 检测", hasattr(_m, "_is_elevated"))
+    if hasattr(_m, "_is_elevated"):
+        check("_is_elevated 返回布尔值",
+              isinstance(_m._is_elevated(), bool),
+              repr(_m._is_elevated()))
+    check("启动时会提示管理员权限对拖放的影响",
+          "UIPI" in src and "_is_elevated" in src)
+except ImportError:
+    print("  [SKIP] 无 PySide6，跳过真窗口控件实测")
+except Exception as _e:
+    check("真窗口控件实测未抛异常", False, f"{type(_e).__name__}: {_e}")
+
 print()
 print("=" * 74)
 print("⑤ 快捷键（无障碍）")

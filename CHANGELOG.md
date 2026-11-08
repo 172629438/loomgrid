@@ -81,9 +81,9 @@ if self._ui_dark: _apply_dark_theme()             # → 整个界面变深色
   只换 `QPalette` 不 repolish，已设过样式表的控件会停在旧颜色上。
   新增 `_repolish_all()`，遍历所有控件 `unpolish → polish → update`
 
-### 四、拖拽：又两层原因
+### 四、拖拽：又三层原因
 
-上一版修了 `_empty_label` 吞事件，但还能复现。这版挖出两层：
+上一版修了 `_empty_label` 吞事件，仍能复现。这版挖出三层：
 
 **① `MainWindow` 从来没调 `setAcceptDrops(True)`。**
 
@@ -100,9 +100,36 @@ if self._ui_dark: _apply_dark_theme()             # → 整个界面变深色
 现在改成纯子控件 + `WA_TransparentForMouseEvents`，只负责画“释放以添加文件”
 那句话，不参与事件链。
 
+**③ 子控件截胡。**
+
+Qt 的拖放事件只发给鼠标下方的那个控件。它 `acceptDrops=True` 就自己处理，
+**不会冒泡给父控件**。而 `QLineEdit` / `QPlainTextEdit` / `QTextEdit` /
+可编辑 `QComboBox` / `QSpinBox` 内部的 lineEdit **默认就是 True**：
+
+```
+拖到输入框上       → 插入文件路径文本，不添加文件
+拖到日志区上       → 日志区占主窗口下半部分一大块，什么都没发生
+```
+
+现在新增 `_disable_child_drops()`，在 UI 构建完成后遍历所有子控件
+`setAcceptDrops(False)`，只放过 `FileListWidget`（它有自己的 dropEvent
+和视觉反馈）。实测：39 个子控件里 0 个再截获拖放。
+
 **顺带统一了目录递归**：`MainWindow.dropEvent` 和 `_on_files_dropped` 里
 还在用无限递归的 `os.walk`，拖个盘符根会在 UI 线程里走几十万个文件。
 两处都改成 `FileListWidget._walk_dir`（限深 6 层、限 5000 个文件）。
+
+**④ 系统级限制：管理员权限下拖不进来。**
+
+Windows 的 UIPI 会阻止从普通权限的资源管理器往高完整性级别进程拖文件。
+这是操作系统行为，程序改不了——但用户看到的现象就是“拖不进去”，
+换哪个文件都一样，很容易以为是程序坏了。
+
+新增 `_is_elevated()` 检测，启动日志里会提示一句：
+
+> 注意：当前以管理员权限运行。Windows 会阻止从普通权限的资源管理器
+> 拖文件进来（UIPI 限制，非程序问题）。如需拖拽，请用普通权限启动；
+> 或用「添加文件」按钮。
 
 ### 五、无障碍：键盘能做完事
 
@@ -119,12 +146,18 @@ Ctrl+T   切换深/浅主题
 
 ### 新增测试
 
-`tests/verify_ux_a11y_theme.py`（49 项）——月份快选、图标资源路径、
-主题分离与可读性、拖拽两条根因、快捷键覆盖。
+`tests/verify_ux_a11y_theme.py`（67 项）——月份快选、图标资源路径、
+主题分离与可读性、拖拽四层原因、快捷键覆盖。
 
-其中「只验源码契约不验真窗口」的项在注释里逐条注明：`setAcceptDrops`
-是否被调、浮层是否还带 `WindowStaysOnTopHint`、样式表里是否有浅底配白字——
-这些能防倒退，但证明不了“点下去真有反应”。那层仍需人眼过。
+其中两组是**真跑而非源码切片**：
+
+- **调色板实测**：真实构造两套 QPalette，算 WCAG 对比度——浅色底亮度
+  必须 >0.7、深色主要文字 ≥7:1、禁用文字 ≥3:1、边框 ≥1.5:1
+- **控件实测**：offscreen 起一个真 `MainWindow`，遍历 39 个子控件逐个
+  问 `acceptDrops()`——保证没有控件能截胡
+
+其余源码切片类断言在注释里逐条注明：能防倒退，但证明不了
+“点下去真有反应”。那层仍需人眼过。
 
 ---
 

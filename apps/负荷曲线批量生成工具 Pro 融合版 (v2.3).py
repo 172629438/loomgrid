@@ -7467,6 +7467,23 @@ class ProcessingThread(threading.Thread):
 # 注意：本部分代码紧跟第一至第四部分，共享同一命名空间
 
 # ======================= 全局样式表 =======================
+def _is_elevated():
+    """当前进程是否以管理员权限运行。
+
+    v2.3.18: Windows 的 UIPI 会阻止从普通权限的资源管理器往高完整性级别
+    进程拖文件。这是系统行为，程序改不了——但用户看到的现象就是
+    "拖不进去"，而且换哪个文件都一样，很容易以为是程序坏了。
+    检测到就以管理员身份提示一句，让人知道该用普通权限启动。
+    """
+    try:
+        if sys.platform != "win32":
+            return False
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
 def build_light_palette() -> QPalette:
     """显式浅色调色板——不看系统脸色。
 
@@ -7923,10 +7940,15 @@ class MainWindow(QMainWindow):
         # dragEnterEvent / dropEvent 从来没被调过——拖到文件列表以外的
         # 任何位置（菜单栏下、右侧空白、状态栏）都没反应。
         self.setAcceptDrops(True)
+        self._disable_child_drops()
 
         self._set_ui_state('idle')
         self._update_start_btn()
         self._log("程序启动，等待操作...")
+        if _is_elevated():
+            self._log("注意：当前以管理员权限运行。Windows 会阻止从普通权限的"
+                      "资源管理器拖文件进来（UIPI 限制，非程序问题）。"
+                      "如需拖拽，请用普通权限启动；或用「添加文件」按钮。")
 
         # v2.3.18: 必须显式应用一套调色板——包括浅色。
         # 原来只有 if self._ui_dark 一个分支，浅色时什么都不做，
@@ -8090,6 +8112,33 @@ class MainWindow(QMainWindow):
     def _init_status_bar(self):
         self.status_label = QLabel("就绪 | 可将 Excel/CSV 文件拖入窗口")
         self.statusBar().addWidget(self.status_label, 1)
+
+    def _disable_child_drops(self):
+        """把子控件的拖放开关全关掉，让文件拖放能冒泡到主窗口。
+
+        v2.3.18：这是「有时能拖、有时不能」的最后一层原因。
+
+        Qt 的拖放事件只发给鼠标下方的那个控件。如果它 acceptDrops=True，
+        事件就被它自己处理，**不会冒泡给父控件**。而下面这些控件默认就是 True：
+
+            QLineEdit / QPlainTextEdit / QTextEdit   → 拖进来插入文件路径文本
+            QComboBox（可编辑时）、QSpinBox 内部 lineEdit → 同上
+
+        本程序有 9 个 QLineEdit、1 个日志区、23 个 QComboBox、15 个 SpinBox——
+        鼠标只要落在这些上面，拖文件就没反应。而日志区占了主窗口下半部分
+        一大块，恰恰是很容易拖到的地方。
+
+        这是个取舍：关掉后用户不能往输入框里拖文本。但本程序的主场景是
+        拖 Excel/CSV 进来批量出图，拖文本是极小众需求；而且真要贴路径，
+        还有右键粘贴。
+
+        例外：FileListWidget 自己保留拖放（它有专属的 dropEvent 和视觉反馈）。
+        """
+        for w in self.findChildren(QWidget):
+            if isinstance(w, FileListWidget):
+                continue          # 列表自己有完整的 dragEnter/drop 实现
+            if w.acceptDrops():
+                w.setAcceptDrops(False)
 
     # ---------- 暗色主题 ----------
     def _toggle_ui_dark(self):
