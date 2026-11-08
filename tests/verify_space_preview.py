@@ -176,10 +176,10 @@ check("按段分别填充（_fill_by_segment）", "_fill_by_segment" in _code_on
 check("段按 [start, end) 取点，末点归零收口",
       "np.searchsorted(hours, b, side='left')" in _code_only
       and "np.concatenate(([a], hours[lft:rgt], [b]))" in _code_only)
-check("末点保持段内高度（不归零，避免丢最后 15 分钟）",
-      "np.concatenate(([curve[lft]], curve[lft:rgt]" in _code_only)
-check("空间为 0 的点收敂到 0（不用 NaN，避免丢过渡格）",
-      "np.where(span > 1e-12, y_hi, 0.0)" in _code_only)
+check("段末点收窄成三角尖（高度归零，不撑到下一段）",
+      "y_hi = y_lo.copy()" in _code_only)
+check("上下边界 clamp 到 0 以上（负负荷不填到轴下）",
+      "np.maximum(np.asarray(curve, dtype=float), 0.0)" in _code_only)
 check("填充去描边（零高度段不画成线）",
       "linewidth=0" in _code_only or "linewidth=0" in _draw)
 check("不再一次性 fill 整条曲线",

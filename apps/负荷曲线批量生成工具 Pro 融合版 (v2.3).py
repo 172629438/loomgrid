@@ -5793,6 +5793,10 @@ class ProfessionalWindow(QMainWindow):
                 # 坐标推到 b（真正的段边界）。段外不参与绘制，
                 # 所以到 b 就自然垂直收口，不会越界。
                 def _fill_by_segment(curve, base, color, label, zorder):
+                    # v2.3.17fix9: 上下边界都 clamp 到 0 以上。
+                    # 负负荷处（光伏返送）直接用原值会填到 0 轴以下。
+                    curve = np.maximum(np.asarray(curve, dtype=float), 0.0)
+                    base = np.maximum(np.asarray(base, dtype=float), 0.0)
                     first = True
                     for seg in segments or []:
                         s_start = float(seg['start'])
@@ -5804,28 +5808,24 @@ class ProfessionalWindow(QMainWindow):
                             rgt = int(np.searchsorted(hours, b, side='left'))
                             if rgt <= lft:
                                 continue
-                            # v2.3.17fix8: 边界 b 处的高度用 b 自己的值，不是前一采样点的。
+                            # v2.3.17fix9: 段末点收窄到负荷值（高度归零）。
                             #
-                            # 上一版末点用 base[rgt-1]（= 前一个采样点的负荷），
-                            # 于是 0-8 段在 8:00 处还保持 7:45 的高度（520），
-                            # 而 8:00 负荷已经是 520、余量只剩 180——
-                            # 多画了 340 kW×15min 一块矩形，应该是三角形。
+                            # 前面两版在末端各错一次：
+                            #   版A：末点用前一个采样点的值 → 高度不收敛，
+                            #        8:00 处还撑着 520 的高（实际只剩 180），画成矩形；
+                            #   版B：末点用 b 自己的值 → 充电2 在 18:00 用上了放电段的
+                            #        负荷 480（高度 220），和放电段的 [0,480] 拼成一整条，
+                            #        看着像两段连成一片。
                             #
-                            # 取边界点的真实负荷：若 b 恰好是采样点就用它，
-                            # 否则用最后一个采样点。
+                            # 正解：末点的上下边界都收在负荷线上 → 高度 0，
+                            # 形成一个向右收窄的三角，既不撑过头也不缺块。
                             bi = min(rgt, len(hours) - 1)
                             x = np.concatenate(([a], hours[lft:rgt], [b]))
                             y_lo = np.concatenate(([base[lft]], base[lft:rgt],
                                                    [base[bi]]))
-                            y_hi = np.concatenate(([curve[lft]], curve[lft:rgt],
-                                                   [curve[bi]]))
-                            span = np.abs(y_hi - y_lo)
-                            # 空间为 0 的点收敂到 0（而非 NaN 断开）：
-                            # NaN 会让相邻那段 15 分钟的过渡区整个不画（负荷从 520
-                            # 降到 -160 的那一格，真实空间是逐渐减小的）。
-                            # 用 0 收口就得到三角形，既不越界也不缺块。
-                            y_lo = np.where(span > 1e-12, y_lo, 0.0)
-                            y_hi = np.where(span > 1e-12, y_hi, 0.0)
+                            y_hi = y_lo.copy()
+                            y_hi[:-1] = np.concatenate(([curve[lft]],
+                                                        curve[lft:rgt]))
                             ax.fill_between(x, y_lo, y_hi,
                                             color=color, alpha=0.38, linewidth=0,
                                             label=(label if first else None),
