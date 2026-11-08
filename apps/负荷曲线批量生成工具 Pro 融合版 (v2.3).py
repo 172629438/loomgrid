@@ -5782,15 +5782,17 @@ class ProfessionalWindow(QMainWindow):
 
                 ax.plot(hours, load_row, color='#1c1c1a', lw=1.2, zorder=6, label='负荷')
 
-                # v2.3.17fix2: 填充必须是折线，不能用 step。
+                # v2.3.17fix3: 段覆盖 [start, end)，末点归零收口。
                 #
-                # 上一版用 step='post' 把边界收口了，但引出一个更难看的问题：
-                # 填充块是阶梯（水平底边），而负荷曲线是折线（斜着爬），
-                # 两者在负荷跳变处错开，填充块与曲线之间裂出三角缝，
-                # 看起来就像「充电空间跑到负荷曲线下方了」。
+                # 前两版的问题都在「边界点归谁」：
+                #   18:00 既属于 14-18 充电段（末尾）又属于 18-21 放电段（开头），
+                #   两段都在这条竖线上画了色块 → 「18 点之后还有充电」「18 点前有放电」。
+                #   11:00 负荷转负、放电空间归 0，但折线把 10:45 的 520 斜降到负值
+                #   → 红色区域串到 X 轴下方，语义上就是逆流。
                 #
-                # 正确做法：逐段画（段外不参与，边界自然切断）+ 补边界点
-                # + 折线填充。这样填充的上下沿与 plot 的曲线逐点重合。
+                # 修法两条：
+                #   ① rgt 用 'left'（不含 end 点），末点补到 b 但高度归零；
+                #   ② 空间为 0 的点置 NaN，fill_between 会直接断开，不连斜线。
                 def _fill_by_segment(curve, base, color, label, zorder):
                     first = True
                     for seg in segments or []:
@@ -5799,17 +5801,20 @@ class ProfessionalWindow(QMainWindow):
                         subs = ([(s_start, 24.0), (0.0, s_end)] if s_start > s_end
                                 else [(s_start, s_end)])
                         for a, b in subs:
-                            lft, rgt = segment_indices(hours, a, b)
-                            if lft >= rgt:
+                            lft = int(np.searchsorted(hours, a, side='left'))
+                            rgt = int(np.searchsorted(hours, b, side='left'))
+                            if rgt <= lft:
                                 continue
-                            # 段内各采样点 + 两端边界（边界处的值取相邻端点值）
-                            x = np.concatenate(([max(a, hours[lft])],
-                                                hours[lft:rgt],
-                                                [min(b, hours[rgt - 1])]))
+                            # 段内采样点（不含 end）+ 两端边界；末点高度归零
+                            x = np.concatenate(([a], hours[lft:rgt], [b]))
                             y_lo = np.concatenate(([base[lft]], base[lft:rgt],
                                                    [base[rgt - 1]]))
                             y_hi = np.concatenate(([curve[lft]], curve[lft:rgt],
-                                                   [curve[rgt - 1]]))
+                                                   [base[rgt - 1]]))
+                            # 空间为 0 的点断开，不参与连线
+                            span = np.abs(y_hi - y_lo)
+                            y_lo = np.where(span > 1e-12, y_lo, np.nan)
+                            y_hi = np.where(span > 1e-12, y_hi, np.nan)
                             ax.fill_between(x, y_lo, y_hi,
                                             color=color, alpha=0.38,
                                             label=(label if first else None),
