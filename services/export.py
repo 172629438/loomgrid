@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 
 from core.models import GroupSummary
-from plotting.curves import _plot_curves
+from plotting.curves import _plot_curves, _reserve_output_path
 from plotting.naming import _sanitize_name, generate_filename, parse_title_template
 
 log = logging.getLogger(__name__)
@@ -95,6 +95,14 @@ def plot_group(summary: GroupSummary, data: dict, output_dir: str,
     title = parse_title_template(title_template or DEFAULT_TITLE_TEMPLATE, ctx)
     fname = generate_filename(filename_template or DEFAULT_FILENAME_TEMPLATE, ctx)
     outpath = os.path.join(output_dir, fname)
+
+    # v2.3.15fix: 同资产同月、不同 sheet 会算出同一个文件名，原实现直接覆写。
+    # 桌面版出图路径（_plot_single_worker）有原子占位会自动加 _1 后缀，
+    # 但本函数直接调 _plot_curves，没走那道——两条路径行为不一致，而这里是会覆盖的那条。
+    # 实测：同资产同月两个 sheet → 目录里只剩 1 个 png。
+    outpath, _reserve_err = _reserve_output_path(outpath)
+    if _reserve_err:
+        raise OSError(_reserve_err)
 
     _plot_curves(list(data["date_labels"]), load, list(data["time_labels"]),
                  title, outpath, opts=plot_options, bill=billing, periods=price_periods)
