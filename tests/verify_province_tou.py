@@ -104,13 +104,28 @@ check("价差不够时放电也为空（没充就没得放）", len(r_high) == 0
 print()
 print("=" * 78)
 print("④ 内置数据完整性")
+# 已知缺口省份（政策原文没查到，不是 bug）——
+# 贵州：只查到浮动比例，峰平谷具体钟点未查到 → months 为空
+# 西藏：枯水期只查到平段，缺高峰/低谷钟点 → 只录丰水期 5-10 月
+# 这两省不要求 12 个月全覆盖，但必须明确声明缺口而不是默默空着。
+INCOMPLETE = {
+    "贵州": "峰平谷具体钟点未查到（黔发改价格〔2023〕481号 只核到比例）",
+    "西藏": "枯水期缺高峰/低谷钟点与浮动比例（政策原文未取得）",
+}
+
 print("=" * 78)
 for name, spec in PROVINCE_TOU.items():
     print(f"\n{name}")
     check(f"  有 source", bool(spec.get("source")), spec.get("source", "")[:40])
     check(f"  有 checked", bool(spec.get("checked")), spec.get("checked", ""))
     months = spec.get("months") or {}
-    check(f"  覆盖 12 个月", len(months) == 12, f"{len(months)} 个月")
+    if name in INCOMPLETE:
+        # 缺口省：不要求 12 个月，但要求 note 里写明原因
+        check(f"  缺口已声明（{len(months)} 个月有数据）",
+              name in str(spec.get("note", "")) or "未查到" in str(spec.get("note", "")),
+              spec.get("note", "")[:60])
+    else:
+        check(f"  覆盖 12 个月", len(months) == 12, f"{len(months)} 个月")
     all_ok = True
     for m, tou in months.items():
         ps = derive_periods(tou)
@@ -120,7 +135,9 @@ for name, spec in PROVINCE_TOU.items():
             continue
         has_c = any(p["type"] == "charge" for p in ps)
         has_d = any(p["type"] == "discharge" for p in ps)
-        if not (has_c and has_d):
+        # 西藏丰水期政策原文写明「无高峰时段」，本来就只有充电没有放电
+        allow_no_discharge = (name == "西藏" and int(m) in (5, 6, 7, 8, 9, 10))
+        if not has_c or (not has_d and not allow_no_discharge):
             all_ok = False
             print(f"    {m} 月缺充或缺放")
         # 检查同向时段不重叠
@@ -145,6 +162,10 @@ listed = c.provinces()
 check(f"内置省份能列出来（{len(listed)} 个）", len(listed) >= 1, str(listed))
 for name in listed:
     g = c.get_province_groups(name)
+    if name in INCOMPLETE:
+        # 缺口省只要不报错就行，组数可以是 0
+        check(f"  {name} 能安全返回（{len(g)} 组，已知缺口）", True)
+        continue
     check(f"  {name} 能取到 groups", len(g) >= 1, f"{len(g)} 组")
     total_months = sum(len(x["months"]) for x in g)
     check(f"  {name} 月份合计 = 12", total_months == 12, f"{total_months}")
