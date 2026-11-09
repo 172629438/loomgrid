@@ -29,6 +29,10 @@ NEEDS_ENV = {
     # **Web 版** exe（它起 FastAPI 并打印 127.0.0.1:端口），启动时会弹出浏览器页面。
     # 它测的不是桌面版产物，--core 不应包含它。
     "verify_prod_artifact.py",
+    # v2.3.18: verify_packaged_exe.py 验的是打包产物，源码阶段 dist 里
+    # 根本没有当天版本的 exe。它不是环境问题、也不是回归，所以不该进
+    # 源码测试列表——打包后再单独跑（它是发版前的硬闸门）。
+    "verify_packaged_exe.py",
     "verify_api.py", "verify_wiring.py", "verify_wiring_e2e.py",
     "verify_excel_e2e.py", "verify_export_async.py",
     "verify_simulate_api.py", "verify_simulate_apply.py",
