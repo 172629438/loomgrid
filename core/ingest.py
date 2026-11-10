@@ -801,7 +801,14 @@ def _to_dt(series, fmt=None):
         mask_24 = series.astype(str).str.contains(r'24:00', na=False)
         if mask_24.any():
             # v2.3.8fix: 月份/日可能不补零（2026-1-1），正则要允许 1~2 位。
-            date_part = series.astype(str).str.extract(r'(\d{4}-\d{1,2}-\d{1,2})')[0]
+            # v2.3.29fix: 分隔符不只连字符。Excel 导出的 CSV 常是
+            # 「2026/1/1 24:00」，点分也常见。原正则 r'(\d{4}-\d{1,2}-\d{1,2})'
+            # 只认连字符，这三种写法全部 extract 失败 → NaT → 那行被 dropna 丢掉。
+            # 实测：一天 96 点 + 末点 24:00，斜杠/点分写法只解析出 96/97，
+            # 每天最后一个采样点静默消失（96 点变 95 点）。
+            # 把三种分隔符统一成 '-' 再提取。
+            _s24 = series.astype(str).str.replace(r'[/.]', '-', regex=True)
+            date_part = _s24.str.extract(r'(\d{4}-\d{1,2}-\d{1,2})')[0]
             dt_24 = pd.to_datetime(date_part, errors='coerce') + pd.Timedelta(days=1)
             dt_series[mask_24] = dt_24[mask_24]
     return dt_series
