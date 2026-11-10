@@ -127,11 +127,16 @@ def daily_demand_series(charge_segs, discharge_segs,
             vals += [float(arr[d]) for arr in discharge_segs if d < len(arr)]
             out[d] = min(vals) if vals else 0.0
         else:  # full_load
-            n_pairs = max(len(charge_segs), len(discharge_segs))
+            # v2.3.24：只有两侧都有限的才配对。原用 max(len) 循环，
+            # 单侧缺失的数补 inf，min(有限, inf)=有限 → 把不存在的循环
+            # 当成候选。实测：充电 [100]、放电 [300, 280] → 原得 280，
+            # 应为 100（唯一可配对的 (c1,d1) 只有 100）。
+            # 主程序 _fill_daily_table 里是同一毛病，两处一起改。
+            n_pairs = min(len(charge_segs), len(discharge_segs))
             best = 0.0
             for i in range(n_pairs):
-                cv = float(charge_segs[i][d]) if i < len(charge_segs) and d < len(charge_segs[i]) else float('inf')
-                dv = float(discharge_segs[i][d]) if i < len(discharge_segs) and d < len(discharge_segs[i]) else float('inf')
+                cv = float(charge_segs[i][d]) if d < len(charge_segs[i]) else float('inf')
+                dv = float(discharge_segs[i][d]) if d < len(discharge_segs[i]) else float('inf')
                 pair_min = min(cv, dv)
                 if pair_min != float('inf'):
                     best = max(best, pair_min)

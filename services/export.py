@@ -197,8 +197,18 @@ def export_csv(rows: list[dict], output_dir: str, name: str = "导出.csv") -> s
     if not rows:
         open(path, "w", encoding="utf-8-sig", newline="").close()
         return path
+    # v2.3.24：fieldnames 取**所有行**的键并集，不能只取 rows[0]。
+    # csv.DictWriter 遇到 fieldnames 里没有的键会抛
+    # ValueError: dict contains fields not in fieldnames。
+    # 实测：第一行 {月份, 充电空间}、第二行多一个 {容量建议} → 整次导出崩。
+    # 保序：按首次出现顺序，让表头顺序稳定可预期。
+    fields = []
+    for r in rows:
+        for k in r:
+            if k not in fields:
+                fields.append(k)
     with open(path, "w", encoding="utf-8-sig", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w = csv.DictWriter(f, fieldnames=fields, restval="")
         w.writeheader()
         w.writerows(rows)
     return path

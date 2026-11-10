@@ -4,6 +4,79 @@
 
 ---
 
+## v2.3.24 — 2026-11-04（Fusion，CSV 字段并集与配对修正）
+
+继续扫没审过的区域，又挖出两个。
+
+### 一、CSV 导出：字段不一致就崩
+
+`export_csv` 的 `fieldnames` 只取 `rows[0].keys()`。
+
+`csv.DictWriter` 遇到 `fieldnames` 里没有的键会抛：
+
+```
+ValueError: dict contains fields not in fieldnames
+```
+
+实测：
+
+```
+第一行 {月份, 充电空间}
+第二行多一个 {容量建议}          ← 整次导出崩
+```
+
+修法：`fieldnames` 取**所有行**的键并集（按首次出现保序），
+并用 `restval=""` 补空——缺字段的行留空，而不是让整次导出失败。
+
+### 二、满载模式：段数不配对时把单侧值当真
+
+`_fill_daily_table` 的 `full_load` 分支用 `max(len(c), len(d))` 循环，
+单侧缺失的数补 `inf`：
+
+```python
+_pm = min(cv, dv)      # min(有限值, inf) = 有限值
+if _pm != float('inf'):
+    daily_need = max(daily_need, _pm)   # ← 把这个单侧值当候选
+```
+
+「满载利用率」的语义是「**存在某次循环**充放都够」，只有一个方向时那不是一个循环。
+
+实测（充电 [100]、放电 [300, 280]）：
+
+```
+旧实现：i=0 → min(100,300)=100；i=1 → min(inf,280)=280
+        max = 280             ← 把不存在的循环当真
+正确  ：唯一能配对的 (c1,d1) 只有 100
+```
+
+方向是**日需求偏大 → 容量建议偏大**。
+
+`services/capacity.py` 的 `daily_demand_series` 里是同一毛病
+（`n_pairs = max(len(...))`），两处一起改成 `min`。
+
+### 三、本轮审过但没问题的
+
+- **`_recalc_spaces` 的多资产 billing**：先用全局扫描取一个默认值，
+  但逐月循环里会用 `effective_billing(idx)` 覆盖 `month_billing`，
+  传给 `compute_segmented_spaces` 的是覆盖后的值 → 计算正确
+- **`summaries[0].asset_value`**：专业窗口的 summaries 在
+  `_open_professional_mode` 里已按 `current_asset` 过滤（L4406），安全
+- **`_load_all_data` 按 month_str 做 key**：扫描层按 `(ym, asset)` 分组，
+  同资产同月只会有一个 summary，不会覆盖
+- **`_populate_space_table` 的「月最小段总和」**：`_keep_segs` 已剔除全零段，
+  语义正确（列名易误读，但算法对）
+
+### 新增测试
+
+`tests/verify_csv_fields_pair.py`（14 项）：
+· CSV 三行不同字段能写出、表头是并集、缺字段补空
+· **旧实现确实抛 ValueError**（反向证明 bug 真实存在）
+· `full_load` 四种段数组合逐个对拍
+· 旧实现确实算出 280（反向证明）
+· 主程序与 services 都用 `min(len)`（两边一致）
+
+---
+
 ## v2.3.23 — 2026-11-04（Fusion，月份距离与归一化 NaN）
 
 这一轮把之前没系统审过的区域扫了一遍，挖出两个真 bug。
