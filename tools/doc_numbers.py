@@ -100,7 +100,7 @@ CLAIMS = [
     ("README.md", r"\| \*\*([\d,]+)\*\* 行 \|", "source_total"),
     ("README.md", r"CI 跑 3 个脚本 ([\d,]+) 项断言", "ci_asserts"),
     ("README.md", r"`tests/` 下现有 ([\d,]+) 个验证脚本", "test_scripts"),
-    ("README.md", r"\| v2\.3\.8 \| ([\d,]+) \|", "Fusion_lines"),
+    ("README.md", r"\| v2\.\d+(?:\.\d+)? \| ([\d,]+) \|", "Fusion_lines"),
     ("docs/index.html", r'<div class="n">([\d,]+)</div><div class="l">个验证脚本</div>', "test_scripts"),
     ("docs/index.html", r'<div class="n">([\d,]+)</div><div class="l">项 CI 断言</div>', "ci_asserts"),
 ]
@@ -129,11 +129,68 @@ def check(d: dict) -> int:
     return 0 if bad == 0 else 1
 
 
+def latest_release_versions() -> dict:
+    """从 GitHub 拉最新 Release tag。拉不到返回空 dict，不阻断检查。
+
+    为什么要这一项：2026-11-10 发现 README 写着 Fusion v2.3.8，而那天已经发到
+    v2.3.40——一整天里连发了十几个版本，文档一个字没跟。这种“数字都对、就是
+    不是最新”的漂移，行数统计抓不到，只有真去问远端才知道。
+    """
+    import json as _json
+    import re as _re
+    import urllib.request
+
+    url = "https://api.github.com/repos/172629438/loomgrid/releases?per_page=100"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "doc_numbers"})
+        data = _json.loads(urllib.request.urlopen(req, timeout=20).read().decode())
+    except Exception:
+        return {}
+
+    def key(t):
+        m = _re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", t)
+        return tuple(int(x) if x else 0 for x in m.groups()) if m else (0, 0, 0)
+
+    out = {}
+    for pref in ("fusion-v", "ultra-v"):
+        group = [x["tag_name"] for x in data if x["tag_name"].startswith(pref)]
+        if group:
+            out[pref] = max(group, key=key)
+    return out
+
+
+def check_releases() -> int:
+    """README 里写的 Fusion / Ultra 版本，是不是远端最新那几个。"""
+    badges = latest_release_versions()
+    if not badges:
+        print("  拉不到 Release 列表（网络或速率限制），跳过版本检查")
+        return 0
+    rd = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
+    bad = 0
+    for pref, label in (("fusion-v", "Fusion"), ("ultra-v", "Ultra")):
+        newest = badges.get(pref)
+        if not newest:
+            continue
+        want = newest.replace(pref, "")
+        claimed = sorted(set(re.findall(rf"{label} v(\d+\.\d+(?:\.\d+)?)", rd)))
+        if want not in claimed:
+            print(f"  DIFF  {label}: README 写 {claimed}，远端最新是 v{want}")
+            bad += 1
+        else:
+            print(f"  OK    {label} v{want}（READM 已指向最新）")
+    return 0 if bad == 0 else 1
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="与 README / 站点比对")
+    ap.add_argument("--check-releases", action="store_true",
+                    help="与 GitHub 最新 Release 比对（需网络）")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if a.check_releases:
+        print("doc_numbers --check-releases")
+        sys.exit(check_releases())
     d = actual()
     if a.check:
         print("doc_numbers --check")

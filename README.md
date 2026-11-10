@@ -162,16 +162,16 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 
 | 你的情况 | 用这个 |
 |---|---|
-| 明天要交方案，要稳 | **[Fusion v2.3.8](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.8)** |
+| 明天要交方案，要稳 | **[Fusion v2.3.40](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.40)** |
 | 功能越多越好 | **[Ultra v3.2.9](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.9)** |
-| 想读源码，9.5k 行比 36k 行好读 | **[Fusion v2.3.8](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.8)** |
+| 想读源码，9.5k 行比 36k 行好读 | **[Fusion v2.3.40](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.40)** |
 | 想研究三层叠加引擎的完整实现 | **[Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0)** |
 | 想看看真实项目的弯路长什么样 | **[Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0)** |
 | 想看某个功能最早怎么写的 | **[Fusion v1.1 ~ v2.3.0](https://github.com/172629438/loomgrid/releases)** |
 
 两个现役版本不是「新旧」，是**两条路线**：
 
-| | **Fusion v2.3.8** | **Ultra v3.2.9** |
+| | **Fusion v2.3.40** | **Ultra v3.2.9** |
 |---|---|---|
 | 定位 | **生产推荐** | 功能最全 |
 | 代码量 | 9,533 行 | 36,245 行 |
@@ -185,7 +185,7 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 | 13 个动效组件 | — | ✓ |
 | 稳定性 | 高（跑得久） | 中（功能密度超过测试覆盖） |
 
-> **关于版本号**：2026-10-28 做过一次版本序列重整。原 v3.2.2~v3.2.8 与 v2.3.1~v2.3.3 那些中间版本，源码从未提交进仓库、Release 上的包又打不开，按「每个版本必须有源码、必须有能打开的 exe」的标准撤销了版本号，最终代码统一重新发布为 **Ultra v3.2.2** 与 **Fusion v2.3.1**。原各版本的更新说明全部合并进新版本条目，逐条见 [CHANGELOG](CHANGELOG.md)。重整之后两条线继续迭代，现役为 **Fusion v2.3.8** 与 **Ultra v3.2.9**。
+> **关于版本号**：2026-10-28 做过一次版本序列重整。原 v3.2.2~v3.2.8 与 v2.3.1~v2.3.3 那些中间版本，源码从未提交进仓库、Release 上的包又打不开，按「每个版本必须有源码、必须有能打开的 exe」的标准撤销了版本号，最终代码统一重新发布为 **Ultra v3.2.2** 与 **Fusion v2.3.1**。原各版本的更新说明全部合并进新版本条目，逐条见 [CHANGELOG](CHANGELOG.md)。重整之后两条线继续迭代，现役为 **Fusion v2.3.40** 与 **Ultra v3.2.9**。
 
 > **为什么稳定版推荐的是行数少的那个**：Ultra 功能密度更高——MILP、四目标 Pareto、13 步诊断、13 个动效组件、三层引擎回填都在里面，能力上限高，路径也多。Fusion 是另写一遍的轻量路线，吞吐是 Ultra 的三成但内存低、跑得久。这不是谁更好，是你要「稳」还是要「全」。
 
@@ -203,7 +203,7 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 
 | 版本 | 适合 | 包体 |
 |---|---|---|
-| [**Fusion v2.3.8**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.8) | **正式做方案**，稳定优先选它 | 135 MB |
+| [**Fusion v2.3.40**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.40) | **正式做方案**，稳定优先选它 | 142 MB |
 | [**Ultra v3.2.9**](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.9) | 功能最全，要 MILP / Pareto / 诊断就上 | 273 MB |
 | [Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0) | Ultra 历史快照，含三层叠加引擎原文 | 139 MB |
 | [Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0) | 早期分支，含占位方法，**不要做正式方案** | 267 MB |
@@ -564,7 +564,7 @@ Fusion 是「稳定优先」那条线：原生控件、无装饰，把力气全�
 
 | 文件 | 内部版本 | 行数 | 定位 | 状态 |
 |---|---|---:|---|---|
-| `apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py` | v2.3.8 | 9,533 | **生产推荐**，要结果稳就选它 | 稳定 |
+| `apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py` | v2.3.40 | 9,533 | **生产推荐**，要结果稳就选它 | 稳定 |
 | `apps/负荷曲线批量生成Ultra.py` | v3.2.9 | 36,245 | 功能最全（MILP / Pareto / 13 步诊断） | 稳定 |
 
 > **为什么稳定版推荐的是行数少的那个？**
@@ -721,7 +721,7 @@ Fusion 是另写一遍的轻量路线，一开始就为了「读得动、改得�
 | 优化求解 | OR-Tools | 可选，缺了自动降级到快速排序法 |
 | 打包 | PyInstaller | 只在需要重新出 exe 时用 |
 
-**不装 Python 也能用**：Releases 里的包自带完整运行时（Python + 全部依赖），解压即用——Fusion 压缩包 135 MB，Ultra 273 MB。
+**不装 Python 也能用**：Releases 里的包自带完整运行时（Python + 全部依赖），解压即用——Fusion 压缩包 142 MB，Ultra 273 MB。
 
 **只想跑算法部分**：算法层没上 PyPI，用源码装：`pip install git+https://github.com/172629438/loomgrid.git`；或者直接跑源码，numpy / pandas / scipy 三个就够，不用装 Qt。`examples/quickstart.py` 和 `examples/algorithms_demo.py` 都只需要这三个。
 
@@ -744,7 +744,7 @@ Fusion 是另写一遍的轻量路线，一开始就为了「读得动、改得�
 - **单文件 3.6 万行**，没有单元测试框架，验证靠脚本巡检（`tests/` 下 117 个验证脚本，其中 3 个进 CI、每次 40 项断言，含 12 项手算对拍，见 [`tests/`](tests/) 与[缺陷修复报告](docs/缺陷修复报告.md)）。
 - **测算依赖输入质量**。工具不校验外部数据真实性，列映射选错会一路错到底。
 - **GUI 交互流程没有自动化回归测试**。核心算法有，界面点击路径靠人工。
-- **Ultra v3.2.9 功能最全，但路径也多**。MILP、Pareto、13 步诊断、13 个动效组件都在里面，稳定性不如 Fusion v2.3.8。正式交付优先用 Fusion。
+- **Ultra v3.2.9 功能最全，但路径也多**。MILP、Pareto、13 步诊断、13 个动效组件都在里面，稳定性不如 Fusion v2.3.40。正式交付优先用 Fusion。
 - **`legacy/` 里的历史版本仅供考古**，配置格式与现役版本不兼容，不建议使用。
 
 ---
@@ -875,9 +875,9 @@ python tests/verify_algorithms_math.py
 
 Fusion 走了另一条：拆成 `core` / `services` / `plotting` / `api` 四层加 `apps` 入口，依赖只向下。代价是不能只拷一个文件，好处是改一处知道会影响哪一层。
 
-**为什么 exe 有 135 MB？**
+**为什么 exe 有 142 MB？**
 
-Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，压成 zip 就是 135 MB（Ultra 因为多带 MILP 与 Pareto 求解链，273 MB）。这是 Python 打包程序的固有成本，不是塞了多余东西。
+Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，压成 zip 就是 142 MB（Ultra 因为多带 MILP 与 Pareto 求解链，273 MB）。这是 Python 打包程序的固有成本，不是塞了多余东西。
 
 **为什么 SOC 下限定在 5%，不是 0% 或 10%？**
 
