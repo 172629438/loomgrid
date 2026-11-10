@@ -285,7 +285,7 @@ def _check_and_install_dependencies():
 # v2.3.6fix(K5): 版本号只能有一个来源。
 # 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
 # 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
-FUSION_VERSION = "2.3.29"
+FUSION_VERSION = "2.3.30"
 FUSION_APP_NAME = "LoomGrid Fusion"
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
 _SUPPORTED_EXTS_SET = frozenset(SUPPORTED_EXTS)  # v2.3.4fix(J6): O(1) 成员查找
@@ -4094,8 +4094,10 @@ class PreviewDialog(QDialog):
 
     def _periods_for_idx(self, idx):
         """根据省份和分组月份获取时段（新接口）"""
-        province = self.province_combo.currentText()
-        if province == "无" or not province:
+        # v2.3.30：原为 province_combo.currentText() + `== "无"` 判断，
+        # 换文案就失效。改用按索引判定的 _combo_province()。
+        province = self._combo_province()
+        if not province:
             return []
         s = self.all_summaries[idx]
         month_int = _parse_month_num(s.month_str)
@@ -4117,7 +4119,9 @@ class PreviewDialog(QDialog):
         if new_text == self._last_province_text:
             return
         self._last_province_text = new_text
-        self._selected_province = new_text if new_text != "无" else None
+        # v2.3.30：按索引判第 0 项（「无」），不认文案
+        self._selected_province = (None if self.province_combo.currentIndex() == 0
+                                   else new_text)
         changed = []
         for idx in range(len(self.all_summaries)):
             new_periods = self._periods_for_idx(idx)
@@ -4443,7 +4447,8 @@ class PreviewDialog(QDialog):
             elif old_sel and old_sel in self.config_manager.provinces():
                 self.province_combo.setCurrentText(old_sel)
                 self._last_province_text = old_sel
-                self._selected_province = old_sel if old_sel != "无" else None
+                # v2.3.30：old_sel 已在 provinces() 里（保证不是「无」），直接用
+                self._selected_province = old_sel
             else:
                 self.province_combo.setCurrentText("无")
                 self._last_province_text = "无"
@@ -4490,7 +4495,7 @@ class PreviewDialog(QDialog):
                 provider=self.provider,
                 config_manager=self.config_manager,
                 settings_model=self.settings_model,
-                province_name=self.province_combo.currentText() if self.province_combo.currentText() != "无" else None,
+                province_name=self._combo_province(),
                 plot_options=self.render_scheduler.plot_options.to_dict(),
                 global_multiplier=self._global_multiplier,
                 parent=self
@@ -4557,7 +4562,7 @@ class PreviewDialog(QDialog):
         self.config_manager.set_app('show_weekend_bg', self.show_weekend_bg_cb.isChecked())
         self.config_manager.set_app('legend_position', legend_pos)
         self.config_manager.set_app('dark_theme', dark_theme)
-        self.config_manager.set_app('last_province_name', self.province_combo.currentText() if self.province_combo.currentText() != "无" else None)
+        self.config_manager.set_app('last_province_name', self._combo_province() or "无")
         self.config_manager.set_app('last_billing_enabled', self.bill_enabled_cb.isChecked())
         self.config_manager.set_app('last_billing_value', str(self.capacity_spin.value()))
         self.config_manager.set_app('last_title_template', self.title_edit.text())
@@ -4575,8 +4580,9 @@ class PreviewDialog(QDialog):
             if bill:
                 billing_dict[idx] = bill
 
-        province = self.province_combo.currentText()
-        if province and province != "无":
+        # v2.3.30：同上，按索引判定代替文案比较
+        province = self._combo_province()
+        if province:
             price_periods = self.config_manager.get_periods_for_all_months(province)
         else:
             price_periods = {}
@@ -4587,7 +4593,7 @@ class PreviewDialog(QDialog):
             'per_group_multiplier': per_group_multiplier,
             'per_group_billing': per_group_billing,
             'output_dir': self.output_dir_edit.text(),
-            'province_name': self.province_combo.currentText() if self.province_combo.currentText() != "无" else None,
+            'province_name': self._combo_province(),
             'show_daily': self.show_daily_cb.isChecked(),
             'show_avg': self.show_avg_cb.isChecked(),
             'show_max_demand': self.show_max_demand_cb.isChecked(),
@@ -6447,6 +6453,24 @@ class ProfessionalWindow(QMainWindow):
         self.satisfy_days_label.setText(f"满足天数: {days}")
         effective = int(days * 365.0 / self.available_days) if self.available_days > 0 else 0
         self.effective_satisfy_label.setText(f"等效满足天数: {effective}")
+
+    def _combo_province(self):
+        """下拉框当前选中的省份，选「无」时返回 None。
+
+        v2.3.30：原来三处写 `province_combo.currentText() != "无"`，
+        用显示文案做逻辑判断。那两个字一旦改成「不选」「（无）」之类的写法，
+        判断静默失效，省份名就会被当成「无」传给下游。
+        省份列表在第 0 项之后追加（addItem("无") 然后 addItems(provinces)），
+        所以按索引判第 0 项就稳。
+
+        注意与实例属性 `self._selected_province` 区分：那个存的是
+        「上一次用户确认的选择」，本方法读的是**当前下拉框状态**。
+        """
+        if not hasattr(self, "province_combo") or self.province_combo.count() == 0:
+            return None
+        if self.province_combo.currentIndex() == 0:
+            return None
+        return self.province_combo.currentText()
 
     def _update_system_scale(self):
         cap = self.config_cap_spin.value()
