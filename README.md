@@ -203,7 +203,7 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 
 | 版本 | 适合 | 包体 |
 |---|---|---|
-| [**Fusion v2.3.40**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.40) | **正式做方案**，稳定优先选它 | 142 MB |
+| [**Fusion v2.3.40**](https://github.com/172629438/loomgrid/releases/tag/fusion-v2.3.40) | **正式做方案**，稳定优先选它 | 143 MB |
 | [**Ultra v3.2.9**](https://github.com/172629438/loomgrid/releases/tag/ultra-v3.2.9) | 功能最全，要 MILP / Pareto / 诊断就上 | 273 MB |
 | [Backup v2.29](https://github.com/172629438/loomgrid/releases/tag/backup-v2.29.0) | Ultra 历史快照，含三层叠加引擎原文 | 139 MB |
 | [Reference v2.29](https://github.com/172629438/loomgrid/releases/tag/reference-v2.29.0) | 早期分支，含占位方法，**不要做正式方案** | 267 MB |
@@ -721,7 +721,7 @@ Fusion 是另写一遍的轻量路线，一开始就为了「读得动、改得�
 | 优化求解 | OR-Tools | 可选，缺了自动降级到快速排序法 |
 | 打包 | PyInstaller | 只在需要重新出 exe 时用 |
 
-**不装 Python 也能用**：Releases 里的包自带完整运行时（Python + 全部依赖），解压即用——Fusion 压缩包 142 MB，Ultra 273 MB。
+**不装 Python 也能用**：Releases 里的包自带完整运行时（Python + 全部依赖），解压即用——Fusion 压缩包 143 MB，Ultra 273 MB。
 
 **只想跑算法部分**：算法层没上 PyPI，用源码装：`pip install git+https://github.com/172629438/loomgrid.git`；或者直接跑源码，numpy / pandas / scipy 三个就够，不用装 Qt。`examples/quickstart.py` 和 `examples/algorithms_demo.py` 都只需要这三个。
 
@@ -875,9 +875,9 @@ python tests/verify_algorithms_math.py
 
 Fusion 走了另一条：拆成 `core` / `services` / `plotting` / `api` 四层加 `apps` 入口，依赖只向下。代价是不能只拷一个文件，好处是改一处知道会影响哪一层。
 
-**为什么 exe 有 142 MB？**
+**为什么 exe 有 143 MB？**
 
-Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，压成 zip 就是 142 MB（Ultra 因为多带 MILP 与 Pareto 求解链，273 MB）。这是 Python 打包程序的固有成本，不是塞了多余东西。
+Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，压成 zip 就是 143 MB（Ultra 因为多带 MILP 与 Pareto 求解链，273 MB）。这是 Python 打包程序的固有成本，不是塞了多余东西。
 
 **为什么 SOC 下限定在 5%，不是 0% 或 10%？**
 

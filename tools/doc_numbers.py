@@ -129,34 +129,147 @@ def check(d: dict) -> int:
     return 0 if bad == 0 else 1
 
 
-def latest_release_versions() -> dict:
-    """从 GitHub 拉最新 Release tag。拉不到返回空 dict，不阻断检查。
+def latest_release_info() -> dict:
+    """拉最新 Release 及各版本包体。拉不到返回空 dict，不阻断。
 
     为什么要这一项：2026-11-10 发现 README 写着 Fusion v2.3.8，而那天已经发到
     v2.3.40——一整天里连发了十几个版本，文档一个字没跟。这种“数字都对、就是
     不是最新”的漂移，行数统计抓不到，只有真去问远端才知道。
+
+    返回：{"fusion-v": {"tag": "fusion-v2.3.40", "mb": 142.5}, "ultra-v": {...}}
+    额外带一个 "sizes": {tag: mb}，供 sync 按版本取包体。
     """
     import json as _json
     import re as _re
+    import shutil
+    import subprocess
     import urllib.request
 
     url = "https://api.github.com/repos/172629438/loomgrid/releases?per_page=100"
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "doc_numbers"})
-        data = _json.loads(urllib.request.urlopen(req, timeout=20).read().decode())
-    except Exception:
-        return {}
+    data = None
+
+    # 优先走 gh（带 token，5000 次/小时）；否则匿名 urllib（60 次/小时，很容易撞限流）
+    gh = shutil.which("gh") or os.path.expandvars(
+        r"%USERPROFILE%\.hanako\tools\gh\bin\gh.exe")
+    if gh and os.path.exists(gh):
+        r = subprocess.run([gh, "api", "repos/172629438/loomgrid/releases?per_page=100"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if r.returncode == 0:
+            try:
+                data = _json.loads(r.stdout.lstrip("\ufeff"))
+            except Exception:
+                data = None
+    if data is None:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "doc_numbers"})
+            data = _json.loads(urllib.request.urlopen(req, timeout=20).read().decode())
+        except Exception:
+            return {}
 
     def key(t):
         m = _re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", t)
         return tuple(int(x) if x else 0 for x in m.groups()) if m else (0, 0, 0)
 
-    out = {}
+    sizes = {}
+    for x in data:
+        zips = [a for a in x.get("assets", []) if a["name"].lower().endswith(".zip")]
+        if zips:
+            sizes[x["tag_name"]] = zips[0]["size"] / 1024 / 1024
+
+    out = {"sizes": sizes}
     for pref in ("fusion-v", "ultra-v"):
         group = [x["tag_name"] for x in data if x["tag_name"].startswith(pref)]
         if group:
-            out[pref] = max(group, key=key)
+            tag = max(group, key=key)
+            out[pref] = {"tag": tag, "mb": round(sizes.get(tag, 0))}
     return out
+
+
+def latest_release_versions() -> dict:
+    """兼容旧接口：只取各线最新 tag。"""
+    info = latest_release_info()
+    return {k: v["tag"] for k, v in info.items() if isinstance(v, dict) and "tag" in v}
+
+
+def sync(dry_run: bool = False) -> int:
+    """把 README 里的现役版本号与包体写成远端最新值。
+
+    只改“当前版本”——历史范围（如 v1.1 ~ v2.3.0）不碰。判据是把 README 里
+    该线的最大版号当成现役值，只替换这个具体字符串。
+    """
+    info = latest_release_info()
+    if "fusion-v" not in info:
+        print("  拉不到 Release 列表，不同步")
+        return 2
+
+    p = os.path.join(ROOT, "README.md")
+    txt = open(p, encoding="utf-8").read()
+    orig = txt
+    changes = []
+
+    for pref, label in (("fusion-v", "Fusion"), ("ultra-v", "Ultra")):
+        item = info.get(pref)
+        if not item:
+            continue
+        new_tag = item["tag"]
+        new_ver = new_tag.replace(pref, "")
+        mb = item["mb"]
+
+        # 1) 版本号：找 README 里该线的最大版号即为“现役声明值”
+        vers = re.findall(rf"{label}\s+v(\d+\.\d+(?:\.\d+)?)", txt)
+        if not vers:
+            continue
+
+        def vkey(v):
+            return tuple(int(x) for x in v.split("."))
+
+        cur_ver = max(vers, key=vkey)
+        if cur_ver != new_ver:
+            n1 = txt.count(f"{label} v{cur_ver}")
+            txt = txt.replace(f"{label} v{cur_ver}", f"{label} v{new_ver}")
+            n2 = txt.count(f"{pref}{cur_ver}")
+            txt = txt.replace(f"{pref}{cur_ver}", f"{pref}{new_ver}")
+            changes.append(f"{label} 版号 {cur_ver} → {new_ver}（正文 {n1} 处 + 链接 {n2} 处）")
+
+        # 2) 包体：四条固定句式
+        pats = [
+            rf"(\|\s*(?:\[\*\*)?{label} v{new_ver}(?:\*\*)?\]\([^)]*\)\s*\|[^|]*\|\s*)(\d+)( MB \|)",
+            rf"({label} 压缩包 )\d+( MB)",
+        ]
+        # 这两句讲的是 Fusion 的 exe，只在 Fusion 那轮跑，否则 Ultra 会把它改成自己的包体
+        if pref == "fusion-v":
+            pats += [
+                rf"(\*\*为什么 exe 有 )\d+( MB？\*\*)",
+                rf"(压成 zip 就是 )\d+( MB)",
+            ]
+        for pat in pats:
+            def repl(m, _mb=mb):
+                return f"{m.group(1)}{_mb}{m.group(3) if m.lastindex and m.lastindex >= 3 else m.group(2)}"
+            text_new, k = re.subn(pat, repl, txt)
+            if k and text_new != txt:
+                txt = text_new
+                changes.append(f"{label} 包体 → {mb} MB（{k} 处）")
+
+    # Ultra 在句尾提到包体的两处：「，「后面」和「Ultra N MB」
+    u = info.get("ultra-v")
+    if u:
+        for pat in (r"(，Ultra )\d+( MB)", r"(，)\d+( MB）。)"):
+            t2, k = re.subn(pat, lambda m, _mb=u["mb"]: f"{m.group(1)}{_mb}{m.group(2)}", txt)
+            if k and t2 != txt:
+                txt = t2
+                changes.append(f"Ultra 包体 → {u['mb']} MB（{k} 处）")
+
+    if txt == orig:
+        print("  已是最新，无需改动")
+        return 0
+    for c in changes:
+        print(f"  · {c}")
+    if dry_run:
+        print("  （dry-run，未写入）")
+        return 0
+    open(p, "w", encoding="utf-8", newline="").write(txt)
+    print(f"  已写入 {p}")
+    return 0
 
 
 def check_releases() -> int:
@@ -186,8 +299,14 @@ if __name__ == "__main__":
     ap.add_argument("--check", action="store_true", help="与 README / 站点比对")
     ap.add_argument("--check-releases", action="store_true",
                     help="与 GitHub 最新 Release 比对（需网络）")
+    ap.add_argument("--sync", action="store_true",
+                    help="把 README 的现役版本号与包体写成远端最新值")
+    ap.add_argument("--dry-run", action="store_true", help="配合 --sync：只看差异不写")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if a.sync:
+        print("doc_numbers --sync" + (" (dry-run)" if a.dry_run else ""))
+        sys.exit(sync(a.dry_run))
     if a.check_releases:
         print("doc_numbers --check-releases")
         sys.exit(check_releases())
