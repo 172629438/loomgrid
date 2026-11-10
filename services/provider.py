@@ -115,6 +115,16 @@ class DataProvider:
         # 于是「改表头行」永远不影响缓存键 → 改完仍拿到旧缓存。
         hrow = mapping.get('header_row', mapping.get('hrow', 0))
         delimiter = mapping.get('delimiter', ',')  # v2.3fix: 分隔符加入缓存键
+        # v2.3.27：上面那轮修了 hrow/delimiter，但漏了三个字段。
+        # `_load_group_data` 实际读 9 个字段，缓存键只盖了 6 个。实测后果：
+        #   勾上 convert_accumulated（累计示数差分）→ 数值全相等
+        #   （命中旧缓存，差分根本没做）；清缓存后结果才变。
+        #   asset_col / transpose 同理。
+        # 这三个都会改变返回的数据，必须进键。
+        asset_col = mapping.get('asset_col') or ''
+        convert_acc = bool(mapping.get('convert_accumulated', False)
+                           or mapping.get('format_type') == 'accumulated')
+        transpose = bool(mapping.get('transpose', False))
         if isinstance(load, list):
             load = tuple(sorted(load))
         mtime = 0
@@ -122,7 +132,8 @@ class DataProvider:
             mtime = os.path.getmtime(fp)
         except Exception:
             pass
-        return (fp, sheet, fmt, date_col, load, time_col, mtime, hrow, delimiter)
+        return (fp, sheet, fmt, date_col, load, time_col, mtime, hrow, delimiter,
+                asset_col, convert_acc, transpose)
 
     def _group_key(self, summary: GroupSummary):
         """v2.3.8fix: 分组缓存键必须包含列映射。
