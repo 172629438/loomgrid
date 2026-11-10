@@ -269,6 +269,21 @@ def _normalize_asset(val, fallback='未命名'):
     return s
 
 def _detect_accumulated_pattern(df, load_col, date_col, time_col=None, sample_rows=200):
+    """判断 load_col 是否像「累计示数」（单调上升的电表读数）。
+
+    v2.3.28：原判据 `non_neg_ratio >= 0.85 and (span_ratio > 20 or max > 1000)`
+    对小量程表全面漏判。实测：
+
+        100 → 500（每步 4.2）   span=5.0   max=499   → 漏判
+        50  → 950（每步 9.4）   span=18.9  max=943   → 漏判
+
+    漏判的后果不是「提示一下」，而是 format_type 落到 'long'，
+    原始示数被当功率画——用户看到一条一路上涨的线，没有任何提示。
+
+    补上一条本质特征：**累计示数的单步增量相对整个值域极小**
+    （96 点表每步占总增量 1/95 ≈ 1%），而功率曲线的相邻差值
+    可以是值域的一大截。
+    """
     try:
         sub = df.head(sample_rows).copy()
         if load_col not in sub.columns:
@@ -286,13 +301,22 @@ def _detect_accumulated_pattern(df, load_col, date_col, time_col=None, sample_ro
         vals = pd.to_numeric(sub[load_col], errors='coerce').dropna().values
         if len(vals) < 10:
             return False
+        rng = float(np.max(vals) - np.min(vals))
+        if rng < 1e-9:
+            # 完全平直的数据：差分没意义，也不该当示数表处理
+            return False
         diffs = np.diff(vals)
         non_neg_ratio = np.sum(diffs >= 0) / len(diffs)
-        if np.max(vals) > 0 and np.min(vals) >= 0:
-            span_ratio = np.max(vals) / (np.min(vals) + 1e-9)
+        if non_neg_ratio < 0.85:
+            return False
+        if np.min(vals) >= 0:
+            span_ratio = float(np.max(vals) / (np.min(vals) + 1e-9))
         else:
-            span_ratio = 1
-        return non_neg_ratio >= 0.85 and (span_ratio > 20 or np.max(vals) > 1000)
+            span_ratio = 1.0
+        # 本质特征：单步正向增量 / 全值域。示数表 ~1%，功率曲线远大于 5%
+        _pos = diffs[diffs > 0]
+        step_ratio = float(np.median(_pos) / rng) if len(_pos) else 1.0
+        return (span_ratio > 20) or (float(np.max(vals)) > 1000) or (step_ratio < 0.05)
     except Exception:
         log.debug("累积示数检测异常", exc_info=True)
         return False
@@ -372,8 +396,24 @@ def _convert_accumulated_to_power(df, date_col, time_col, load_col, asset_col=No
             raw_diff = loads.diff().shift(-1)
             delta_hours = times.diff().dt.total_seconds() / 3600.0
             delta_hours_shifted = delta_hours.shift(-1)
-            safe_delta = delta_hours_shifted.clip(lower=0.05, upper=3.0)
+            # v2.3.28：下限保留（防除零），上限不再用 clip 截断。
+            # 原写法 clip(lower=0.05, upper=3.0) 会把 4 小时的间隔当 3 小时算，
+            # 功率直接高估 4/3 = 1.33 倍。实测（真实功率恒为 100）：
+            #   间隔 4h → safe_delta 被截到 3.0 → 功率 141.67（+42%）
+            # 而负跳变判据拦不住（141.67 是正的）。
+            # 间隔过大本身就是「数据有缺口」的信号，该判不可信而不是
+            # 搵个好看的数字——否则用户会把 142 当成真实负荷。
+            safe_delta = delta_hours_shifted.clip(lower=0.05)
             power = raw_diff / safe_delta
+            _too_long = delta_hours_shifted > 3.0
+            if _too_long.any():
+                _n_gap = int(_too_long.sum())
+                _gaps = sorted({round(float(x), 2)
+                                for x in delta_hours_shifted[_too_long].dropna()})
+                log.warning(
+                    "%d 处时间间隔超过 3 小时，这些点的功率不可信，已置空"
+                    "（间隔 %s 小时）", _n_gap, _gaps)
+                power[_too_long] = np.nan
             # v2.3.12fix: 跨天边界的点是伪差值（次日首点 − 当日本末点），
             # 日重置表里必然是大负数，必须置 NaN。
             # 原实现（v2.3.3fix I7）只把它从「换表/清零报警」名单里摘出来，
