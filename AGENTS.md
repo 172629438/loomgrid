@@ -19,7 +19,8 @@
 | Fusion 主程序（生产推荐） | `apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py` |
 | Ultra 主程序（功能最全） | `apps/负荷曲线批量生成Ultra.py` |
 | 算法模块（可独立 import） | `algorithms/` |
-| 站点与在线介绍页 | `docs/`（GitHub Pages 源目录） |
+| 站点与在线介绍页 | `docs/`（GitHub Pages 源目录，**放进去就等于对外发布**） |
+| 内部交接与复盘 | `notes/`（不经过 Pages，不对外） |
 | 变更记录 | `CHANGELOG.md` |
 
 **接手第一步**：`git pull`，读 `CHANGELOG.md` 最近三条，确认你手上的认知和仓库一致。

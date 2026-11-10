@@ -24,7 +24,7 @@
 
 <br>
 
-<sub><b>Open-source BESS sizing tool for China's C&amp;I market</b> — feed it a load curve and the local time-of-use tariff, get capacity, dispatch, savings and payback. Free, MIT-licensed, runs offline. 32 provincial tariff tables built in.</sub>
+<sub><b>Open-source BESS sizing tool for China's C&amp;I market</b> — feed it a load curve and the local time-of-use tariff, get capacity, dispatch, savings and payback. Free, MIT-licensed, runs offline. 33 grid pricing zones built in.</sub>
 <sub>A free alternative to HOMER Grid, NREL SAM and Excel for behind-the-meter storage sizing — if your project is in China.</sub>
 
 </div>
@@ -83,7 +83,7 @@
 
 If you are looking for an open-source alternative to HOMER Grid, HOMER Pro or NREL SAM, and your project is in China, the missing piece in those tools is the tariff. China has no national time-of-use file: every province defines its own peak / flat / valley segments, its own seasonal groupings, and its own prices. Practitioners rebuild that table from provincial NDRC notices, by hand, for every project.
 
-LoomGrid ships **32 provincial tariff tables built in**, and does the rest of the chain:
+LoomGrid ships **33 grid pricing zones built in**, and does the rest of the chain:
 
 - **Input** — drag in an 8760-row load profile, or generate a synthetic one (25 industries × provincial baselines × equipment Markov chains × noise smoothing)
 - **Sizing** — charge/discharge headroom under daily and segmented accounting; sensitivity sweep across six capacity points
@@ -123,7 +123,7 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 | 环节 | 手工 | 用这个 |
 |---|---|---|
 | 拉 8760 行负荷、拆日期时间 | Excel 公式 + 手工拖 | 拖进去自动识别列 |
-| 按省份拆峰平谷时段 | 查政策、手填时段表 | 选省份自动加载 32 个省级行政区已整理的电价 |
+| 按省份拆峰平谷时段 | 查政策、手填时段表 | 选省份自动加载 33 个电网价区已整理的电价 |
 | 算充放空间 | 逐时段列公式，或凭经验拍 | 逐日 / 分段两种口径自动算 |
 | 试不同容量 | 改一个参数重算一遍 | 敏感性表一次出 6 个容量点 |
 | 出图 | 手调坐标轴、配色 | 深浅双主题批量出图 |
@@ -140,7 +140,7 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 |  | **LoomGrid** | HOMER Grid / Pro | NREL SAM | Excel 手工 |
 |---|---|---|---|---|
 | 授权 | MIT 开源，免费 | 商业授权 | 免费（NREL 出品） | 你已经有 |
-| **中国分时电价** | **内置 32 省，带政策文号** | 需自建时段表 | 需自建时段表 | 手填 |
+| **中国分时电价** | **内置 33 个价区，带政策文号** | 需自建时段表 | 需自建时段表 | 手填 |
 | 界面语言 | 中文 | 英文 | 英文 | — |
 | 调度求解 | 贪心 / 逐日仿真 / LP / MILP，可互相对拍 | 专有多目标优化 | 专有模型 | 公式，或凭经验拍 |
 | 免安装 | 是（压缩包双击即用） | 否 | 否 | 视 Office 情况 |
@@ -152,7 +152,7 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 2. **项目要微网 / 离网 / 光柴储多能互补** → 用 HOMER。它在这件事上做了二十年，不逞强。
 3. **项目以光伏为主，要详细发电量建模** → 用 NREL SAM。气象数据、组件库、遮挡模型它都全。
 
-这个工具选的是**窄而深**：一个国家、一个场景，做到底。所以它敢把 32 省电价、114 号文容量电价、省级需量口径这些细碎东西全部内置——这些恰好是大工具不会替你做的。
+这个工具选的是**窄而深**：一个国家、一个场景，做到底。所以它敢把 33 个价区电价、114 号文容量电价、省级需量口径这些细碎东西全部内置——这些恰好是大工具不会替你做的。
 
 ---
 
@@ -813,7 +813,7 @@ python tests/verify_algorithms_math.py
 | [`algorithms/README.md`](algorithms/README.md) | 七个算法模块的原理、公式、参数含义与踩过的坑 |
 | [`docs/版本演进.md`](docs/版本演进.md) | 四版本差异、特性迁移史、三次特性丢失与回填记录 |
 | [`docs/缺陷修复报告.md`](docs/缺陷修复报告.md) | 31 条缺陷的定位、修法与验证证据（433 项断言） |
-| [**loomgrid-tariffs**](https://github.com/172629438/loomgrid-tariffs) | 32 个省级行政区分时电价、需量电费、分季节时段表，带政策文号出处（独立仓库，可单独引用） |
+| [**loomgrid-tariffs**](https://github.com/172629438/loomgrid-tariffs) | 33 个电网价区分时电价、需量电费、分季节时段表，带政策文号出处（独立仓库，可单独引用） |
 
 ---
 
@@ -823,7 +823,7 @@ python tests/verify_algorithms_math.py
 
 ### 已经在做
 
-- **电价政策库持续校准** —— 32 个省级行政区、共 172 套分季节时段策略是从公开政策整理的，政策一调就得跟。这块永远需要人
+- **电价政策库持续校准** —— 33 个电网价区、共 172 套分季节时段策略是从公开政策整理的，政策一调就得跟。这块永远需要人
 - **算法交叉验证** —— 用独立工具跑同一组数据，比对结果差异
 - **边界场景覆盖** —— 脏数据、乱列名、跨年、多资产、光伏倒送
 
@@ -894,7 +894,7 @@ Python 运行时 + numpy + pandas + scipy + matplotlib + Qt 五件套，压成 z
 
 我最想要的三类帮助：
 
-1. **电价政策的准确性** —— 32 个省级行政区、共 172 套分季节时段策略是从公开政策整理的，但政策会调整。发现某省时段过时了，告诉我。
+1. **电价政策的准确性** —— 33 个电网价区、共 172 套分季节时段策略是从公开政策整理的，但政策会调整。发现某省时段过时了，告诉我。
 2. **算法的交叉验证** —— 如果你有独立的测算工具，跑同一组数据对一下结果，差异就是线索。
 3. **真实场景的边界情况** —— 数据脏、列名乱、跨年、多资产、光伏倒送，这些真实世界的坑比算法本身更需要覆盖。
 

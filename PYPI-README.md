@@ -84,7 +84,7 @@ result = dispatch.optimal_dispatch_lp(
 
 ## 配套数据
 
-32 个省级行政区的分时电价、需量电费、分季节时段表（带政策文号出处）：
+33 个电网价区的分时电价、需量电费、分季节时段表（带政策文号出处）：
 **[loomgrid-tariffs](https://github.com/172629438/loomgrid-tariffs)**
 
 ---
