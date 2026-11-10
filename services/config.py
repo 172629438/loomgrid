@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import sys
 import copy
 import json
 import logging
@@ -70,9 +71,28 @@ def _validate_config_schema(cfg):
     return True
 
 
+def _config_home():
+    """配置与备份的存放目录——与 cwd 无关。
+
+    v2.3.19：原来是裸文件名，全靠 os.getcwd()。以管理员身份启动时
+    Windows 把 cwd 设成 C:\\Windows\\System32，配置就被写进系统目录，
+    普通权限下次启动读不到（用户看到「配置全丢」）。
+    这里按程序位置算，即使主程序那边 chdir 失败也能落在正确地方。
+    """
+    if getattr(sys, "frozen", False):
+        base = os.path.dirname(os.path.abspath(sys.executable))
+    else:
+        # services/config.py → 上两层 = 仓库根
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return base
+
+
+_CONFIG_HOME = _config_home()
+
+
 class Config:
-    FILE = "column_mapping_config.json"
-    BACKUP_DIR = "config_backups"
+    FILE = os.path.join(_CONFIG_HOME, "column_mapping_config.json")
+    BACKUP_DIR = os.path.join(_CONFIG_HOME, "config_backups")
     MAX_BACKUPS = 5
     MAX_WEEKLY_BACKUPS = 3
     CONFIG_VERSION = 14

@@ -42,20 +42,34 @@ def check(name, cond, detail=""):
 
 
 class _InTmp:
+    """把 Config 的文件路径重定向到临时目录。
+
+    v2.3.19：Config.FILE / BACKUP_DIR 从裸文件名改成了绝对路径
+    （管理员启动时 cwd 会变成 System32，相对路径会把配置写进系统目录）。
+    所以隔离环境不能再靠 os.chdir——那样改不到类属性。
+    这里改成真改类属性，退出时还原。
+    """
+
     def __enter__(self):
-        self.old = os.getcwd()
+        self.old_cwd = os.getcwd()
+        self.old_file = Config.FILE
+        self.old_backup = Config.BACKUP_DIR
         self.path = tempfile.mkdtemp(prefix="loomgrid_cfg_")
+        Config.FILE = os.path.join(self.path, "column_mapping_config.json")
+        Config.BACKUP_DIR = os.path.join(self.path, "config_backups")
         os.chdir(self.path)
         return self.path
 
     def __exit__(self, *a):
-        os.chdir(self.old)
+        Config.FILE = self.old_file
+        Config.BACKUP_DIR = self.old_backup
+        os.chdir(self.old_cwd)
         shutil.rmtree(self.path, ignore_errors=True)
 
 
 # 1) 损坏配置 + 无备份目录：不抛，回落默认
 with _InTmp() as tmp:
-    with open("column_mapping_config.json", "w", encoding="utf-8") as f:
+    with open(Config.FILE, "w", encoding="utf-8") as f:
         f.write("{bad json")
     try:
         cfg = Config()

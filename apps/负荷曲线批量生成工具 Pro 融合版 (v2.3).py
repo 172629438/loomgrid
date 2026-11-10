@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.18（2026-11-04 无障碍与主题修复）
+发布版本：LoomGrid Fusion v2.3.19（2026-11-04 管理员路径 + 示例文件）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -62,6 +62,30 @@ if not os.path.isdir(os.path.join(_PKG_ROOT, 'core')):
         _PKG_ROOT = _up
 if _PKG_ROOT not in sys.path:
     sys.path.insert(0, _PKG_ROOT)
+
+
+def _app_dir():
+    """程序所在目录——与当前工作目录无关。
+
+    v2.3.19：以管理员身份启动时，Windows 会把 cwd 设成 C:\\Windows\\System32。
+    程序里 logs / config_backups / column_mapping_config.json 都是相对路径，
+    于是全被写到系统目录里。管理员能写，但下次普通权限启动读不到——
+    用户看到的是「配置全丢了、映射全没了、日志找不到」。
+
+    这不是权限不够，是路径飘了。钉死 cwd 比逐个改相对路径可靠：
+    任何未来新增的相对路径也自动跟着正。
+    """
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return _PKG_ROOT
+
+
+_APP_DIR = _app_dir()
+try:
+    if os.path.isdir(_APP_DIR) and os.path.abspath(os.getcwd()) != os.path.abspath(_APP_DIR):
+        os.chdir(_APP_DIR)
+except OSError:
+    pass   # chdir 失败不阻止启动，后面 Config 还有绝对路径兜底
 
 
 def _asset_path(*parts):
@@ -259,7 +283,7 @@ def _check_and_install_dependencies():
 # v2.3.6fix(K5): 版本号只能有一个来源。
 # 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
 # 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
-FUSION_VERSION = "2.3.18"
+FUSION_VERSION = "2.3.19"
 FUSION_APP_NAME = "LoomGrid Fusion"
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
 _SUPPORTED_EXTS_SET = frozenset(SUPPORTED_EXTS)  # v2.3.4fix(J6): O(1) 成员查找
@@ -648,10 +672,10 @@ def make_help_icon(help_key, parent=None):
 
 MAX_PRELOAD_THREADS = min(4, max(1, mp.cpu_count()))
 
-os.makedirs("logs", exist_ok=True)
+os.makedirs(os.path.join(_APP_DIR, "logs"), exist_ok=True)
 log_formatter = logging.Formatter('%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
 log_handler = logging.handlers.RotatingFileHandler(
-    os.path.join("logs", "app.log"), maxBytes=5*1024*1024, backupCount=5, encoding='utf-8'
+    os.path.join(_APP_DIR, "logs", "app.log"), maxBytes=5*1024*1024, backupCount=5, encoding='utf-8'
 )
 log_handler.setFormatter(log_formatter)
 log = logging.getLogger(__name__)
@@ -1838,8 +1862,8 @@ class MappingDialog(QDialog):
         fmt_group = QGroupBox("数据格式")
         fmt_layout = QVBoxLayout(fmt_group)
         self.fmt_long = QRadioButton("长表（单列负荷）")
-        self.fmt_accumulated = QRadioButton("正向有功示数表（多列累积电度，自动差分计算功率）")
         self.fmt_wide = QRadioButton("宽表（多列时间点负荷）")
+        self.fmt_accumulated = QRadioButton("正向有功示数表（多列累积电度，自动差分计算功率）")
         if self._initial_format_type in ('wide', 'wide_transposed'):
             self.fmt_wide.setChecked(True)
         elif self._initial_format_type == 'accumulated':
@@ -1852,27 +1876,57 @@ class MappingDialog(QDialog):
             _fmt_warn = QLabel("自动检测失败，请手动确认数据格式")
             _fmt_warn.setStyleSheet("color: #c62828;")
             fmt_layout.addWidget(_fmt_warn)
-        fmt_layout.addWidget(self.fmt_long)
+
+        # v2.3.19: 三个单选项各自配一个「示例」按钮——比一段文字说明直观得多。
+        # 顺序按用户要求：长表 → 宽表 → 正向有功示数表。
+        # 原来两个按钮的顺序是反的（示数表在宽表前面）。
+        def _fmt_row(radio, sample_kind, sample_tip):
+            row = QHBoxLayout()
+            row.addWidget(radio)
+            btn = QPushButton("查看示例")
+            btn.setFixedHeight(22)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setToolTip(sample_tip)
+            btn.clicked.connect(lambda _=False, k=sample_kind: self._open_sample_file(k))
+            row.addWidget(btn)
+            row.addStretch()
+            return row
+
+        fmt_layout.addLayout(_fmt_row(
+            self.fmt_long, "long",
+            "生成并打开一份「长表」示例：一行一个时刻，\n"
+            "两列分别是「采集时间」（日期+时间合在一列）与负荷列"))
+
         # v2.3.13fix: 长表也可以是指数表（采集日期 + 采集时间 + 累计电度，一行一个时刻）。
         # 原来「指数表」只是宽表模式下的选项，选长表时 convert_accumulated 恒为 False，
         # 累计读数会被当成功率直接画（曲线单调上升、无任何提示）。
         # 后端 _scan_long_chunk 一直支持，只是 UI 没入口。
         self.long_acc_cb = QCheckBox("该负荷列是累计示数（自动差分为功率）")
-        self.long_acc_cb.setToolTip("长表形态：一行一个时刻，负荷列是累计电度（正向有功电度）。\n"
-                                    "日重置表会自动差分成功率；跳天不回落（月度累计）的会报错而不是静默出图。")
+        self.long_acc_cb.setToolTip(
+            "长表形态：一行一个时刻，负荷列是累计电度（正向有功电度）。\n"
+            "日重置表会自动差分成功率；跳天不回落（月度累计）的会报错而不是静默出图。")
         self.long_acc_cb.setVisible(False)  # 只在长表模式显示
-        # v2.3.18: 问号必须紧跟控件右侧（同一水平行），不能单独占一行
+        # v2.3.19: 去掉这里的问号（用户要求），说明改由「查看示例」按钮承担
         _long_acc_row = QHBoxLayout()
+        _long_acc_row.addSpacing(22)
         _long_acc_row.addWidget(self.long_acc_cb)
-        _long_acc_row.addWidget(make_help_icon("long_accumulated", self))
         _long_acc_row.addStretch()
         fmt_layout.addLayout(_long_acc_row)
-        fmt_layout.addWidget(self.fmt_accumulated)
-        fmt_layout.addWidget(self.fmt_wide)
+
+        fmt_layout.addLayout(_fmt_row(
+            self.fmt_wide, "wide",
+            "生成并打开一份「宽表」示例：一行一天，\n"
+            "列名是 00:00 / 00:15 … 23:45 这样的时刻"))
+
+        fmt_layout.addLayout(_fmt_row(
+            self.fmt_accumulated, "accumulated",
+            "生成并打开一份「正向有功示数表」示例：\n"
+            "日期与时间分两列，负荷列是累计电度而非功率"))
+
         self.fmt_group_btns = QButtonGroup()
         self.fmt_group_btns.addButton(self.fmt_long, 1)
-        self.fmt_group_btns.addButton(self.fmt_accumulated, 2)
-        self.fmt_group_btns.addButton(self.fmt_wide, 3)
+        self.fmt_group_btns.addButton(self.fmt_wide, 2)
+        self.fmt_group_btns.addButton(self.fmt_accumulated, 3)
         self.fmt_group_btns.buttonClicked.connect(self._fmt_chg)
         layout.addWidget(fmt_group)
 
@@ -2254,6 +2308,108 @@ class MappingDialog(QDialog):
                 self.confidence_label.setText("已应用上次配置")
             else:
                 QMessageBox.information(self, "上次配置", "没有找到上次使用的映射配置。")
+
+    # ---------- 示例格式文件 ----------
+    _SAMPLE_SPECS = {
+        "long": {
+            "name": "示例_长表.xlsx",
+            "desc": "一行一个时刻；日期与时间合并在「采集时间」一列；负荷列是功率（kW）",
+        },
+        "wide": {
+            "name": "示例_宽表.xlsx",
+            "desc": "一行一天；列名是 00:00 / 00:15 … 23:45；单元格是功率（kW）",
+        },
+        "accumulated": {
+            "name": "示例_正向有功示数表.xlsx",
+            "desc": "日期与时间分两列；负荷列是累计电度（kWh），程序自动差分为功率",
+        },
+    }
+
+    def _build_sample_frame(self, kind):
+        """造一份能直接喂给本程序的示例数据。
+
+        刻意用真实场景的形状：96 点（15 分钟）、两天数据、有峰谷起伏，
+        而不是一排常数——常数看不出差分、看不出峰谷高亮，等于没示范。
+        """
+        import numpy as np
+        import pandas as pd
+
+        # 一天 96 点，模拟典型工商业双峰负荷（kW）
+        base = np.array([
+            180 + 40 * np.exp(-((h - 3) ** 2) / 2)          # 凌晨低谷
+            + 320 * np.exp(-((h - 10) ** 2) / 6)            # 上午峰
+            + 300 * np.exp(-((h - 15) ** 2) / 6)            # 下午峰
+            + 60 * np.sin(h / 2.0)                          # 小波动
+            for h in np.arange(0, 24, 0.25)
+        ])
+        days = ["2026-07-01", "2026-07-02"]
+
+        if kind == "long":
+            rows = []
+            for d in days:
+                for i, v in enumerate(base):
+                    hh = i * 15
+                    rows.append({
+                        "采集时间": f"{d} {hh // 60:02d}:{hh % 60:02d}",
+                        "赵钢1#线十总降213#总有功": round(float(v), 2),
+                    })
+            return pd.DataFrame(rows)
+
+        if kind == "wide":
+            cols = {f"{(i * 15) // 60:02d}:{(i * 15) % 60:02d}": round(float(v), 2)
+                    for i, v in enumerate(base)}
+            df = pd.DataFrame([cols, cols])
+            df.insert(0, "日期", days)
+            return df
+
+        # accumulated：日重置的累计电度（kWh），最后一点回落 → 程序应能差分出功率
+        rows = []
+        for d in days:
+            acc = 0.0
+            for i, v in enumerate(base):
+                hh = i * 15
+                rows.append({
+                    "采集日期": d,
+                    "采集时间": f"{hh // 60:02d}:{hh % 60:02d}",
+                    "正向有功电度": round(acc, 3),
+                })
+                acc += float(v) * 0.25      # 功率 × 0.25h = 本段电量
+            # 跨天回到 0（日重置）
+        return pd.DataFrame(rows)
+
+    def _open_sample_file(self, kind):
+        """生成（或复用）示例文件并打开。
+
+        放在程序目录的 samples/ 下——不用临时目录，因为用户可能想
+        拖回去反复对照，临时目录会被系统清掉。
+        """
+        import subprocess
+        spec = self._SAMPLE_SPECS.get(kind)
+        if not spec:
+            return
+        try:
+            sample_dir = os.path.join(_APP_DIR, "samples")
+            os.makedirs(sample_dir, exist_ok=True)
+            path = os.path.join(sample_dir, spec["name"])
+
+            df = self._build_sample_frame(kind)
+            df.to_excel(path, index=False)
+
+            log.info(f"已生成示例文件: {path}（{len(df)} 行 × {len(df.columns)} 列）")
+
+            if sys.platform == "win32":
+                os.startfile(path)          # noqa: S606 —— 打开用户要看的文件
+            else:
+                subprocess.Popen(["xdg-open", path])
+
+            QMessageBox.information(
+                self, "示例文件已生成",
+                f"{spec['desc']}\n\n文件位置：\n{path}\n\n"
+                f"共 {len(df)} 行 × {len(df.columns)} 列。\n"
+                f"可以直接把它拖进主窗口，对照着配映射。")
+        except Exception as e:
+            log.warning(f"生成示例文件失败: {e}")
+            QMessageBox.warning(self, "生成失败", f"无法生成示例文件：\n{e}")
 
     def _fmt_chg(self):
         is_wide_or_accum = self.fmt_wide.isChecked() or self.fmt_accumulated.isChecked()
@@ -9062,7 +9218,7 @@ def main():
     _check_and_install_dependencies()
 
     try:
-        log_dir = "logs"
+        log_dir = os.path.join(_APP_DIR, "logs")
         if os.path.isdir(log_dir):
             log_files = [f for f in os.listdir(log_dir) if f.endswith(".txt") and f.startswith("log_")]
             log_files.sort()
@@ -9121,7 +9277,7 @@ def main():
     msg_box.exec()
 
     try:
-        log_dir = "logs"
+        log_dir = os.path.join(_APP_DIR, "logs")
         os.makedirs(log_dir, exist_ok=True)
         timestamp_log = os.path.join(log_dir, f"log_{datetime.now():%Y%m%d_%H%M%S}.txt")
         file_handler = logging.FileHandler(timestamp_log, encoding='utf-8')

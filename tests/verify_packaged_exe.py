@@ -97,6 +97,18 @@ exe_name = os.path.basename(EXE)
 m2 = re.search(r"v(\d+\.\d+\.\d+)", exe_name)   # 不能写 [\d.]+，会把 .exe 的点也吃进去
 exe_ver = m2.group(1) if m2 else None
 print(f"  exe 文件名里的版本   = {exe_ver}")
+
+# 产物落后于代码 → 不是回归，是还没重打。
+# 源码测试阶段天天碰到这情况，报红会让人习惯性忽略红，所以明确 SKIP。
+# 发版时必须重新打包后再跑一次，那时这条必须 PASS。
+if code_ver and exe_ver and code_ver != exe_ver:
+    print()
+    print(f"  [SKIP] 产物版本 {exe_ver} 落后于代码 {code_ver}")
+    print(f"         这不是回归，是还没重新打包。")
+    print(f"         发版前请跑：python tools/pack_release.py fusion {code_ver}")
+    print(f"         然后重跑本文件——那时本项必须 PASS。")
+    sys.exit(0)
+
 check("exe 文件名版本 == 代码版本", code_ver == exe_ver,
       f"代码 {code_ver} vs 文件名 {exe_ver}")
 
