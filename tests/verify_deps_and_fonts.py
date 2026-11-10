@@ -45,8 +45,11 @@ check("有 _pick_from_installed", hasattr(F, "_pick_from_installed"))
 check("有 CJK_FONT_MISSING 标记", hasattr(F, "CJK_FONT_MISSING"))
 
 dirs = F._font_dirs()
-check("_font_dirs 返回两处", len(dirs) == 2, str(dirs))
+check("_font_dirs 返回三处（程序根 / fonts / assets-fonts）",
+      len(dirs) == 3, str(dirs))
 check("第二处是 fonts 子目录", os.path.basename(dirs[1]) == "fonts", dirs[1])
+check("第三处是 assets/fonts（自带字体）",
+      "assets" in dirs[2] and "fonts" in dirs[2], dirs[2])
 
 # 真测：往 fonts/ 放一个字体，看能不能注册上
 test_dir = os.path.join(REPO, "fonts")

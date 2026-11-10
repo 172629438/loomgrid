@@ -148,11 +148,29 @@ def build(target: str, version: str) -> int:
     p.terminate()
     time.sleep(1)
 
+    # ── ③.5 复制自带字体（v2.3.22）──────────────────────────────
+    # 为什么不用 --add-data：本程序按「程序根/fonts/」找字体（见
+    # plotting.fonts._font_dirs），放 _internal 下反而找不到。
+    # 直接摆到 exe 同级，路径最直观，用户想换字体也方便。
+    _font_src = os.path.join(REPO, "assets", "fonts")
+    if os.path.isdir(_font_src):
+        _font_dst = os.path.join(out_dir, "fonts")
+        os.makedirs(_font_dst, exist_ok=True)
+        _n = 0
+        for _f in os.listdir(_font_src):
+            _sp = os.path.join(_font_src, _f)
+            if os.path.isfile(_sp):
+                shutil.copyfile(_sp, os.path.join(_font_dst, _f))
+                _n += 1
+        print(f"④ 自带字体 {_n} 个 → fonts/", flush=True)
+    else:
+        print("④ 无自带字体目录，跳过", flush=True)
+
     # ── ④ 代码签名（可选，有证书才签）───────────────────────────
     # 必须在压缩前签，否则 zip 里装的是未签名的 exe。
     # 自签名只能消除「无法验证发布者」，不解决 SmartScreen——
     # 那需要 OV/EV 证书，见 tools/sign_fusion.ps1 的说明。
-    print("④ 代码签名（可选）…", flush=True)
+    print("⑤ 代码签名（可选）…", flush=True)
     _sign_script = os.path.join(REPO, "tools", "sign_fusion.ps1")
     _signed = False
     if os.path.exists(_sign_script):
@@ -180,7 +198,7 @@ def build(target: str, version: str) -> int:
     zp = os.path.join(dist_root, f"{tag}-win64.zip")
     if os.path.exists(zp):
         os.remove(zp)
-    print(f"⑤ 压缩 …", flush=True)
+    print(f"⑥ 压缩 …", flush=True)
     with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
         for dp, _, fs in os.walk(out_dir):
             for f in fs:

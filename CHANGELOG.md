@@ -4,6 +4,86 @@
 
 ---
 
+## v2.3.22 — 2026-11-04（Fusion，内置开源字体）
+
+上一版把「要不要带开源字体进包」留给你定。这版直接做了——
+因为它是「发给客户开箱即用」与「靠提示引导」的差别，成本只有 7 MB。
+
+### 一、引入 Noto Sans SC（OFL 1.1）
+
+```
+assets/fonts/NotoSansSC-Regular.otf   7.95 MB
+assets/fonts/LICENSE-OFL.txt          4301 B  ← 分发合规必须带
+```
+
+选它的理由：OFL 1.1 允许随程序分发；Subset 版 7.95 MB，比完整 OTF 的
+15.7 MB 省一半；覆盖 GB2312 与常用汉字。
+
+### 二、三个真问题被挖出来
+
+**① 自带字体永远没机会被选中。**
+
+原来的顺序是「先查系统，找不到才注册本地」——系统里有 SimHei 就直接返回了，
+自带的 Noto Sans SC 白装了。改成**先注册自带再挑**。
+
+这不是小细节：各机器系统字体不同，同一份数据在不同人电脑上图里的字宽不一样，
+对照截图时会让人怀疑数据变了。自带字体保证跨机器一致。
+
+**② `fontManager.__init__()` 会把 `addfont` 的结果清掉。**
+
+实测：
+
+```
+初始           ttflist 380，有 Noto Sans SC: False
+addfont 后     ttflist 381，有 Noto Sans SC: True
+再跑 __init__  ttflist 386，有 Noto Sans SC: False   ← 没了
+```
+
+`__init__()` 是整表重建（扫缓存 + 系统目录），会把 `addfont` 加的丢掉。
+原来 `_register_local_fonts()` 里为了「刷新索引」调了它，等于刚注册完就清除。
+现在删掉那句，改用 `addfont` 本身。
+
+**③ 字体必须放在产物根，不能放 `_internal`。**
+
+`_font_dirs()` 找的是「程序根 / 程序根/fonts / 程序根/assets/fonts」。
+若用 PyInstaller 的 `--add-data` 塞进 `_internal`，反而找不到。
+所以 `pack_release.py` 里是用 `shutil.copyfile` 直接拷到 `out_dir/fonts/`。
+
+### 三、验证
+
+**字形覆盖**（不靠「图看着像不像」，用 fontTools 查 cmap）：
+
+```
+95 个业务用字（负荷曲线充电空间放电需求功率峰谷时刻资产月度
+容量满足天数保守宽松示数正向有功电度尖峰深谷平段额定效率配置
+预览导出扫描映射列名表头行倍率容量线异常值标注图例标题文件名
+省份策略组全选不选反选季度）→ 缺 0 个
+数字与符号（0123456789.-%()（）：kWkWh）→ 全有
+```
+
+**模拟「系统一个中文字体都没有」**（清空 `fontManager.ttflist`）：
+`_find_cjk_font()` 仍返回 `Noto Sans SC`。
+
+**产物验证**：
+
+```
+fonts/ 在产物根（不在 _internal）
+  LICENSE-OFL.txt
+  NotoSansSC-Regular.otf  7.95 MB
+zip 内 142.5 MB（上版 135.6，差 6.9 MB = 字体压缩后体积）
+窗口：欢迎 — LoomGrid Fusion v2.3.22
+```
+
+### 新增测试
+
+`tests/verify_builtin_font.py`（14 项）——字形覆盖、优先级、
+模拟无系统字体、真画中文图、打包流程带字体。
+
+`tests/verify_packaged_exe.py` 增加第⑦节（5 项）——产物的 `fonts/`
+位置、体积、OFL 许可证、不在 `_internal` 下。
+
+---
+
 ## v2.3.21 — 2026-11-04（Fusion，字体回退链 + 依赖核验）
 
 你问「确保打包了所有所需依赖」，我拿这个问题把产物拆开逐层验了一遍。

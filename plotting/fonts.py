@@ -33,6 +33,8 @@ __all__ = ["_find_cjk_font", "_get_cached_font", "_setup_font"],
 
 
 _CJK_FONT_CANDIDATES = [
+    # v2.3.22：自带的 OFL 开源字体，优先于系统商业字体
+    "Noto Sans SC", "Noto Sans CJK SC",
     'SimHei', 'Microsoft YaHei', 'STHeiti', 'STSong', 'SimSun',
     'FangSong', 'KaiTi', 'YouYuan', 'NSimSun',
     'Noto Sans CJK SC', 'Noto Sans CJK TC', 'WenQuanYi Micro Hei',
@@ -61,7 +63,11 @@ def _font_dirs():
         base = os.path.dirname(os.path.abspath(sys.executable))
     else:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return [base, os.path.join(base, "fonts")]
+    dirs = [base, os.path.join(base, "fonts")]
+    # v2.3.22：仓库自带的开源字体在 assets/fonts/（源码运行时用）。
+    # 打包时 pack_release 会把它复制到产物根的 fonts/，那一处已在上面覆盖。
+    dirs.append(os.path.join(base, "assets", "fonts"))
+    return dirs
 
 
 def _register_local_fonts():
@@ -87,10 +93,12 @@ def _register_local_fonts():
         except OSError:
             continue
     if added:
-        try:
-            fontManager.__init__()      # 重建索引
-        except Exception:
-            pass
+        # v2.3.22：**千万不要在这里调 fontManager.__init__()**。
+        # 实测：addfont 把 ttflist 从 380 推到 381、Noto Sans SC 可查；
+        # 再跑一行 __init__()，ttflist 变 386 但 Noto 没了——
+        # __init__ 是整表重建（扫缓存+系统目录），会把 addfont 的丢掉。
+        # 需要刷新时用 addfont，不要用 __init__。
+        log.debug(f"已注册 {len(added)} 个本地字体，不重建索引")
     return added
 
 
@@ -106,23 +114,20 @@ def _find_cjk_font():
     except Exception:
         log.debug("fontManager 初始化异常，继续尝试查找字体。", exc_info=True)
 
+    # v2.3.22：**先注册自带字体再用**。
+    # 原来顺序反过来——系统里只要有中文字体就直接返回，自带的 Noto Sans SC
+    # 永远没机会。后果是同一份数据在不同人电脑上图里的字宽不一样（各系统
+    # 字体不同），对照截图时会让人怀疑数据变了。
+    # 自带字体保证存在、跨机器一致，所以优先。
+    local = _register_local_fonts()
+
     name = _pick_from_installed()
     if name:
+        if local:
+            log.info(f"使用中文字体: {name}（本次已额外加载 {len(local)} 个自带字体）")
+        else:
+            log.info(f"使用系统中文字体: {name}")
         return name
-
-    # 系统里没有 → 看看程序目录里有没有自带
-    local = _register_local_fonts()
-    if local:
-        name = _pick_from_installed()
-        if name:
-            log.info(f"使用程序目录自带字体: {name}")
-            return name
-        # 注册了但名字不在候选表里，也接受（至少有个 CJK 字体）
-        for f in fontManager.ttflist:
-            if any(k in f.name.lower() for k in
-                   ('cjk', 'chinese', 'hei', 'song', 'yahei', 'yuan', 'kai')):
-                log.info(f"使用程序目录自带字体（非候选表）: {f.name}")
-                return f.name
 
     global CJK_FONT_MISSING
     CJK_FONT_MISSING = True

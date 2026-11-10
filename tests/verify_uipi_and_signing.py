@@ -85,8 +85,9 @@ if os.path.exists(sign_ps1):
 pack = os.path.join(REPO, "tools", "pack_release.py")
 psrc = io.open(pack, encoding="utf-8").read()
 check("打包脚本集成了签名步骤", "sign_fusion.ps1" in psrc)
+# v2.3.22：插入字体复制后步骤编号变成：④字体 / ⑤签名 / ⑥压缩
 check("签名在压缩之前（否则 zip 里是未签名 exe）",
-      psrc.find("sign_fusion.ps1") < psrc.find("⑤ 压缩"),
+      psrc.find("sign_fusion.ps1") < psrc.find("⑥ 压缩"),
       "顺序错了")
 
 # 真查现有 exe 的签名状态

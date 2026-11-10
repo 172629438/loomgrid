@@ -348,6 +348,32 @@ except Exception as _e:
 
 print()
 print("=" * 76)
+print("⑦ 自带字体（v2.3.22）")
+print("=" * 76)
+font_dir = os.path.join(EXE_DIR, "fonts")
+check("产物根有 fonts/ 目录", os.path.isdir(font_dir), font_dir)
+if os.path.isdir(font_dir):
+    fnames = sorted(os.listdir(font_dir))
+    print(f"  内容: {fnames}")
+    check("字体文件在",
+          any(f.endswith((".otf", ".ttf", ".ttc")) for f in fnames), str(fnames))
+    check("OFL 许可证在（分发合规）",
+          any("LICENSE" in f.upper() or "OFL" in f.upper() for f in fnames),
+          str(fnames))
+    _otf = [f for f in fnames if f.endswith((".otf", ".ttf"))]
+    if _otf:
+        _p = os.path.join(font_dir, _otf[0])
+        _sz = os.path.getsize(_p)
+        print(f"  {_otf[0]}  {_sz/1024/1024:.2f} MB")
+        check("字体体积合理（>5MB，字形完整）", _sz > 5_000_000,
+              f"{_sz/1024/1024:.1f} MB")
+
+check("fonts/ 不在 _internal 下（放那儿 _font_dirs 找不到）",
+      not os.path.isdir(os.path.join(internal, "fonts")),
+      os.path.join(internal, "fonts"))
+
+print()
+print("=" * 76)
 print(f"结果：PASS {len(passed)}   FAIL {len(failed)}")
 for f in failed:
     print("  -", f)
