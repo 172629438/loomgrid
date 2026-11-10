@@ -372,6 +372,120 @@ check("fonts/ 不在 _internal 下（放那儿 _font_dirs 找不到）",
       not os.path.isdir(os.path.join(internal, "fonts")),
       os.path.join(internal, "fonts"))
 
+
+print()
+print("=" * 76)
+print("⑧ 干净环境启动（最接近客户的机器）")
+print("=" * 76)
+# 前面所有测试都在有 Python 的机器上跑。这一条把 PATH 里的 Python
+# 全剔掉再启动，证明产物真的不依赖系统解释器。
+try:
+    import time as _t
+
+    _env = os.environ.copy()
+    _parts = _env.get("PATH", "").split(os.pathsep)
+    _kept = [p for p in _parts
+             if not any(k in p.lower() for k in
+                        ("python", "conda", "venv", "site-packages", "pyside"))]
+    _env["PATH"] = os.pathsep.join(_kept)
+    for _k in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV", "CONDA_PREFIX"):
+        _env.pop(_k, None)
+
+    _real_py = None
+    for _d in _kept:
+        _c = os.path.join(_d, "python.exe")
+        if os.path.exists(_c) and "windowsapps" not in _c.lower():
+            _real_py = _c
+            break
+    check("干净环境里没有真 python.exe（Store 别名不算）", _real_py is None,
+          str(_real_py))
+
+    _p2 = subprocess.Popen([EXE], cwd=EXE_DIR, env=_env,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    _t.sleep(4)
+    check("干净环境下 4 秒仍在", _p2.poll() is None, f"exit={_p2.returncode}")
+
+    if _p2.poll() is None:
+        _titles2 = []
+        try:
+            import ctypes as _ct
+            from ctypes import wintypes as _wt
+            _u = _ct.windll.user32
+            _CB = _ct.WINFUNCTYPE(_wt.BOOL, _wt.HWND, _wt.LPARAM)
+            _pid = _p2.pid
+
+            def _cb(h, l):
+                if not _u.IsWindowVisible(h):
+                    return True
+                _pp = _wt.DWORD()
+                _u.GetWindowThreadProcessId(h, _ct.byref(_pp))
+                if _pp.value != _pid:
+                    return True
+                _n = _u.GetWindowTextLengthW(h)
+                if _n:
+                    _b = _ct.create_unicode_buffer(_n + 1)
+                    _u.GetWindowTextW(h, _b, _n + 1)
+                    if _b.value:
+                        _titles2.append(_b.value)
+                return True
+
+            _u.EnumWindows(_CB(_cb), 0)
+        except Exception:
+            pass
+        print(f"  窗口: {_titles2}")
+        check("干净环境下有主窗口", any("LoomGrid" in x for x in _titles2),
+              str(_titles2))
+        check("干净环境下无 DLL/Python 错误框",
+              not any(k in x for k in ("Error", "error", "错误")
+                      for x in _titles2), str(_titles2))
+
+        _t.sleep(6)
+        check("干净环境下 10 秒仍在（delayed import 未崩）",
+              _p2.poll() is None, f"exit={_p2.returncode}")
+
+    try:
+        _p2.terminate()
+        _p2.wait(timeout=8)
+    except Exception:
+        try:
+            _p2.kill()
+        except Exception:
+            pass
+except Exception as _e:
+    check("干净环境启动未抛异常", False, f"{type(_e).__name__}: {_e}")
+
+print()
+print("=" * 76)
+print("⑨ 产物自包含（关键 DLL 齐不齐）")
+print("=" * 76)
+_dlls = {}
+for _dp, _dns, _fns in os.walk(EXE_DIR):
+    for _f in _fns:
+        if _f.lower().endswith(".dll"):
+            _dlls[_f.lower()] = _dp
+print(f"  DLL 总数: {len(_dlls)}")
+for _dll, _why in (
+        ("vcruntime140.dll", "VC++ 运行库，缺了 exe 起不来"),
+        ("vcruntime140_1.dll", "VC++ 运行库扩展"),
+        ("msvcp140.dll", "C++ 标准库"),
+        ("python312.dll", "Python 解释器本体"),
+):
+    check(f"{_dll} 在产物里", _dll in _dlls, _why)
+
+_plat = os.path.join(internal, "PySide6", "plugins", "platforms")
+if os.path.isdir(_plat):
+    _pf = os.listdir(_plat)
+    check("qwindows.dll 在（Qt Windows 平台插件）",
+          any("qwindows" in f.lower() for f in _pf), str(_pf))
+else:
+    _qw = []
+    for _dp, _dns, _fns in os.walk(internal):
+        for _f in _fns:
+            if _f.lower() == "qwindows.dll":
+                _qw.append(os.path.join(_dp, _f))
+    check("qwindows.dll 在（换个位置找）", bool(_qw),
+          "缺了会报 no Qt platform plugin")
+
 print()
 print("=" * 76)
 print(f"结果：PASS {len(passed)}   FAIL {len(failed)}")
