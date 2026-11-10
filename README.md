@@ -219,8 +219,8 @@ pip install git+https://github.com/172629438/loomgrid.git   # the seven algorith
 **② 从源码跑**
 
 ```bash
-pip install PySide6 numpy pandas scipy \
-            matplotlib openpyxl ortools
+pip install PySide6 numpy pandas scipy matplotlib \
+            plotly seaborn openpyxl ortools
 python "apps/负荷曲线批量生成Ultra.py"
 ```
 
@@ -277,7 +277,7 @@ result = dispatch.optimal_dispatch_lp(
 | [`finance.py`](algorithms/finance.py) | NPV / IRR / 回收期 / LCOE | 212 |
 | [`loadgen.py`](algorithms/loadgen.py) | 三层叠加负荷生成引擎 | 262 |
 | [`diagnostics.py`](algorithms/diagnostics.py) | 负荷指纹分析与行业匹配 | 569 |
-| [`demo.py`](examples/algorithms_demo.py) | 不看源码先看效果：七个模块各调用一遍 | 285 |
+| [`algorithms_demo.py`](examples/algorithms_demo.py) | 不看源码先看效果：七个模块各调用一遍 | 285 |
 
 想直接看效果：`python examples/algorithms_demo.py`。用现场构造的数据把七个模块跑一遍，不需要准备任何外部文件，也不用先安装。
 
@@ -723,7 +723,7 @@ Fusion 是另写一遍的轻量路线，一开始就为了「读得动、改得�
 
 **不装 Python 也能用**：Releases 里的包自带完整运行时（Python + 全部依赖），解压即用——Fusion 压缩包 135 MB，Ultra 273 MB。
 
-**只想跑算法部分**：`pip install loomgrid-algos`，或用源码：numpy / pandas / scipy 三个就够，不用装 Qt。`examples/quickstart.py` 和 `examples/algorithms_demo.py` 都只需要这三个。
+**只想跑算法部分**：算法层没上 PyPI，用源码装：`pip install git+https://github.com/172629438/loomgrid.git`；或者直接跑源码，numpy / pandas / scipy 三个就够，不用装 Qt。`examples/quickstart.py` 和 `examples/algorithms_demo.py` 都只需要这三个。
 
 ### 项目规模
 
