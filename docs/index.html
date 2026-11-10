@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LoomGrid · 工商业储能测算工作台</title>
-<meta name="description" content="读进客户的电表数据和当地分时电价，算清楚装多大、怎么充放、几年回本。算法可单独运行，116 个验证脚本守着每一个数字。">
+<meta name="description" content="读进客户的电表数据和当地分时电价，算清楚装多大、怎么充放、几年回本。算法可单独运行，117 个验证脚本守着每一个数字。">
 <link rel="icon" href="assets/app.png" sizes="256x256">
 <link rel="apple-touch-icon" href="assets/app.png">
 <meta name="theme-color" content="#08090B">
@@ -23,7 +23,7 @@
 <meta property="og:locale" content="zh_CN">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="LoomGrid · 把一条负荷曲线，织成一份能签的方案">
-<meta name="twitter:description" content="工商业储能测算工作台。线性规划求解，116 个验证脚本守着每一个数字。">
+<meta name="twitter:description" content="工商业储能测算工作台。线性规划求解，117 个验证脚本守着每一个数字。">
 <meta name="twitter:image" content="https://172629438.github.io/loomgrid/assets/og.png">
 <script>
 /* 渐进增强：脚本可用才启用入场编排；否则整页静态完整可读 */
@@ -2122,7 +2122,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
       </div>
 
       <div class="metrics">
-        <div class="metric"><div class="n">116</div><div class="l">个验证脚本</div></div>
+        <div class="metric"><div class="n">117</div><div class="l">个验证脚本</div></div>
         <div class="metric"><div class="n">40</div><div class="l">项 CI 断言</div></div>
         <div class="metric"><div class="n">12</div><div class="l">项手算对拍</div></div>
         <div class="metric"><div class="n">109.8k</div><div class="l">行源码</div></div>
@@ -2130,10 +2130,7 @@ td,th,dd,.n,.cv,.num{ font-variant-numeric:tabular-nums }
     </div>
 
     <figure class="arch-fig fig reveal">
-      <picture>
-         <source srcset="assets/architecture.webp" type="image/webp">
-         <img src="assets/architecture.png" alt="四层架构：表现层、编排层、领域层、底座层，依赖只向下">
-       </picture>
+      <img src="assets/architecture.svg" alt="四层架构：表现层、编排层、领域层、底座层，依赖只向下；36,245 行 · 99 个类 · Ultra v3.2.9 · Fusion v2.3.8">
     </figure>
     <p class="sub" style="margin-top:14px">
       依赖只向下，领域层不 import 任何 Qt 组件。

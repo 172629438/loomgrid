@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1220" viewBox="0 0 2400 1220" role="img" aria-label="LoomGrid 四层架构：表现层、编排层、领域层、底座层，依赖只向下">
+  <defs>
+    <style>
+      .bg{fill:#08090B}
+      .ttl{font-family:"PingFang SC","Microsoft YaHei",sans-serif;font-size:40px;font-weight:700;fill:#EDECE8}
+      .sub{font-family:"PingFang SC","Microsoft YaHei",sans-serif;font-size:34px;font-weight:400;fill:rgba(237,236,232,.52)}
+      .num{font-family:ui-monospace,"JetBrains Mono",Consolas,monospace;font-size:20px;fill:rgba(237,236,232,.58)}
+      .num2{font-family:ui-monospace,"JetBrains Mono",Consolas,monospace;font-size:17px;fill:rgba(237,236,232,.34)}
+      .lt{font-family:"PingFang SC","Microsoft YaHei",sans-serif;font-size:30px;font-weight:600}
+      .le{font-family:ui-monospace,Consolas,monospace;font-size:14px;letter-spacing:2.6px;fill:rgba(237,236,232,.30)}
+      .card{fill:#101215;stroke:rgba(237,236,232,.10);stroke-width:1}
+      .ct{font-family:"PingFang SC","Microsoft YaHei",sans-serif;font-size:25px;font-weight:600;fill:#EDECE8}
+      .cs{font-family:"PingFang SC","Microsoft YaHei",sans-serif;font-size:17px;fill:rgba(237,236,232,.50)}
+      .cc{font-family:ui-monospace,"JetBrains Mono",Consolas,monospace;font-size:15px;fill:rgba(237,236,232,.28)}
+      .note{font-family:"PingFang SC","Microsoft YaHei",sans-serif;font-size:19px;fill:rgba(237,236,232,.52)}
+      .note b{font-weight:600;fill:#EDECE8}
+      .bar{stroke-width:3;stroke-linecap:butt}
+    </style>
+  </defs>
+
+  <rect class="bg" width="2400" height="1220"/>
+
+  <text class="ttl" x="64" y="92">LoomGrid</text>
+  <text class="sub" x="286" y="92">四层架构</text>
+
+  <text class="num" x="2336" y="72" text-anchor="end">36,245 行 · 99 个类 · 269 个顶层函数</text>
+  <text class="num2" x="2336" y="106" text-anchor="end">依赖只向下，领域层不认 GUI</text>
+
+  <!-- 表现层 -->
+  <line class="bar" x1="40" y1="160" x2="40" y2="340" stroke="#8FDDFF"/>
+  <text class="lt" x="64" y="252" fill="#8FDDFF">表现层</text>
+  <text class="le" x="64" y="284">PRESENTATION</text>
+
+  <rect class="card" x="320" y="160" width="474" height="180"/>
+  <text class="ct" x="348" y="216">主工作台</text>
+  <text class="cs" x="348" y="256">拖入 · 映射 · 批量</text>
+  <text class="cc" x="348" y="300">MainWindow</text>
+
+  <rect class="card" x="834" y="160" width="474" height="180"/>
+  <text class="ct" x="862" y="216">专业分析</text>
+  <text class="cs" x="862" y="256">112 方法 · 11 页签</text>
+  <text class="cc" x="862" y="300">ProfessionalWindow</text>
+
+  <rect class="card" x="1348" y="160" width="474" height="180"/>
+  <text class="ct" x="1376" y="216">对话框族</text>
+  <text class="cs" x="1376" y="256">模拟 / 预览 / 结算</text>
+  <text class="cc" x="1376" y="300">23 个 Dialog</text>
+
+  <rect class="card" x="1862" y="160" width="474" height="180"/>
+  <text class="ct" x="1890" y="216">图表渲染</text>
+  <text class="cs" x="1890" y="256">深浅双主题 · 96 点</text>
+  <text class="cc" x="1890" y="300">RenderScheduler</text>
+
+  <!-- 编排层 -->
+  <line class="bar" x1="40" y1="400" x2="40" y2="580" stroke="#7FC8E8"/>
+  <text class="lt" x="64" y="492" fill="#7FC8E8">编排层</text>
+  <text class="le" x="64" y="524">ORCHESTRATION</text>
+
+  <rect class="card" x="320" y="400" width="474" height="180"/>
+  <text class="ct" x="348" y="456">数据加载</text>
+  <text class="cs" x="348" y="496">Excel / CSV 宽表</text>
+  <text class="cc" x="348" y="540">DataProvider</text>
+
+  <rect class="card" x="834" y="400" width="474" height="180"/>
+  <text class="ct" x="862" y="456">列类型识别</text>
+  <text class="cs" x="862" y="496">日期 · 时间 · 负荷</text>
+  <text class="cc" x="862" y="540">classify_column</text>
+
+  <rect class="card" x="1348" y="400" width="474" height="180"/>
+  <text class="ct" x="1376" y="456">分组与映射</text>
+  <text class="cs" x="1376" y="496">跨文件规则复用</text>
+  <text class="cc" x="1376" y="540">GroupSummary</text>
+
+  <rect class="card" x="1862" y="400" width="474" height="180"/>
+  <text class="ct" x="1890" y="456">计算调度</text>
+  <text class="cs" x="1890" y="496">多线程 · 进度回传</text>
+  <text class="cc" x="1890" y="540">QThread + Signal</text>
+
+  <!-- 领域层 -->
+  <line class="bar" x1="40" y1="640" x2="40" y2="820" stroke="#C9A227"/>
+  <text class="lt" x="64" y="732" fill="#C9A227">领域层</text>
+  <text class="le" x="64" y="764">DOMAIN</text>
+
+  <rect class="card" x="320" y="640" width="474" height="180"/>
+  <text class="ct" x="348" y="696">Load</text>
+  <text class="cs" x="348" y="736">负荷清洗 · 指纹</text>
+  <text class="cc" x="348" y="780">load.py · loadgen.py</text>
+
+  <rect class="card" x="834" y="640" width="474" height="180"/>
+  <text class="ct" x="862" y="696">Tariff</text>
+  <text class="cs" x="862" y="736">33 个价区分时时段</text>
+  <text class="cc" x="862" y="780">periods.py</text>
+
+  <rect class="card" x="1348" y="640" width="474" height="180"/>
+  <text class="ct" x="1376" y="696">Space</text>
+  <text class="cs" x="1376" y="736">充放电空间</text>
+  <text class="cc" x="1376" y="780">spaces.py</text>
+
+  <rect class="card" x="1862" y="640" width="474" height="180"/>
+  <text class="ct" x="1890" y="696">Dispatch</text>
+  <text class="cs" x="1890" y="736">贪心 / 仿真 / LP</text>
+  <text class="cc" x="1890" y="780">dispatch.py · milp.py</text>
+
+  <!-- 底座层 -->
+  <line class="bar" x1="40" y1="880" x2="40" y2="1060" stroke="#8A8F96"/>
+  <text class="lt" x="64" y="972" fill="#8A8F96">底座层</text>
+  <text class="le" x="64" y="1004">FOUNDATION</text>
+
+  <rect class="card" x="320" y="880" width="474" height="180"/>
+  <text class="ct" x="348" y="936">Config</text>
+  <text class="cs" x="348" y="976">配置迁移</text>
+  <text class="cc" x="348" y="1020">column_mapping_config</text>
+
+  <rect class="card" x="834" y="880" width="474" height="180"/>
+  <text class="ct" x="862" y="936">Cache</text>
+  <text class="cs" x="862" y="976">结果缓存</text>
+  <text class="cc" x="862" y="1020">MemoryLimitedCache</text>
+
+  <rect class="card" x="1348" y="880" width="474" height="180"/>
+  <text class="ct" x="1376" y="936">Threading</text>
+  <text class="cs" x="1376" y="976">任务隔离</text>
+  <text class="cc" x="1376" y="1020">QThread · Lock</text>
+
+  <rect class="card" x="1862" y="880" width="474" height="180"/>
+  <text class="ct" x="1890" y="936">Logging</text>
+  <text class="cs" x="1890" y="976">运行留痕</text>
+  <text class="cc" x="1890" y="1020">loguru · logs/</text>
+
+  <line x1="40" y1="1110" x2="2336" y2="1110" stroke="rgba(237,236,232,.10)" stroke-width="1"/>
+
+  <text class="note" x="40" y="1156"><tspan font-weight="600" fill="#EDECE8">领域层不 import 任何 Qt 组件</tspan>　——　algorithms/ 里那 7 个模块可以脱离界面单独跑，这是它敢把 MILP 和 LP 放在一起对拍的前提。</text>
+
+  <text class="num2" x="2336" y="1156" text-anchor="end">github.com/172629438/loomgrid</text>
+  <text class="num" x="2336" y="1190" text-anchor="end">Ultra v3.2.9 · Fusion v2.3.8</text>
+</svg>

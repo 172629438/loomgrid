@@ -53,6 +53,10 @@ tmp/
 !assets/*.png
 !assets/*.ico
 !assets/*.webp
+!assets/*.svg
+!docs/assets/*.png
+!docs/assets/*.webp
+!docs/assets/*.svg
 
 # 编辑器 / 系统
 .vscode/
