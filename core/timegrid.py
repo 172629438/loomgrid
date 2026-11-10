@@ -343,12 +343,29 @@ def _expand_overnight(periods):
 
 
 def _valid_periods(periods):
+    """校验时段列表。返回 (ok, msg, warnings)。
+
+    v2.3.25：原来直接做 `0 <= p["start"] <= 24`，遇到字符串或 None
+    就抛 TypeError / KeyError，调用方（界面的 _check_conflicts / _save）
+    没有 try，于是打开策略编辑窗口就崩。
+    现在先做类型体检，不合法就当成校验失败返回，而不是抛异常。
+    """
     if not periods:
         return True, "", []
+    # 先验结构：缺键、非 dict、非数值都在这里拦
+    for i, p in enumerate(periods):
+        if not isinstance(p, dict):
+            return False, f"第 {i + 1} 个时段不是有效对象: {p!r}", []
+        if not {"start", "end", "type"} <= set(p):
+            return False, f"第 {i + 1} 个时段缺字段（需 start/end/type）: {p!r}", []
+        for k in ("start", "end"):
+            v = p[k]
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                return False, f"第 {i + 1} 个时段的 {k} 不是数字: {v!r}", []
+            if not (0 <= v <= 24):
+                return False, f"时段越界: {p}", []
     errors = []
     for p in periods:
-        if not (0 <= p["start"] <= 24 and 0 <= p["end"] <= 24):
-            errors.append(f"时段越界: {p}")
         if p["start"] == p["end"]:
             errors.append(f"时段开始与结束相同: {p}")
     expanded = _expand_overnight(periods)

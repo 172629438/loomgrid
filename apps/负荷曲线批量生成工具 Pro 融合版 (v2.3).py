@@ -285,7 +285,7 @@ def _check_and_install_dependencies():
 # v2.3.6fix(K5): 版本号只能有一个来源。
 # 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
 # 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
-FUSION_VERSION = "2.3.24"
+FUSION_VERSION = "2.3.25"
 FUSION_APP_NAME = "LoomGrid Fusion"
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
 _SUPPORTED_EXTS_SET = frozenset(SUPPORTED_EXTS)  # v2.3.4fix(J6): O(1) 成员查找
@@ -443,21 +443,6 @@ HELP_TEXTS = {
             "「采集时间」「总有功」这类列，报「未找到所需列」。\n\n"
             "怎么找：打开 Excel 看列名实际在第几行，从 1 开始数。\n"
             "改完点「刷新」重新读取预览。"
-        ),
-    },
-    "long_accumulated": {
-        "title": "累计示数（自动差分为功率）",
-        "brief": "列里是电表累计读数而非瞬时功率时勾上",
-        "detail": (
-            "电表常导出累计电度（今天的 100，明天 200），\n"
-            "而负荷曲线需要的是瞬时功率（每 15 分钟用了多少 kW）。\n\n"
-            "【不勾】直接把数字当功率画\n"
-            "→ 累计读数是单调上升的，画出来是一条一路上涨的线，\n"
-            "  看着像「负荷一直在涨」，完全不是真实负荷。\n\n"
-            "【勾上】转差分：功率 = (本点 − 上一点) ÷ 时间间隔\n"
-            "→ 得到真实的功率曲线。\n\n"
-            "怎么判断：看数值是否只增不减。但注意换表或清零会让它回落，\n"
-            "程序会把回落点当异常处理，不会算出巨大负值。"
         ),
     },
     "highlight_mode": {
@@ -1161,7 +1146,12 @@ class GroupPeriodEditDialog(QDialog):
     def _push_history(self):
         if self._skip_history:
             return
-        self._undo_stack.append(self.current_periods[:])
+        # v2.3.25：原来用 self.current_periods[:]（浅拷贝）。
+        # 列表是新的，但里面的 dict 还是同一批对象。
+        # 而“修改类型”那一步是 `current_periods[idx]['type'] = new_type` 原地改，
+        # 于是历史栈里的那份也跟着变，Undo 改不回去。
+        # 改 dict 级复制（period 只有 start/end/type 三个标量字段，一层就够）。
+        self._undo_stack.append([dict(p) for p in self.current_periods])
         if len(self._undo_stack) > self._max_history:
             self._undo_stack.pop(0)
         self._redo_stack.clear()
@@ -1170,7 +1160,7 @@ class GroupPeriodEditDialog(QDialog):
     def _undo(self):
         if not self._undo_stack:
             return
-        self._redo_stack.append(self.current_periods[:])
+        self._redo_stack.append([dict(p) for p in self.current_periods])
         self.current_periods = self._undo_stack.pop()
         self._populate_list()
         self._update_undo_redo_buttons()
@@ -1179,7 +1169,7 @@ class GroupPeriodEditDialog(QDialog):
     def _redo(self):
         if not self._redo_stack:
             return
-        self._undo_stack.append(self.current_periods[:])
+        self._undo_stack.append([dict(p) for p in self.current_periods])
         self.current_periods = self._redo_stack.pop()
         self._populate_list()
         self._update_undo_redo_buttons()
@@ -3029,6 +3019,57 @@ class _PreviewRenderScheduler(QObject):
 
 # ===================== 预览对话框（策略联动改进 + 专业模式入口 + 暗色主题支持） =====================
 
+def _sanitize_template_settings(settings):
+    """把模板里的字段规范成界面控件能接的类型。
+
+    v2.3.25：_import_template 原来只检查 'show_daily' 在不在，
+    其余字段类型一概不管。导入一份 multiplier="abc" 的模板后，
+    _load_template 里 multiplier_spin.setValue("abc") 直接抛 TypeError
+    （实测 PySide6 只收 float），而 _load_template 没有 try。
+
+    这里在加载前做一次体检：类型不对就用默认值。
+    不报错、不拦截——模板是本机自己导出的，内容可信，只是可能来自老版本。
+    """
+    if not isinstance(settings, dict):
+        return {}
+    out = dict(settings)
+
+    def _num(key, default):
+        v = out.get(key, default)
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            out[key] = default
+
+    def _boolean(key, default):
+        v = out.get(key, default)
+        if not isinstance(v, bool):
+            out[key] = default
+
+    def _text(key, default):
+        v = out.get(key, default)
+        if not isinstance(v, str):
+            out[key] = default
+
+    _num('multiplier', 1.0)
+    _num('capacity_value', 0.0)
+    _num('weekend_line_width', 1)
+    _num('holiday_line_width', 1)
+    for k in ('show_daily', 'show_avg', 'show_max_demand', 'mark_anomalies',
+              'billing_enabled', 'show_weekend_bg', 'dark_theme'):
+        _boolean(k, False if k != 'show_daily' else True)
+    _text('title_template', '')
+    _text('filename_template', '{table_no}_{year_month}_负荷曲线')
+    for k, d in (('weekday_color', '#FFFFFF'), ('weekend_color', '#E8F4FF'),
+                 ('holiday_color', '#FFE8E8')):
+        v = out.get(k, d)
+        if not isinstance(v, str) or not v.startswith('#'):
+            out[k] = d
+    if out.get('highlight_mode') not in ('none', 'weekend', 'holiday', 'grouped'):
+        out['highlight_mode'] = 'none'
+    if out.get('legend_position') not in ('right', 'bottom'):
+        out['legend_position'] = 'right'
+    return out
+
+
 class PreviewDialog(QDialog):
     def __init__(self, parent, all_summaries, config_manager, initial_multiplier=1.0,
                  initial_show_max_demand=False, initial_strategy_name=None, initial_output_dir="", data_provider=None):
@@ -4214,6 +4255,8 @@ class PreviewDialog(QDialog):
         settings = self.config_manager.get_template(name)
         if not settings:
             return
+        # v2.3.25：先规范化类型，控件接不了的值回落到默认（见 _sanitize_template_settings）
+        settings = _sanitize_template_settings(settings)
         self.multiplier_spin.setValue(settings.get('multiplier', 1.0))
         self.show_daily_cb.setChecked(settings.get('show_daily', True))
         self.show_avg_cb.setChecked(settings.get('show_avg', True))
@@ -4250,6 +4293,22 @@ class PreviewDialog(QDialog):
         self.settings_model = _PerGroupSettings(self.all_summaries, self._global_multiplier, billing_dict=self._global_billing_dict)
         self.settings_model.settingsChanged.connect(self._on_settings_changed)
         self.render_scheduler.settings_model = self.settings_model
+
+        # v2.3.25：模板里的容量线原来只回填输入框，不进 settings_model。
+        # capacity_spin 只是输入控件，真正生效要经 _apply_bill_to_* 那三个按钮。
+        # 于是「存模板 → 改容量 → 载模板」容量线不回来，用户以为模板没存住。
+        # 这里按模板存储时的语义（全局容量）应用一次，不弹确认框。
+        # 反向也要处理：存的是「无容量线」时得把旧容线清掉，否则加载一个
+        # 本来没画容量线的模板，图上还带着上一套的容量线。
+        _assets = {s.asset_value for s in self.all_summaries}
+        if settings.get('billing_enabled', False):
+            _cap_val = settings.get('capacity_value', 0.0)
+            for _a in _assets:
+                self.settings_model.set_global_billing(
+                    _a, {'type': 'capacity', 'value': _cap_val})
+        else:
+            for _a in _assets:
+                self.settings_model.set_global_billing(_a, None)
 
         self.render_scheduler.clear_all_caches()
         for i in range(len(self.all_summaries)):
@@ -4314,6 +4373,8 @@ class PreviewDialog(QDialog):
                 settings = json.load(f)
             if not isinstance(settings, dict) or 'show_daily' not in settings:
                 raise ValueError("无效的模板文件格式")
+            # v2.3.25：类型体检放在导入时做，坏值当场提示，不带到下游控件
+            settings = _sanitize_template_settings(settings)
             name, ok = QInputDialog.getText(self, "导入模板", "输入模板名称:", text=os.path.basename(path).replace('.json',''))
             if ok and name.strip():
                 self.config_manager.save_template(name.strip(), settings)
@@ -5684,21 +5745,22 @@ class ProfessionalWindow(QMainWindow):
         self._update_effective_days_label()
 
     def _update_mode_options(self):
-        """根据实际充放电段标签更新下拉选项"""
+        """根据实际充放电段标签更新下拉选项。
+
+        v2.3.25：原实现只放前两个段（labels[0] 与 labels[1]），
+        “合并”也只合前两个（c_segs[0] + c_segs[1]）。
+        策略有 3 个以上同向段时（谷段两段 + 深谷），第三个既选不到、
+        也合不进——容量反推会静默漏掉那个段。现在全部列出。
+        """
         self.charge_option_combo.clear()
         self.discharge_option_combo.clear()
-        # 充电选项
-        if len(self.charge_labels) >= 1:
-            self.charge_option_combo.addItem(self.charge_labels[0])
-        if len(self.charge_labels) >= 2:
-            self.charge_option_combo.addItem(self.charge_labels[1])
+        # 按实际段数填充，不再硬编码前两个
+        for lab in self.charge_labels:
+            self.charge_option_combo.addItem(lab)
         if len(self.charge_labels) >= 2:
             self.charge_option_combo.addItem("合并充电段")
-        # 放电选项
-        if len(self.discharge_labels) >= 1:
-            self.discharge_option_combo.addItem(self.discharge_labels[0])
-        if len(self.discharge_labels) >= 2:
-            self.discharge_option_combo.addItem(self.discharge_labels[1])
+        for lab in self.discharge_labels:
+            self.discharge_option_combo.addItem(lab)
         if len(self.discharge_labels) >= 2:
             self.discharge_option_combo.addItem("合并放电段")
 
@@ -5747,7 +5809,10 @@ class ProfessionalWindow(QMainWindow):
             # 根据用户选择提取充电段
             charge_text = self.charge_option_combo.currentText()
             if charge_text == "合并充电段" and len(c_segs) >= 2:
-                merged = c_segs[0] + c_segs[1]  # 逐日相加
+                # v2.3.25：原来只合前两个。三个以上同向段时第三个被静默漏掉。
+                merged = c_segs[0].copy()
+                for _s in c_segs[1:]:
+                    merged = merged + _s
                 selected_c = [merged]
             elif charge_text in self.charge_labels:
                 idx = self.charge_labels.index(charge_text)
@@ -5761,7 +5826,9 @@ class ProfessionalWindow(QMainWindow):
             # 放电段同理
             discharge_text = self.discharge_option_combo.currentText()
             if discharge_text == "合并放电段" and len(d_segs) >= 2:
-                merged = d_segs[0] + d_segs[1]
+                merged = d_segs[0].copy()
+                for _s in d_segs[1:]:
+                    merged = merged + _s
                 selected_d = [merged]
             elif discharge_text in self.discharge_labels:
                 idx = self.discharge_labels.index(discharge_text)
@@ -5814,11 +5881,18 @@ class ProfessionalWindow(QMainWindow):
                                [arr[d] for arr in d_arrs if d < len(arr)]
                     daily_cap = min(all_vals) if all_vals else 0.0
                 else:
-                    n_pairs = max(len(c_arrs), len(d_arrs))
+                    # v2.3.25：用 min(len) 而不是 max(len)。
+                    # 原用 max 时单侧缺失补 inf，min(有限, inf)=有限，
+                    # 那个单侧值被当成「第 i 次循环能搬多少」的候选。
+                    # 实测：充电 [100]、放电 [300, 280] → 原得 280，应为 100。
+                    # 这是容量反推的核心函数，错了直接带偏建议容量。
+                    # 与 _fill_daily_table / _check_day_satisfied /
+                    # services/capacity.py 四处已统一。
+                    n_pairs = min(len(c_arrs), len(d_arrs))
                     daily_cap = 0.0
                     for i in range(n_pairs):
-                        cv = c_arrs[i][d] if i < len(c_arrs) and d < len(c_arrs[i]) else float('inf')
-                        dv = d_arrs[i][d] if i < len(d_arrs) and d < len(d_arrs[i]) else float('inf')
+                        cv = c_arrs[i][d] if d < len(c_arrs[i]) else float('inf')
+                        dv = d_arrs[i][d] if d < len(d_arrs[i]) else float('inf')
                         pair_min = min(cv, dv)
                         if pair_min != float('inf'):
                             daily_cap = max(daily_cap, pair_min)
@@ -5861,10 +5935,15 @@ class ProfessionalWindow(QMainWindow):
             return min(vals) >= usable_cap
 
         # 最苛刻循环跑满：任一次循环的充与放都够即可
-        n_pairs = max(len(c_arrs), len(d_arrs))
+        # v2.3.25：用 min(len) 而不是 max(len)。
+        # 原用 max 时，单侧缺失的数补 inf，而 inf >= usable_cap 恒真，
+        # 于是“只看充电侧够不够”就判满足——把不存在的循环当真。
+        # 方向是满足天数偏多 → 容量建议偏小。
+        # 与 _fill_daily_table、services/capacity.py 同一毛病，三处已统一。
+        n_pairs = min(len(c_arrs), len(d_arrs))
         for i in range(n_pairs):
-            cv = c_arrs[i][day_index] if i < len(c_arrs) and day_index < len(c_arrs[i]) else float('inf')
-            dv = d_arrs[i][day_index] if i < len(d_arrs) and day_index < len(d_arrs[i]) else float('inf')
+            cv = c_arrs[i][day_index] if day_index < len(c_arrs[i]) else float('inf')
+            dv = d_arrs[i][day_index] if day_index < len(d_arrs[i]) else float('inf')
             if cv >= usable_cap and dv >= usable_cap:
                 return True
         return False
@@ -6384,7 +6463,15 @@ class ProfessionalWindow(QMainWindow):
         dod_info = (f" | DOD={dod_val}% × 效率={eff_val}% = 综合{k * 100:.2f}%"
                     f"（可搬{movable:.1f}kWh）")
         if unit_cap > 0:
-            num_units = max(1, int(math.ceil(cap / unit_cap)))
+            # v2.3.25：cap=0 时原 max(1, ceil(0))=1，会显示「1 台 / 261 kWh」，
+            # 而用户填的容量是 0。点「计算配置容量」得到 0（target_days<1）时
+            # 直接触发这一显示，看起来像已经定了 1 台柜。现在拆开单独提示。
+            if cap <= 0:
+                self.system_result_label.setText(
+                    f"单柜数量: 0 台（配置容量为 0，请先填写容量或点「计算配置容量」）{dod_info}"
+                )
+                return
+            num_units = int(math.ceil(cap / unit_cap))
             total_pow = num_units * unit_pow
             total_cap = num_units * unit_cap
             self.system_result_label.setText(
@@ -9198,11 +9285,20 @@ tr:nth-child(even) {{ background-color: #f2f2f2; }}
                 return
             if QMessageBox.question(self, "确认", "导入将覆盖当前配置，继续？") == QMessageBox.Yes:
                 # v2.3.9fix(P2-18): 替换与迁移放进 Config 的锁里，避免与保存线程竞争。
-                # 原实现直接赋值 cfg 并 _migrate()，不持锁。
+                # v2.3.25：改成“在副本上迁移，成功才换”。
+                # 原实现先把 cfg 指向新对象再 _migrate()，如果 migrate 中途抛异常，
+                # 内存里已经是半成品配置、磁盘还是旧的，程序继续跑会用坏配置。
+                import copy as _copy
                 with self.config_manager._lock:
-                    self.config_manager.cfg = new_cfg
-                    self.config_manager._migrate()
-                    self.config_manager.save()
+                    _candidate = _copy.deepcopy(new_cfg)
+                    _old_cfg = self.config_manager.cfg
+                    self.config_manager.cfg = _candidate
+                    try:
+                        self.config_manager._migrate()
+                        self.config_manager.save()
+                    except Exception:
+                        self.config_manager.cfg = _old_cfg   # 回滚内存态
+                        raise
                 # v2.3.9fix(P2-18): 界面不刷新，用户会以为导入没生效。
                 QMessageBox.information(
                     self, "完成",

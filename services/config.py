@@ -48,13 +48,30 @@ def _default_plot_processes():
     return min(4, max(1, mp.cpu_count() - 1))
 
 
+def _is_number(v):
+    """真数值（排除 bool——Python 里 True == 1，会静默变成 1 点）。"""
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
 def _validate_config_schema(cfg):
+    """校验导入的配置结构。
+
+    v2.3.25：原来只查字段在不在，不查类型。实测四种畸形配置全部被
+    放过（start 为字符串/None、periods 为字符串、months 为字符串），
+    导入后打开策略编辑窗口直接抛 TypeError / KeyError——
+    `0 <= "8"` 在 Python 3 里就是 TypeError。
+
+    校验器是唯一入口（导入、载入、保存前都用它），在这里拦住是根治。
+    只查类型与取值范围，不管业务规则（重叠、首尾相接等交给 _valid_periods）。
+    """
     if not isinstance(cfg, dict):
         return False
     price_strategies = cfg.get('price_strategies', {})
     if not isinstance(price_strategies, dict):
         return False
     for prov, data in price_strategies.items():
+        if not isinstance(prov, str):
+            return False
         if not isinstance(data, dict):
             return False
         groups = data.get('groups', [])
@@ -65,6 +82,35 @@ def _validate_config_schema(cfg):
                 return False
             if 'name' not in g or 'months' not in g or 'periods' not in g:
                 return False
+            # name 必须是非空字符串
+            if not isinstance(g['name'], str) or not g['name'].strip():
+                return False
+            # months 必须是列表，元素是 1-12 的整数
+            months = g['months']
+            if not isinstance(months, list):
+                return False
+            for m in months:
+                if not isinstance(m, int) or isinstance(m, bool):
+                    return False
+                if not (1 <= m <= 12):
+                    return False
+            # periods 必须是列表，每个元素是带 type/start/end 的 dict
+            periods = g['periods']
+            if not isinstance(periods, list):
+                return False
+            for p in periods:
+                if not isinstance(p, dict):
+                    return False
+                if not {'type', 'start', 'end'} <= set(p):
+                    return False
+                if not isinstance(p['type'], str):
+                    return False
+                if not _is_number(p['start']) or not _is_number(p['end']):
+                    return False
+                # 0 ≤ 时刻 ≤ 24；NaN 会骗过所有比较，显式排掉
+                for v in (p['start'], p['end']):
+                    if not (0 <= v <= 24):
+                        return False
     app_settings = cfg.get('app_settings', {})
     if not isinstance(app_settings, dict):
         return False

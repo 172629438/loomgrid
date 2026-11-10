@@ -4,6 +4,129 @@
 
 ---
 
+## v2.3.25 — 配对数处复发、配置校验、模板生效
+
+这轮扫的是「容量反推的配对」「配置与模板的类型边界」。
+
+### 一、`max(len(...))` 配对在主程序里重复了三处
+
+上一版只修了 `_fill_daily_table` 一处，剩下三处同毛病：
+
+```
+_check_day_satisfied          满足天数判定
+_get_all_filtered_daily_mins  容量反推的核心
+services/capacity.py          第四次
+```
+
+`max(len(c), len(d))` 循环、单侧缺失补 `inf`，于是：
+
+```python
+cv >= usable_cap and dv >= usable_cap   # dv=inf 时恒真
+```
+
+**只凭充电侧够不够就判满足**。方向是满足天数偏多 → 容量建议偏小；
+在 `_get_all_filtered_daily_mins` 里方向反过来（日需求偏大 → 容量偏大）。
+
+四处统一成 `min(len(c), len(d))`：只有真配对上的循环才算一次循环。
+
+### 二、配置校验只查字段在不在，不查类型
+
+`_validate_config_schema` 放过了五种畸形配置，实测链条：
+
+```
+start = "8"     → 校验放过 → 打开策略编辑窗口 → 0 <= "8" → TypeError
+start = None    → 同上
+periods = "abc" → 同上（逐字符索引）
+months = "6"    → 同上
+name = None     → 同上
+```
+
+这条链的入口是「导入配置」，终点是「点开策略就崩」。
+
+- `_validate_config_schema` 补全类型与范围：months 是 1–12 的整数列表、
+  periods 每项含 type/start/end、时刻是 0–24 的数值、name 非空串。
+  排除 `bool`（Python 里 `True == 1`，会静默变成 1 点）。
+- `_valid_periods` 先做类型体检再比较，不再抛异常——五个调用点都没有 try。
+- `_import_config` 改成「在副本上迁移，成功才换」。原来先 `cfg = new_cfg`
+  再 `_migrate()`，中途抛异常时内存已是半成品配置、磁盘还是旧的。
+
+### 三、模板存了但没生效
+
+`_save_as_template` 存 18 个字段，`_load_template` 全读回来了——这一层对称。
+但 **`capacity_spin` 只是输入控件**，容量值必须经「应用到当前/选中/全部」
+三个按钮才进 `settings_model`。模板加载时只回填输入框，实际出图不画容量线。
+
+一并处理反向：模板存的是「无容量线」时，得把上一套的容量线清掉。
+
+### 四、导入模板只验一个字段
+
+`_import_template` 只检查 `'show_daily' in settings`。实测：
+
+```
+multiplier = "abc" → 导入通过 → 加载时 setValue("abc")
+                   → PySide6 TypeError → _load_template 没有 try → 崩
+```
+
+新增 `_sanitize_template_settings()`，加载与导入两处都过一遍：
+类型不对回落默认，颜色不是 `#` 开头回落默认，枚举值不在白名单回落默认。
+合法值零改动（已断言）。
+
+### 五、系统柜数在容量为 0 时显示 1 台
+
+`max(1, ceil(cap / unit_cap))` —— cap=0 时算出 1 台，用户填 0 却看到
+「单柜数量: 1 台，系统总容量: 261 kWh」。点「计算配置容量」得到 0
+（target_days<1）时直接触发。改成 cap≤0 单独提示。
+
+### 六、段下拉框只列前两个
+
+`_update_mode_options` 硬编码 `labels[0]` 与 `labels[1]`，「合并」也只合前两个。
+策略有 3 个以上同向段（谷段两段 + 深谷）时，第三个既选不到、也合不进——
+容量反推静默漏掉那个段。改成按实际段数填充、合并遍历全部。
+
+### 七、清掉孤立的帮助键
+
+`long_accumulated` 的文案定义还在，但界面上的问号已按需求删除。
+18 个键 / 21 处调用 / 零孤立 / 零未定义。
+
+### 八、撤销栈被浅拷贝污染
+
+`_push_history()` 用 `self.current_periods[:]`——列表是新的，里层的 dict
+还是同一批对象。而「修改类型」那一步是原地改：
+
+```python
+self._push_history()
+self.current_periods[idx]['type'] = new_type   # 历史里那份跟着变
+```
+
+后果：改类型后按撤销，类型改不回去。
+
+`_push_history` / `_undo` / `_redo` 三处改成 dict 级复制。
+period 只有 start/end/type 三个标量字段，一层就够。
+
+---
+
+## 验证
+
+```
+源码测试   PASS 100 / FAIL 0 / ENV 0
+产物测试   PASS 39 / FAIL 0
+```
+
+新增专项：
+
+```
+tests/verify_seg_merge_pairing.py      18 项  段合并与配对
+tests/verify_config_schema_types.py    22 项  配置类型校验（含 33 省兼容）
+tests/verify_template_symmetry.py       6 项  模板保存/加载对称
+tests/verify_template_sanitize.py      22 项  畸形模板规范化
+tests/verify_undo_isolation.py         11 项  撤销栈独立性
+```
+
+配对那一组是**反向证明**：断言旧实现在「充电 [100]、放电 [300,280]」
+下确实算出 280 而不是 100，否则只测「现在对了」证明不了 bug 存在过。
+
+---
+
 ## v2.3.24 — 2026-11-04（Fusion，CSV 字段并集与配对修正）
 
 继续扫没审过的区域，又挖出两个。
