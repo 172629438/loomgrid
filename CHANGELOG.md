@@ -4,6 +4,67 @@
 
 ---
 
+## v2.3.38 — api 层补启动入口
+
+### 一、2609 行代码没有入口
+
+`api/` 11 个文件、28 个路由、依赖（fastapi 0.136.1 / uvicorn 0.46.0 /
+pydantic 2.13.3 / websockets 16.0）全都装好了，但：
+
+```
+桌面版 import api    → 零处
+启动脚本            → 没有
+Dockerfile          → 没有
+api/app.py __main__ → 没有
+```
+
+想跑起来只能自己记得 `python -m uvicorn api.app:app --port 8000`。
+**代码是完整的，只差一个开关。**
+
+新增 `tools/serve_api.py`：
+
+```
+python tools/serve_api.py                    # 127.0.0.1:8000
+python tools/serve_api.py --port 8080
+python tools/serve_api.py --dev              # 注册 /api/export/adopt
+python tools/serve_api.py --host 0.0.0.0     # 局域网（有提示）
+```
+
+它做的事：设 `LGM_ALLOW_ROOTS`、切到仓库根、主检查（导入失败早报错）、
+打印路由数与文档地址、绑非本机时提示「`/api/ingest/upload` 能读写本机文件」。
+
+### 二、顺带确认 api 层自身没问题
+
+18 个业务端点 + 3 个基础端点全部注册；空请求返回 422/4xx 而不是 500。
+
+`/api/export/adopt` 返回 404 是**有意的** —— 它被 `LGM_DEV_TOOLS=1` 门控，
+没设时路由根本不存在（不是返回 403）。注释里写得很清楚：
+
+> 这样生产包被试探时是 404，而不是一个能扫描磁盘的隐藏端点。
+
+实测：`/docs` 200、`/api/health` 200、`/api/simulate/templates` 200
+且返回 **25 个行业模板**。
+
+---
+
+## 验证
+
+```
+源码测试   PASS 116 / FAIL 0 / ENV 0
+```
+
+新增专项：
+
+```
+tests/verify_api_endpoints.py   端点注册与空请求扫描
+tests/verify_api_server.py      真起服务 + 打端点 + 确认能终止
+```
+
+后者不是只看进程活着——真发 HTTP 到 `/api/health`、`/docs`、
+`/api/simulate/templates`，并核对模板数。
+
+---
+
 ## v2.3.37 — 节假日超出年份范围时静默降级
 
 ### 一、2027 年起，节假日判定静默失效
