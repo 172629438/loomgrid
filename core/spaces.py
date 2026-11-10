@@ -166,18 +166,26 @@ def compute_segmented_spaces(load_array, time_labels, segments, billing=None, mo
                 pos_sub_load = np.maximum(sub_load, 0)
                 if mode == 'A':
                     if cap is None:
+                        # v2.3.40：口径由用户明确——
+                        # 放电空间 = 放电时段内「负荷曲线与 X 轴围成的面积」，
+                        # 不依赖容量线。但无容量线时 Mode A 本身不成立
+                        # （充电侧也是 0），保持两侧同时为 0。
                         space += np.zeros(n_days)
                     else:
-                        space += np.sum(np.minimum(pos_sub_load, cap) * seg_dt, axis=1)
+                        # 原来写的是 np.minimum(pos_sub_load, cap)，
+                        # 等于把「向下到 X 轴」改成「向下到容量线」，多封了一层顶。
+                        # 实测：峰段负荷 100/300/800，容量线 300——
+                        # 旧写法恒得 1187.5 kWh，与负荷完全无关；
+                        # 按几何定义应为 412.5 / 1187.5 / 2962.5。
+                        space += np.sum(pos_sub_load * seg_dt, axis=1)
                 elif mode in ('B', 'C'):
                     if rated_power is None or rated_power <= 0:
                         space += np.zeros(n_days)
                     else:
+                        # 额定功率是物理功率上限，保留；
+                        # 但容量线不限制放电——v2.3.40 去掉了原来的
+                        # min(放电, Σ min(负荷, 容量线)) 那层约束。
                         discharge_space = np.sum(np.minimum(rated_power, pos_sub_load) * seg_dt, axis=1)
-                        # v3.0fix: Mode B/C 放电同时受容量线约束
-                        if cap and cap > 0:
-                            cap_space = np.sum(np.minimum(pos_sub_load, cap) * seg_dt, axis=1)
-                            discharge_space = np.minimum(discharge_space, cap_space)
                         space += discharge_space
                 else:
                     space += np.zeros(n_days)
@@ -268,13 +276,12 @@ def space_curves_for_day(load_row, hours, segments, mode='A', cap=None,
             else:
                 pos = np.maximum(sub, 0.0)
                 if mode == 'A':
-                    if cap and cap > 0:
-                        discharge[left:right] = np.minimum(pos, cap)
+                    # v2.3.40：放电 = 负荷曲线与 X 轴围成的面积，不封顶。
+                    # 原来写的是 np.minimum(pos, cap)，与几何定义不符。
+                    discharge[left:right] = pos
                 else:
                     if rated_power and rated_power > 0:
                         v = np.minimum(rated_power, pos)
-                        if cap and cap > 0:
-                            v = np.minimum(v, np.minimum(pos, cap))
                         discharge[left:right] = v
     return charge, discharge, pv
 

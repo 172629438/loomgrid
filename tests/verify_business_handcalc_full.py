@@ -89,9 +89,9 @@ print()
 print("=" * 80)
 print("② compute_segmented_spaces · Mode A")
 print("=" * 80)
-print("  口径（读代码得出）：")
-print("    充电 = Σ max(cap − 负荷, 0) × dt   ← 容量线以下的余量")
-print("    放电 = Σ min(负荷, cap) × dt        ← 负荷被容量线削顶后的部分")
+print("  口径（v2.3.40 由用户明确的几何定义）：")
+print("    充电 = Σ max(cap − 负荷, 0) × dt   ← 容量线与负荷曲线围成的面积")
+print("    放电 = Σ max(负荷, 0) × dt          ← 负荷曲线与 X 轴围成的面积（不封顶）")
 print()
 c_segs, d_segs, c_lab, d_lab = compute_segmented_spaces(
     load_2d, labels, segs, billing={'type': 'capacity', 'value': CAP}, mode='A')
@@ -112,26 +112,27 @@ w_mid = 0.25                        # 中间点权重
 n_mid_charge = 31                   # 0:15 … 7:45，共 31 点
 hand_charge = ((CAP - 100.0) * (w_head + n_mid_charge * w_mid)
                + (CAP - 200.0) * w_head)      # 末点 8:00 是平段负荷 200
-# 放电段 18-22：中间 15 点（18:15…21:45）负荗 500，末点 22:00 是 200
+# 放电段 18-22：中间 15 点（18:15…21:45）负荷 500，末点 22:00 是 200
 n_mid_dsch = 15
-hand_discharge_min = (min(500.0, CAP) * (w_head + n_mid_dsch * w_mid)
-                      + min(200.0, CAP) * w_head)
-hand_discharge_alt = (max(500.0 - CAP, 0) * (w_head + n_mid_dsch * w_mid)
-                      + max(200.0 - CAP, 0) * w_head)
+# v2.3.40：放电 = 负荷与 X 轴围成的面积，不封顶。
+# 旧写法是 min(负荷, cap)，实测在 负荷 > cap 时恒为 cap，与负荷无关。
+hand_discharge = (500.0 * (w_head + n_mid_dsch * w_mid)
+                 + 200.0 * w_head)
+hand_discharge_capped = (min(500.0, CAP) * (w_head + n_mid_dsch * w_mid)
+                         + min(200.0, CAP) * w_head)
 print()
 print("  手算（含端点权重 0.125）")
 print(f"    充电 = (300−100)×7.875 + (300−200)×0.125 = {hand_charge:.1f}")
-print(f"    放电 min 口径 = min(500,300)×3.875 + min(200,300)×0.125 = {hand_discharge_min:.1f}")
-print(f"    放电 max 口径 = (500−300)×3.875 + 0×0.125 = {hand_discharge_alt:.1f}")
+print(f"    放电 = 500×3.875 + 200×0.125 = {hand_discharge:.1f}")
+print(f"    （旧封顶口径会是 {hand_discharge_capped:.1f}，与峰段负荷无关）")
 print()
-print(f"  若按「整段恒负荷」粗算（错误做法）：充电 (300−100)×8 = 1600，放电 1200")
+print(f"  若按「整段恒负荷」粗算（错误做法）：充电 (300−100)×8 = 1600，放电 2000")
 check("充电空间与手算一致", abs(c_val - hand_charge) < 0.1, f"{c_val:.1f}", round(hand_charge, 1))
-check("放电空间用 min(负荷,cap) 口径",
-      abs(d_val - hand_discharge_min) < 0.1, f"{d_val:.1f}", round(hand_discharge_min, 1))
+check("放电空间 = 负荷与 X 轴围成的面积（不封顶）",
+      abs(d_val - hand_discharge) < 0.1, f"{d_val:.1f}", round(hand_discharge, 1))
 print()
-print(f"  两种放电口径差 {hand_discharge_min - hand_discharge_alt:.0f} kWh"
-      f"（{hand_discharge_min:.0f} vs {hand_discharge_alt:.0f}）")
-print(f"  代码走的是 min(负荷, cap)，即「负荷被容量线削顶后的部分」")
+print(f"  与旧封顶口径差 {hand_discharge - hand_discharge_capped:.0f} kWh"
+      f"（{hand_discharge:.0f} vs {hand_discharge_capped:.0f}）")
 
 # 占位零检查
 print()
