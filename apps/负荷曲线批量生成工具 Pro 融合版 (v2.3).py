@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.22（2026-11-04 内置开源字体）
+发布版本：LoomGrid Fusion v2.3.23（2026-11-04 月份距离与归一化 NaN）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -285,7 +285,7 @@ def _check_and_install_dependencies():
 # v2.3.6fix(K5): 版本号只能有一个来源。
 # 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
 # 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
-FUSION_VERSION = "2.3.22"
+FUSION_VERSION = "2.3.23"
 FUSION_APP_NAME = "LoomGrid Fusion"
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
 _SUPPORTED_EXTS_SET = frozenset(SUPPORTED_EXTS)  # v2.3.4fix(J6): O(1) 成员查找
@@ -4972,16 +4972,31 @@ class SimulationConfigDialog(QDialog):
 
         QMessageBox.information(self, "完成", "已按季节映射自动推荐源月份。")
 
+    @staticmethod
+    def _month_distance(a, b):
+        """月份环形距离。
+
+        v2.3.23：原来用 abs(a-b)，跨年边界会算错——12 月与 1 月只隔 1 个月，
+        线性差却是 11。后果：缺 1 月数据、已有 [11,12,3] 时，线性算会选 3 月
+        （春天），而 12 月才是深冬，负荷特征更接近。
+        月份是环形的，必须用 min(|a-b|, 12-|a-b|)。
+        """
+        d = abs(int(a) - int(b)) % 12
+        return min(d, 12 - d)
+
     def _find_best_source(self, target_month, available_months):
         if not self.season_map:
-            return min(available_months, key=lambda x: abs(x - target_month))
+            return min(available_months,
+                       key=lambda x: self._month_distance(x, target_month))
 
         for season, months in self.season_map.items():
             if target_month in months:
                 candidates = [m for m in available_months if m in months]
                 if candidates:
-                    return min(candidates, key=lambda x: abs(x - target_month))
-        return min(available_months, key=lambda x: abs(x - target_month))
+                    return min(candidates,
+                               key=lambda x: self._month_distance(x, target_month))
+        return min(available_months,
+                   key=lambda x: self._month_distance(x, target_month))
 
     def _on_accept(self):
         year_txt = self.year_combo.currentText()
@@ -5177,11 +5192,31 @@ class ProfessionalWindow(QMainWindow):
                 continue
             old_hours = np.array([_parse_min(t) / 60.0 for t in data['time_labels']])
             new_arr = np.zeros((arr.shape[0], max_points))
+            pad_cnt = 0
             for i in range(arr.shape[0]):
-                new_arr[i, :] = np.interp(new_hours, old_hours, arr[i, :], left=np.nan, right=np.nan)
+                row = arr[i, :]
+                valid = row[~np.isnan(row)]
+                if valid.size == 0:
+                    # 整行都是 NaN（源数据真有缺失）——保留 NaN，不伪造
+                    new_arr[i, :] = np.nan
+                    continue
+                # v2.3.23：区间外用「最近的有效值」填充，不用 NaN。
+                # 原来的 left/right=nan 会让参考点数更密的那一侧边缘变 NaN，
+                # 而 compute_segmented_spaces 用 nansum，NaN 被当 0——
+                # 落在那个区间的充放时段空间会算成 0，容量建议跟着偏小。
+                # 这些 NaN 是「插值区间外」造成的假缺失，不是真数据缺失，
+                # 不该让下游误以为「那段时间负荷为零」。
+                new_arr[i, :] = np.interp(new_hours, old_hours, row,
+                                          left=float(valid[0]),
+                                          right=float(valid[-1]))
+                pad_cnt += int(np.sum(new_hours < old_hours[0])) +                            int(np.sum(new_hours > old_hours[-1]))
             data['load_array'] = new_arr
             data['time_labels'] = ref_labels
-            log.info(f"月份 {month} 时间分辨率已统一为 {max_points} 点")
+            if pad_cnt:
+                log.info(f"月份 {month} 时间分辨率已统一为 {max_points} 点"
+                         f"（{arr.shape[0]} 行共补 {pad_cnt} 个边缘点，用最近有效值）")
+            else:
+                log.info(f"月份 {month} 时间分辨率已统一为 {max_points} 点")
 
     def _recalc_spaces(self):
         self.charge_segments_dict.clear()
