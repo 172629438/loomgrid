@@ -59,6 +59,37 @@ def _downsample(x, y, target=500):
     return x[idx], y[idx]
 
 
+def _smooth_edge_safe(y, w):
+    """移动平均，边界按最近值延展，NaN 不参与平均。
+
+    v2.3.26：原来直接 `np.convolve(avg, np.ones(w)/w, mode='same')`。
+    numpy 的 same 模式在边界外**补零**，于是首尾各 w//2 个点被稀释。
+    实测（真实负荷恒为 500，w=5）：
+
+        首=300.00  中=500.00  尾=300.00   首偏差 -200（-40%）
+
+    用户看到的是「凌晨第一点突然很低、末点也很低」——那是假谷。
+
+    另一条：avg 里只要有 1 个 NaN，convolve 会把它扩散成 w 个。
+    用权重归一化（只对有效点求均值）就不会。
+    """
+    y = np.asarray(y, dtype=float)
+    n = len(y)
+    if n == 0 or w < 2:
+        return y.copy()
+    pad = w // 2
+    if pad > 0:
+        yf = np.concatenate([np.full(pad, y[0]), y, np.full(pad, y[-1])])
+    else:
+        yf = y
+    wts = ~np.isnan(yf)
+    vals = np.where(wts, yf, 0.0)
+    num = np.convolve(vals, np.ones(w), mode="valid")
+    den = np.convolve(wts.astype(float), np.ones(w), mode="valid")
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.where(den > 0, num / den, np.nan)
+
+
 def _compute_fits(x, y, types):
     res = {}
     avg = np.nanmean(y,axis=0)
@@ -86,12 +117,19 @@ def _compute_fits(x, y, types):
             except Exception:
                 log.debug("三次拟合失败", exc_info=True)
     if 'moving_avg' in types:
-        w = min(5,n//4) if n>=5 else 2
+        w = min(5, n//4) if n>=5 else 2
         if w>=2:
-            res['moving_avg'] = (np.convolve(avg, np.ones(w)/w, mode='same'), f'移动平均({w})')
+            # v2.3.26：边界不再零填充，NaN 也不参与平均（见 _smooth_edge_safe）
+            res['moving_avg'] = (_smooth_edge_safe(avg, w), f'移动平均({w})')
     if 'gaussian' in types and SCIPY:
         try:
-            res['gaussian'] = (ndimage.gaussian_filter1d(avg,1.0),'高斯平滑')
+            _g = np.array(avg, dtype=float)
+            _nan = np.isnan(_g)
+            if _nan.any() and not _nan.all():
+                # 先把 NaN 用相邻有效值补上再平滑，避免整段被污染
+                _idx = np.arange(len(_g))
+                _g[_nan] = np.interp(_idx[_nan], _idx[~_nan], _g[~_nan])
+            res['gaussian'] = (ndimage.gaussian_filter1d(_g, 1.0), '高斯平滑')
         except Exception:
             log.debug("高斯平滑失败", exc_info=True)
     if 'spline' in types and SCIPY and n>=4:
@@ -253,8 +291,27 @@ def _draw_curves_core(ax, dates, load_array, time_labels, title, opts=None, bill
         ax.set_xticks(idxs)
         ax.set_xticklabels(lbls, rotation=45, fontsize=9)
     else:
-        ax.set_xticks(range(n_times))
-        ax.set_xticklabels([_clean_plot(lbl) for lbl in time_labels], rotation=45, fontsize=9)
+        # v2.3.26：time_labels 与数据点数不一致时（数据被截断、标签没截），
+        # set_xticks(range(n)) 与 set_xticklabels(...) 长度不等会抛
+        # ValueError: The number of FixedLocator locations (n) ... does not
+        # match the number of labels (m)。实测 2 点数据 + 96 个标签就崩。
+        # 按可用长度对齐，不一致时退回按索引生成。
+        if len(time_labels) == n_times:
+            ax.set_xticks(range(n_times))
+            ax.set_xticklabels([_clean_plot(lb) for lb in time_labels],
+                               rotation=45, fontsize=9)
+        else:
+            _n = min(n_times, len(time_labels)) if time_labels else 0
+            if _n == n_times:
+                ax.set_xticks(range(n_times))
+                ax.set_xticklabels([_clean_plot(lb) for lb in time_labels[:_n]],
+                                   rotation=45, fontsize=9)
+            else:
+                ax.set_xticks(range(n_times))
+                ax.set_xticklabels(
+                    [_clean_plot(f"{int(i // pp):02d}:00" if pp > 0 else f"{i}")
+                     for i in range(n_times)],
+                    rotation=45, fontsize=9)
 
     ax.grid(True, alpha=0.3)
 
@@ -272,11 +329,27 @@ def _draw_curves_core(ax, dates, load_array, time_labels, title, opts=None, bill
         filtered_labels.append(f'每日曲线({n_dates}条)')
 
     if periods:
-        filtered_handles.extend([
-            mpatches.Patch(color=ColorConst.CHARGE_BG, alpha=0.3, label=PeriodType.CHARGE_LABEL),
-            mpatches.Patch(color=ColorConst.DISCHARGE_BG, alpha=0.3, label=PeriodType.DISCHARGE_LABEL)
-        ])
-        filtered_labels.extend([PeriodType.CHARGE_LABEL, PeriodType.DISCHARGE_LABEL])
+        # v2.3.26：这里原来传的是枚举成员本身，而 matplotlib 的 label= 走 __str__，
+        # 于是图例上写的是「PeriodType.CHARGE_LABEL」而不是「充电(低谷)」。
+        # PeriodType 是 str 子类，Qt 控件拿底层 str 值不会出问题，但
+        # f-string / str() / matplotlib 都会走 Enum.__str__。
+        # Ultra 版（L9444）早就用了 .value，Fusion 这边漏了。
+        # 同一处还修了一件事：原来无条件列「充电」「放电」两个色块，
+        # 而西藏丰水期那段政策原文写明「无高峰时段」——只有充电没有放电，
+        # 图例里却两个都在，看图的人会去图里找不存在的放电段。
+        _types = {p["type"] for p in _expand_overnight(periods)}
+        _has_charge = bool(_types & {PeriodType.CHARGE, PeriodType.CHARGE_LABEL})
+        _has_discharge = bool(_types & {PeriodType.DISCHARGE, PeriodType.DISCHARGE_LABEL})
+        if _has_charge:
+            filtered_handles.append(mpatches.Patch(
+                color=ColorConst.CHARGE_BG, alpha=0.3,
+                label=PeriodType.CHARGE_LABEL.value))
+            filtered_labels.append(PeriodType.CHARGE_LABEL.value)
+        if _has_discharge:
+            filtered_handles.append(mpatches.Patch(
+                color=ColorConst.DISCHARGE_BG, alpha=0.3,
+                label=PeriodType.DISCHARGE_LABEL.value))
+            filtered_labels.append(PeriodType.DISCHARGE_LABEL.value)
 
     if highlight_mode == 'grouped':
         filtered_handles.extend([

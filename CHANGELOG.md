@@ -4,6 +4,91 @@
 
 ---
 
+## v2.3.26 — 出图层三处
+
+这轮扫 `plotting/`，三处都在 `curves.py`。
+
+### 一、移动平均两端凭空变低
+
+```python
+np.convolve(avg, np.ones(w)/w, mode='same')
+```
+
+numpy 的 `same` 模式在边界外**补零**。实测（真实负荷恒为 500，w=5）：
+
+```
+首=300.00  中=500.00  尾=300.00     首偏差 −200（−40%）
+```
+
+用户看到的是「凌晨第一点突然很低、末点也很低」——**那是假谷**，
+而图里同时还有「充放时段背景」，很容易被读成「谷段负荷确实很低」。
+
+还有一条：`avg` 里只要有 1 个 NaN，`convolve` 会把它扩散成 w 个
+（实测 1 个变成 5 个）。
+
+新增 `_smooth_edge_safe()`：边界按最近值延展、NaN 不参与平均，
+用权重归一化（`num/den`）而不是直接卷积。高斯平滑也先补 NaN 再平滑。
+
+### 二、图例里写着 `PeriodType.CHARGE_LABEL`
+
+`PeriodType` 是 `str` 子类枚举。Qt 控件拿底层 str 值没问题
+（实测 `QComboBox` 显示「充电(低谷)」），但 **matplotlib 的 `label=` 走
+`__str__`**，而 `str(PeriodType.CHARGE_LABEL)` 返回 `'PeriodType.CHARGE_LABEL'`。
+
+于是图例上是：
+
+```
+PeriodType.CHARGE_LABEL    PeriodType.DISCHARGE_LABEL
+```
+
+**Ultra 版早在 L9444 就用了 `.value`，Fusion 这边一直漏着。**
+这是两个版本分叉后一边修了另一边没修的典型。
+
+同一处还修了另一件事：原来**无条件**列「充电」「放电」两个色块，
+而西藏丰水期那段政策原文写明「无高峰时段」——只有充电没有放电，
+图例里却两个都在，看图的人会去图里找不存在的放电段。
+改成只列实际存在的方向。
+
+### 三、标签数与点数不一致时崩
+
+```python
+ax.set_xticks(range(n_times))
+ax.set_xticklabels([_clean_plot(lb) for lb in time_labels])
+```
+
+`time_labels` 长度与 `n_times` 不等时抛：
+
+```
+ValueError: The number of FixedLocator locations (2) ...
+does not match the number of labels (96).
+```
+
+实测「2 点数据 + 96 个标签」直接崩。正常路径不会出现（调用方传的标签
+与数据同源），但数据被截断而标签没截就会。改成按可用长度对齐，
+完全对不上时退回按索引生成。
+
+---
+
+## 验证
+
+```
+源码测试   PASS 102 / FAIL 0 / ENV 0
+产物测试   PASS 39 / FAIL 0
+```
+
+新增专项：
+
+```
+tests/verify_smoothing_edges.py   17 项  移动平均边界与 NaN
+tests/verify_curves_edges.py      16 项  图例文案、单侧时段、标签长度
+```
+
+两组都带反向证明：断言旧写法确实让平直曲线首点变成 300、
+断言旧写法确实在标签数不匹配时抛 ValueError——
+只测「现在对了」证明不了这些 bug 存在过。
+
+---
+
 ## v2.3.25 — 配对数处复发、配置校验、模板生效
 
 这轮扫的是「容量反推的配对」「配置与模板的类型边界」。
