@@ -309,6 +309,45 @@ else:
 
 print()
 print("=" * 76)
+print("⑥ 签名（用户在意的「无法验证发布者」）")
+print("=" * 76)
+
+try:
+    import subprocess as _sp
+
+    def _sig_status(path):
+        r = _sp.run(
+            ["powershell", "-NoProfile", "-Command",
+             f"(Get-AuthenticodeSignature -LiteralPath '{path}').Status"],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=60)
+        return (r.stdout or "").strip()
+
+    main_status = _sig_status(EXE)
+    print(f"  目录里的 exe: {main_status}")
+    check("主 exe 已签名且有效", main_status == "Valid",
+          f"{main_status} —— 未签名时运行会弹「无法验证发布者」")
+
+    # zip 里的 exe 也必须已签——签名在压缩前做，用户下载的是 zip
+    if zips:
+        import tempfile as _tf
+        with zipfile.ZipFile(zips[0]) as zf:
+            exes = [n for n in zf.namelist() if n.endswith(".exe")]
+            if exes:
+                _tmp = _tf.mkdtemp(prefix="sigchk_")
+                zf.extract(exes[0], _tmp)
+                zexe = os.path.join(_tmp, exes[0])
+                z_status = _sig_status(zexe)
+                print(f"  zip 里的 exe: {z_status}")
+                check("zip 里的 exe 也带签名（用户下载的是它）",
+                      z_status == "Valid", z_status)
+                import shutil as _sh
+                _sh.rmtree(_tmp, ignore_errors=True)
+except Exception as _e:
+    check("签名检查未抛异常", False, f"{type(_e).__name__}: {_e}")
+
+print()
+print("=" * 76)
 print(f"结果：PASS {len(passed)}   FAIL {len(failed)}")
 for f in failed:
     print("  -", f)

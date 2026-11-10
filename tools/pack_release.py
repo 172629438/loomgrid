@@ -148,10 +148,39 @@ def build(target: str, version: str) -> int:
     p.terminate()
     time.sleep(1)
 
+    # ── ④ 代码签名（可选，有证书才签）───────────────────────────
+    # 必须在压缩前签，否则 zip 里装的是未签名的 exe。
+    # 自签名只能消除「无法验证发布者」，不解决 SmartScreen——
+    # 那需要 OV/EV 证书，见 tools/sign_fusion.ps1 的说明。
+    print("④ 代码签名（可选）…", flush=True)
+    _sign_script = os.path.join(REPO, "tools", "sign_fusion.ps1")
+    _signed = False
+    if os.path.exists(_sign_script):
+        try:
+            _r = subprocess.run(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                 "-File", _sign_script, "-ExePath", exe],
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=180)
+            _out = (_r.stdout or "") + (_r.stderr or "")
+            if "Status : Valid" in _out or "Status" in _out and "Valid" in _out:
+                print("   ✅ 已签名", flush=True)
+                _signed = True
+            elif "没找到" in _out or "不存在" in _out:
+                print("   跳过（脚本报告找不到目标）", flush=True)
+            else:
+                print("   ⚠ 签名未完成，继续打包（不影响功能，只是会弹未知发布者）", flush=True)
+                if _out.strip():
+                    print("     " + _out.strip().splitlines()[-1][:120], flush=True)
+        except Exception as _e:
+            print(f"   ⚠ 签名异常 {type(_e).__name__}，继续打包", flush=True)
+    else:
+        print("   跳过（无 tools/sign_fusion.ps1）", flush=True)
+
     zp = os.path.join(dist_root, f"{tag}-win64.zip")
     if os.path.exists(zp):
         os.remove(zp)
-    print(f"④ 压缩 …", flush=True)
+    print(f"⑤ 压缩 …", flush=True)
     with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
         for dp, _, fs in os.walk(out_dir):
             for f in fs:

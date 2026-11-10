@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.19（2026-11-04 管理员路径 + 示例文件）
+发布版本：LoomGrid Fusion v2.3.20（2026-11-04 管理员拖放降权 + 代码签名）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -283,7 +283,7 @@ def _check_and_install_dependencies():
 # v2.3.6fix(K5): 版本号只能有一个来源。
 # 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
 # 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
-FUSION_VERSION = "2.3.19"
+FUSION_VERSION = "2.3.20"
 FUSION_APP_NAME = "LoomGrid Fusion"
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
 _SUPPORTED_EXTS_SET = frozenset(SUPPORTED_EXTS)  # v2.3.4fix(J6): O(1) 成员查找
@@ -7640,6 +7640,35 @@ def _is_elevated():
         return False
 
 
+def _relaunch_as_normal():
+    """以普通权限重新启动自己。成功返回 True。
+
+    v2.3.20：管理员权限下 Windows 的 UIPI 会拦掉 OLE 拖放——Qt 的
+    QDragEnterEvent/QDropEvent 走的是 IDropTarget，不是 WM_DROPFILES，
+    所以 ChangeWindowMessageFilterEx 那条「放行消息」的路对它无效。
+    唯一可靠的办法就是别用管理员跑。
+
+    explorer.exe 以用户权限运行，它启动的子进程继承用户权限——
+    这是 Windows 上常用的降权转发手法，不需要额外工具。
+    """
+    import subprocess
+    if not getattr(sys, "frozen", False):
+        # 源码运行（python.exe script.py）：explorer 不能带参数，
+        # 只能让用户自己用普通 cmd 启动，这里返回 False 由调用方提示。
+        return False
+    try:
+        subprocess.Popen(["explorer.exe", sys.executable])
+        return True
+    except Exception as e:
+        log.warning(f"降权重启失败: {e}")
+        return False
+
+
+def _uipi_blocks_drop():
+    """当前环境是否会被 UIPI 拦掉拖放（即：以管理员运行且平台是 Windows）。"""
+    return sys.platform == "win32" and _is_elevated()
+
+
 def build_light_palette() -> QPalette:
     """显式浅色调色板——不看系统脸色。
 
@@ -8101,10 +8130,38 @@ class MainWindow(QMainWindow):
         self._set_ui_state('idle')
         self._update_start_btn()
         self._log("程序启动，等待操作...")
-        if _is_elevated():
-            self._log("注意：当前以管理员权限运行。Windows 会阻止从普通权限的"
-                      "资源管理器拖文件进来（UIPI 限制，非程序问题）。"
-                      "如需拖拽，请用普通权限启动；或用「添加文件」按钮。")
+        if _uipi_blocks_drop():
+            self._log("注意：当前以管理员权限运行，Windows 的 UIPI 会拦掉文件拖放"
+                      "（这是进程完整性隔离，不是程序问题）。")
+            # v2.3.20：光提示没用，得给一条能走的路。
+            # 拖放是主入口，没有它的程序等于半个残废——所以主动提议降权重启。
+            _tip = ("当前以管理员权限运行，Windows 会拦截文件拖放。\n\n"
+                    "原因：UIPI（用户界面特权隔离）禁止低权限进程向高权限进程"
+                    "投递拖放数据。Qt 的拖放走 OLE DnD，没有「放行消息」这种解法。\n\n"
+                    "拖放是本程序的主入口，建议以普通权限重新启动。\n"
+                    "普通权限不影响功能——配置、日志、输出目录都已改成基于"
+                    "程序位置，不再依赖管理员权限。\n\n"
+                    "是否现在以普通权限重启？")
+            _can_relaunch = getattr(sys, "frozen", False)
+            if _can_relaunch:
+                _r = QMessageBox.question(
+                    self, "管理员权限会限制拖放",
+                    _tip, QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+                if _r == QMessageBox.Yes:
+                    if _relaunch_as_normal():
+                        self._log("已请求以普通权限重启，本窗口即将关闭…")
+                        QTimer.singleShot(300, self.close)
+                        return
+                    else:
+                        QMessageBox.warning(
+                            self, "重启失败",
+                            "无法自动降权重启，请手动用普通权限打开程序。\n"
+                            "或者继续使用「添加文件」按钮选文件。")
+            else:
+                QMessageBox.information(
+                    self, "管理员权限会限制拖放",
+                    _tip + "\n\n（当前是源码运行，无法自动重启——"
+                    "请用普通 cmd 重新启动。）")
 
         # v2.3.18: 必须显式应用一套调色板——包括浅色。
         # 原来只有 if self._ui_dark 一个分支，浅色时什么都不做，
