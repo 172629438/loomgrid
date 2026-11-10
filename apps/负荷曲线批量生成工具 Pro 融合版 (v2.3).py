@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 负荷曲线批量生成工具 Pro 融合版
-发布版本：LoomGrid Fusion v2.3.20（2026-11-04 管理员拖放降权 + 代码签名）
+发布版本：LoomGrid Fusion v2.3.21（2026-11-04 字体回退链 + 依赖核验）
 第一部分：基础模块、配置、映射、数据读取与扫描
 
 优化增强 (v3.2)：
@@ -138,6 +138,8 @@ from core.periods import _segment_periods  # noqa: E402
 from plotting.fonts import (  # noqa: E402
     _CJK_FONT_CANDIDATES, _FONT_LOCK, _find_cjk_font, _get_cached_font, _setup_font,
 )
+# v2.3.21：中文字体缺失要能查到标记，单独引一次模块
+from plotting import fonts as _fonts_mod  # noqa: E402
 from plotting.naming import (  # noqa: E402
     MAX_FILENAME_LEN, MAX_FILENAME_ATTEMPTS, _PATH_ILLEGAL_CHARS_RE, _PATH_DOT_RE,
     _WINDOWS_RESERVED_NAMES, _sanitize_name, _clean_series, generate_filename,
@@ -283,7 +285,7 @@ def _check_and_install_dependencies():
 # v2.3.6fix(K5): 版本号只能有一个来源。
 # 原来主窗口标题写死 "v2.3.1"、欢迎弹窗写死 "Pro v3.2"（还是 Ultra 的号段），
 # 发版时没人会想到去改这两处。现在统一引用，发版只改 FUSION_VERSION。
-FUSION_VERSION = "2.3.20"
+FUSION_VERSION = "2.3.21"
 FUSION_APP_NAME = "LoomGrid Fusion"
 SUPPORTED_EXTS = ('.csv', '.xlsx', '.xls', '.xlsm', '.xlsb')
 _SUPPORTED_EXTS_SET = frozenset(SUPPORTED_EXTS)  # v2.3.4fix(J6): O(1) 成员查找
@@ -8130,6 +8132,17 @@ class MainWindow(QMainWindow):
         self._set_ui_state('idle')
         self._update_start_btn()
         self._log("程序启动，等待操作...")
+        # v2.3.21：中文字体缺失要明说。原来只写日志，用户看到的是满图方块
+        # 却不知道原因——换个没装中文字体的机器（英文版/精简版 Windows）就中招。
+        if getattr(_fonts_mod, "CJK_FONT_MISSING", False):
+            self._log("警告：未找到中文字体，图表中文可能显示为方块。")
+            QTimer.singleShot(600, lambda: QMessageBox.warning(
+                self, "缺少中文字体",
+                "系统里没有找到可用的中文字体，生成的图表中文会显示成方块。\n\n"
+                "解决办法（任选其一）：\n"
+                "  · 安装任一中文字体（微软雅黑、思源黑体、Noto Sans SC 都可以）\n"
+                "  · 或者把这个字体文件拷到程序目录，重启即可\n\n"
+                "英文版或精简版 Windows 常见此问题，中文版 Windows 一般不会。"))
         if _uipi_blocks_drop():
             self._log("注意：当前以管理员权限运行，Windows 的 UIPI 会拦掉文件拖放"
                       "（这是进程完整性隔离，不是程序问题）。")

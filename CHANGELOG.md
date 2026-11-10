@@ -4,9 +4,87 @@
 
 ---
 
-## v2.3.20 — 2026-11-04（Fusion，管理员拖放降权 + 代码签名）
+## v2.3.21 — 2026-11-04（Fusion，字体回退链 + 依赖核验）
+
+你问「确保打包了所有所需依赖」，我拿这个问题把产物拆开逐层验了一遍。
+
+### 一、依赖核验：Fusion 8 个三方依赖全部命中
+
+**方法**：从产物 exe 里抽出 `PYZ.pyz`，与源码 AST 扫出的 import 取差集。
+
+```
+Fusion 执行路径（实测 23 个文件）：
+  apps/负荷曲线批量生成工具 Pro 融合版 (v2.3).py
+  core/ (5)  services/ (7)  plotting/ (3)  ui/ (1)
+
+三方依赖 8 个，PYZ 未命中 0 个：
+  PySide6            matplotlib         numpy
+  pandas             scipy              chardet
+  chinese_calendar   psutil
+```
+
+**间接依赖也齐**（AST 扫不到但跑起来必须要）：
+
+```
+openpyxl  176 子模块    读 xlsx 必需
+xlrd       10 子模块    读 xls 必需
+xlsxwriter 42 子模块    写 xlsx 可选
+lxml       24 子模块    openpyxl 依赖
+et_xmlfile  3 子模块    openpyxl 依赖
+```
+
+**C 扩展全在**：numpy 13 个 .pyd、pandas 45、scipy 85、matplotlib 7。
+
+**一个必须说清的细节**：全面扫的时候有 16 个依赖「不在 PYZ 里」——
+`PyQt5` / `akshare` / `prophet` / `xgboost` / `ortools` / `pulp` / `pvlib` /
+`rainflow` / `statsmodels` / `seaborn` / `plotly` / `loguru` / `darkdetect` /
+`qt_material` / `fastapi` / `powercurve_ext`。
+
+**但它们全部来自 `apps/负荷曲线批量生成Ultra.py` 与 `api/`**——
+Ultra 是另一条产品线，api 是 Web 后端，都不在 Fusion 的执行路径上。
+差点把它们当成真缺口报上去，看文件归属才分清。
+
+### 二、挖出一个真缺口：中文字体没打包
+
+`plotting/fonts.py` 的 `_find_cjk_font()` **只查系统已安装字体**，
+产物里一个 CJK 字体都没有（38 个 ttf 全是 matplotlib 自带的西文）。
+
+后果：换台没装中文字体的机器（英文版 / 精简版 Windows / 服务器版），
+**图里中文全是方块**，而用户只看到方块，不知道原因也不知道怎么修。
+
+而且原来的降级只是 `log.warning` 一行——**用户看不到日志**。
+
+**修法三层：**
+
+**① 程序目录也能放字体。** 新增 `_font_dirs()` / `_register_local_fonts()`：
+先查系统，没有就扫程序目录与 `程序目录/fonts/`，找到就 `addfont` 注册后重查。
+这对没管理员权限、不想污染系统字体的场景很实用。
+
+**② 缺字体从静默变显式。** `CJK_FONT_MISSING` 标记 + 主窗口启动后弹一次提示，
+告诉用户「装任意中文字体」或「把字体文件拷到程序目录」。
+
+**③ 提示里说的话真能生效。** 原来就算写了「拷到程序目录」也没用——
+查找只扫系统字体。现在两处路径对应上了。
+
+**为什么没直接打包一个 CJK 字体**：本机 19 个中文字体全是商业字体
+（雅黑/宋体/苹方等），不能随程序分发。合法的做法是用 OFL 协议的开源字体
+（Noto Sans SC / 思源黑体，约 10-20 MB），但那需要额外下载并入包。
+本次先做零成本的那半（回退链 + 提示），**要不要带开源字体你来定**——
+带了包会大 10-20 MB，但换任何机器都开箱即用。
+
+### 新增测试
+
+`tests/verify_deps_and_fonts.py`（34 项）：
+· 字体回退链：程序目录字体能被注册、降级时置标记、主程序侧提示代码在
+· 依赖清单与预期一致（多一个或少一个都会红）
+· 8 个三方依赖本机实测可 import
+· 产物 PYZ 里 openpyxl/xlrd/xlsxwriter/lxml 都在
+
+---
 
 两项，都是上一版遗留的两个尾巴。
+
+## v2.3.20 — 2026-11-04（Fusion，管理员拖放降权 + 代码签名）
 
 ### 一、管理员权限下的拖放：从「只提示」到「真给路」
 
