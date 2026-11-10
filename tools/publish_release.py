@@ -112,7 +112,14 @@ def main() -> int:
     if args.body_only:
         return 0
 
-    title = args.title or f"Fusion v{args.version}"
+    # 标题前缀：v2.3.40 发版时我传了带版本号的标题，绕过了自动前缀，
+    # 结果 Release 列表里只有它一个写「v2.3.40 — …」而其余都是「Fusion v2.3.XX — …」。
+    # 改成不管传不传都保证以 Fusion 开头。
+    title = args.title or f"v{args.version}"
+    if not title.startswith("Fusion"):
+        title = f"Fusion {title}"
+    if args.version not in title:
+        print(f"警告：标题里没有版本号 {args.version} —— {title}", file=sys.stderr)
     gh = gh_bin()
 
     r = run([gh, "release", "create", tag, zip_path, "--title", title,
