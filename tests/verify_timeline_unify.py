@@ -5,10 +5,14 @@
   ① 逻辑等价   与 Fusion 原实现逐行对照（同一个算法，不引入新行为）
   ② 粒度对齐   96 点与 48 点混合时，全部变成 96 点
   ③ 数值保真   最细粒度那一组被跳过（不重采样 = 不失真）
-  ④ NaN 语义   上采样后，原数据没有的时刻填 NaN 而不是 0 或凭空插值
+  ④ 边缘填充   上采样后，原数据没有的时刻用最近有效值填充
+
+    （v2.3.35 之前是断言 NaN。主程序 v2.3.23 改成填充，services 版
+    当时没跟；现在两边一致，本文件同步改成新行为。）
   ⑤ 单组不变   只有一个分组时原样返回（不需要插值）
 
-第 ④ 条是协作方特别指出的：NaN 会向下游传播，必须知道它会出现在哪。
+第 ④ 条改动过来：NaN 会被 nansum 当 0，容量建议会偏小。
+新版填「最近有效值」，与主程序一致。
 
 用法：
     python tests/verify_timeline_unify.py
@@ -74,25 +78,32 @@ def main() -> int:
           "96 点组数值一字未变（跳过而非 re-interp）",
           f"max|Δ|={np.abs(data['2026-01']['load_array'] - before_fine).max():.3e}")
 
-    print("\n[④ NaN 语义：上采样后超出粗粒度右边界的格是 NaN]")
+    print("\n[④ 边缘填充：上采样后区间外必须用最近有效值，不能是 NaN]")
     upsampled = data["2026-02"]["load_array"]
-    nan_ratio = float(np.isnan(upsampled).mean())
-    # 48 点数据只到 23:30，上采样到 96 点后最后一格 23:45 超出右边界 → NaN。
-    # 这是原实现的固有行为（left/right=nan），不是搬过来的副作用。
-    expected = 1 / 96
-    check(abs(nan_ratio - expected) < 0.005,
-          f"NaN 比例 ≈ 1/96（{nan_ratio:.2%}）—— 每天末格 23:45 超出右边界",
-          f"实际 {nan_ratio:.2%}，期望 {expected:.2%}")
-    print(f"    → 混合粒度时，粗粒度那个月每天最后一格是 NaN（共 {int(np.isnan(upsampled).sum())} 个）")
+    nan_cnt = int(np.isnan(upsampled).sum())
+    # v2.3.35：此处断言的是新行为。
+    # 旧实现用 left/right=nan，48 点（末点 23:30）上采样到 96 点后，
+    # 每天最后一格 23:45 超出右边界→NaN（实测 NaN 比例 1/96）。
+    # 但 compute_segmented_spaces 用 nansum，NaN 被当 0，
+    # 落在那个区间的充放时段空间会算成 0，容量建议跟着偏小。
+    # 而主程序 v2.3.23 已改成「最近有效值填充」，services 版当时没跟。
+    check(nan_cnt == 0,
+          f"区间外无 NaN（实际 {nan_cnt} 个）—— 用最近有效值填充",
+          f"期望 0，实际 {nan_cnt}")
+    print(f"    → 混合粒度时，粗粒度那个月末格被填成最后一个有效值（共 {nan_cnt} 个 NaN）")
     # 关键：验证「整点有值、半点是插值」——取第一行前 3 个点看是否落在原值范围
     row0 = upsampled[0, :4]
     check(row0[0] == coarse[0, 0], "第 0 点等于原第 0 点（起点对齐）",
           f"{row0[0]} vs {coarse[0, 0]}")
     print(f"    示例前 4 点：{np.round(row0, 1)}（原 48 点前 2 点：{np.round(coarse[0, :2], 1)}）")
+    print(f"    末点 23:45：{upsampled[0, -1]:.1f}（原末点 23:30：{coarse[0, -1]:.1f}）")
+    check(abs(float(upsampled[0, -1]) - float(coarse[0, -1])) < 1e-6,
+          "末点被填成原末值（最近有效值）",
+          f"{upsampled[0, -1]} vs {coarse[0, -1]}")
 
-    print("\n[④b NaN 出现在「区间之外」的情况]")
-    # 造一个标签不满一天的粗粒度组：0:00–12:00，只有 13 个点 → 上采样到 96 点后
-    # 12:00 之后没有原始值，应当是 NaN
+    print("\n[④b 半天数据上采样：尾部用末值填，不是 NaN]")
+    # 造一个标签不满一天的粗粒度组：0:00–12:00，只有 13 个点 → 上采样到 96 点
+    # v2.3.35：原来断言「12:00 之后应该是 NaN」，现在改成「填末值」。
     partial_labels = [f"{i:02d}:00" for i in range(13)]     # 0:00 … 12:00
     partial = np.linspace(500, 600, 13).reshape(1, 13)
     data2 = {
@@ -101,11 +112,14 @@ def main() -> int:
     }
     unify_time_resolution(data2)
     arr2 = data2["2026-04"]["load_array"]
-    tail_nan = int(np.isnan(arr2[0, 52:]).sum())     # 13:00 之后（索引 52 起）
+    tail_nan = int(np.isnan(arr2[0, 52:]).sum())
     check(arr2.shape == (1, 96), "形状对齐到 96", str(arr2.shape))
-    check(tail_nan > 0, f"13:00 之后没有原始值 → {tail_nan} 个 NaN（不是 0）",
+    check(tail_nan == 0,
+          f"13:00 之后无 NaN（实际 {tail_nan} 个）",
           f"tail_nan={tail_nan}")
-    print(f"    13:00 之后：{tail_nan} 个 NaN / 44 个点")
+    check(abs(float(arr2[0, -1]) - 600.0) < 1e-6,
+          "尾部填成末值 600", f"{arr2[0, -1]}")
+    print(f"    13:00 之后：{tail_nan} 个 NaN / 44 个点，末值 {arr2[0, -1]:.1f}")
 
     print("\n[⑤ 单组不变]")
     single = {"2026-05": {"load_array": rng.uniform(300, 900, size=(2, 96)),
