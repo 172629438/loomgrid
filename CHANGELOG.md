@@ -4,6 +4,65 @@
 
 ---
 
+## v2.3.37 — 节假日超出年份范围时静默降级
+
+### 一、2027 年起，节假日判定静默失效
+
+`chinese_calendar` 1.11.0 **只覆盖 2004–2026**，越界抛 `NotImplementedError`：
+
+```
+NotImplementedError: no available data for year 2027,
+only year between [2004, 2026] supported
+```
+
+而 `_get_day_type` 用一个 `except Exception` 把它吞成 `log.debug`，
+然后落到 `dt.weekday() >= 5`：
+
+```
+2027-10-01（国庆，周五）→ weekday    应该是 holiday
+2028-10-01（国庆，周日）→ weekend    应该是 holiday
+```
+
+**后果**：2027 年之后的数据，图上节假日底色画错、图例统计也错，
+而且完全没有提示——用户会以为那天真的不是假日。
+
+### 二、为什么不能靠升级库解决
+
+2027 年的节假日安排**国务院还没发布**（通常前一年 11 月公布）。
+不是库的问题，是数据客观上还不存在。
+
+所以只能「降级 + 明确告知」：
+
+- 探测一次库的实际覆盖范围（`_ensure_holiday_year_range`，全范围试一遍）
+- 越界时 `log.warning`，写明：哪一年、覆盖到哪年、后果是什么、
+  什么时候能解决（国务院公布后升级库）
+- **同一年只警告一次**，不刷屏
+
+### 三、顺手修掉的一个归纳错误
+
+原来 `except Exception` 把 `NotImplementedError` 和其他异常混在一起。
+现在单独捕获 `NotImplementedError` —— 它不是「判断出错」，
+是「这一年没有数据」，语义完全不同，处理方式也该不同。
+
+---
+
+## 验证
+
+```
+源码测试   PASS 114 / FAIL 0 / ENV 0
+```
+
+新增专项：
+
+```
+tests/verify_holiday_range.py   17 项
+```
+
+含反向证明：断言旧路径确实抛 `NotImplementedError` 且信息含范围；
+断言同一年只警告一次；断言不启用节假日时不告警。
+
+---
+
 ## v2.3.36 — 扫描层 dates 两条路径不对称
 
 ### 一、`_scan_wide_chunk` 填 dates，`_scan_long_chunk` 不填

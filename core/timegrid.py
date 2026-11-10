@@ -157,6 +157,53 @@ def _is_holiday_available():
         return _HOLIDAY_AVAILABLE
 
 
+# v2.3.37：chinese_calendar 的覆盖范围是一次性探测的，
+# 记下来避免每张图都重复试。
+_HOLIDAY_YEAR_RANGE = None      # (min_year, max_year) 或 None（尚未探测）
+_HOLIDAY_RANGE_WARNED = set()
+_HOLIDAY_RANGE_LOCK = threading.Lock()
+
+
+def _ensure_holiday_year_range():
+    """探测 chinese_calendar 支持的年份范围，只跑一次。"""
+    global _HOLIDAY_YEAR_RANGE
+    with _HOLIDAY_RANGE_LOCK:
+        if _HOLIDAY_YEAR_RANGE is not None:
+            return _HOLIDAY_YEAR_RANGE
+        lo = hi = None
+        try:
+            import datetime as _dt
+            for y in range(1990, 2100):
+                try:
+                    is_holiday(_dt.date(y, 1, 1))
+                    lo = y if lo is None else lo
+                    hi = y
+                except NotImplementedError:
+                    continue
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        _HOLIDAY_YEAR_RANGE = (lo, hi) if lo is not None else (None, None)
+        return _HOLIDAY_YEAR_RANGE
+
+
+def _warn_holiday_out_of_range(year):
+    """越界年份只警告一次，带清楚的原因与影响。"""
+    global _HOLIDAY_RANGE_WARNED
+    with _HOLIDAY_RANGE_LOCK:
+        if year in _HOLIDAY_RANGE_WARNED:
+            return
+        _HOLIDAY_RANGE_WARNED.add(year)
+    lo, hi = _ensure_holiday_year_range()
+    span = f"{lo}–{hi}" if lo and hi else "未知"
+    log.warning(
+        "节假日数据不包含 %s 年（内置日历覆盖 %s）。该年日期将按「普通周末」判断，"
+        "调休与法定假日不会识别——图上节假日底色与统计会与真实安排不符。"
+        "国务院通常在前一年 11 月公布次年安排，届时升级 chinese_calendar 即可。",
+        year, span)
+
+
 def _set_holiday_available(flag: bool):
     global _HOLIDAY_AVAILABLE
     with _HOLIDAY_LOCK:
@@ -451,6 +498,15 @@ def _get_day_type(date_str: str, enable_holiday: bool = False) -> str:
                 return 'weekday'
             if is_holiday(dt):
                 return 'holiday'
+        except NotImplementedError:
+            # v2.3.37：chinese_calendar 只覆盖 2004–2026（实测 1.11.0）。
+            # 越界年份原本被下面的 except Exception 吞成 debug，
+            # 用户看到的是 2027-10-01（国庆，周五）被当成「工作日」——
+            # 节假日底色不对、图例统计也不对，而且完全无提示。
+            #
+            # 这不能靠升级库解决：2027 年的节假日安排国务院还没发。
+            # 所以只能「降级 + 明确告知」：按普通周末算，并警告一次。
+            _warn_holiday_out_of_range(dt.year)
         except Exception:
             log.debug(f"节假日判断异常，按普通周末处理: {date_str}", exc_info=True)
             pass
