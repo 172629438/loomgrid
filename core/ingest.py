@@ -1347,11 +1347,24 @@ def _scan_long_chunk(fp, sheet, mapping, df, fallback, monthly_stats, cancel_eve
         min_v = grp_clean['__load__'].min()
         max_v = grp_clean['__load__'].max()
         times = grp_clean['__t__'].unique()
-        monthly_stats.setdefault(key, {'date_count': 0, 'min_val': np.inf, 'max_val': -np.inf, 'time_set': set()})
+        monthly_stats.setdefault(key, {'date_count': 0, 'min_val': np.inf,
+                                       'max_val': -np.inf, 'time_set': set(),
+                                       'dates': set(), 'yearless': []})
         monthly_stats[key]['date_count'] += len(dates)
         monthly_stats[key]['min_val'] = min(monthly_stats[key]['min_val'], min_v)
         monthly_stats[key]['max_val'] = max(monthly_stats[key]['max_val'], max_v)
         monthly_stats[key]['time_set'].update(times)
+        # v2.3.36：补填具体日期。
+        # _scan_wide_chunk 一直在填，_scan_long_chunk 没有——两条路径不对称。
+        # 后果：长表数据的 dates 恒为空集，api/routes_ingest._build_days
+        # 拿不到「哪天有数据」，Web 版整月都显示成无数据。
+        # 实测：单文件 5 天 96 点 → date_count=5 但 len(dates)=0。
+        _dates_set = monthly_stats[key].setdefault('dates', set())
+        for _d in dates:
+            try:
+                _dates_set.add(_d.strftime('%Y-%m-%d'))
+            except Exception:
+                pass
 
 _ERROR_TRANSLATION = {
     "KeyError": "未找到所需列，请检查列名是否有多余空格或全角符号",

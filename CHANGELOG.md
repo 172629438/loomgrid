@@ -4,6 +4,52 @@
 
 ---
 
+## v2.3.36 — 扫描层 dates 两条路径不对称
+
+### 一、`_scan_wide_chunk` 填 dates，`_scan_long_chunk` 不填
+
+```python
+# _scan_wide_chunk 里有：
+monthly_stats[key]['dates'].add(_ds)
+
+# _scan_long_chunk 里没有 —— 只累加了 date_count
+```
+
+后果：长表数据的 `dates` 恒为空集。
+
+`api/routes_ingest._build_days(month_str, dates)` 正是用这个字段判断
+「哪天有数据」，**Web 版整月都会显示成无数据**。
+
+实测（修复前）：单文件 5 天 × 96 点 → `date_count=5` 但 `len(dates)=0`。
+
+修完：`date_count=5`、`len(dates)=5`，多资产、同一天重复三种场景都一致；
+`_build_days` 认出 5 天有数据。
+
+### 二、为什么桌面版没暴露
+
+桌面版不消费 `dates` —— 只用 `date_count` 显示「实际数据天数」。
+所以这个 bug 只在 Web 版显现，桌面版用户完全看不到。
+
+**「两条路径一个填一个不填」这类不对称，只有把两边对照才能发现。**
+
+---
+
+## 验证
+
+```
+源码测试   PASS 113 / FAIL 0 / ENV 0
+```
+
+新增专项：
+
+```
+tests/verify_scan_dates.py   10 项
+```
+
+含 `_build_days` 端到端：传入扫描结果，认出 5 天有数据。
+
+---
+
 ## v2.3.35 — services 两处分叉与乱序
 
 ### 一、timeline：两份实现分叉
