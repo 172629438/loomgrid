@@ -919,7 +919,12 @@ def _detect_transposed_wide(df: pd.DataFrame, cols, max_sample=100):
     if len(cols) < 3:
         return None
     sample = df.head(max_sample)
-    for time_idx in range(min(3, len(cols))):
+    # v2.3.33：时刻列不再只在第 1~3 列里找。
+    # 实测「序号 / 区域 / 备注 / 时刻 / …日期列」这种排布，时刻在第 4 位，
+    # 原实现根本看不到，整表检测返回 None。
+    # 下面的判据本身很严（唯一率 ≥ 0.8、跨度 12~24 小时、至少 2 个值），
+    # 放宽候选范围不会把数值列误当成时刻列。
+    for time_idx in range(min(6, len(cols))):
         time_col = cols[time_idx]
         time_vals = sample[time_col].dropna().apply(lambda x: _parse_min(_normalize_time_column_name(str(x))))
         if len(time_vals) == 0:
@@ -950,7 +955,11 @@ def _detect_transposed_wide(df: pd.DataFrame, cols, max_sample=100):
                     continue
                 except Exception:
                     pass
-                top_vals = sample[c].dropna().head(5)
+                # v2.3.33：原来只取前 5 个值，60% 门槛 = 3 个算命中。
+                # 实测：一列「备注」前 5 行恰为 ['1月','2月','3月','备注','备注']，
+                # ym_valid_ratio = 0.60，被当成日期列；用前 20 行时降到 0.15。
+                # _ym_valid_ratio 默认抽 20 个，这里也取 20，两边一致。
+                top_vals = sample[c].dropna().head(20)
                 # v2.3.2fix(N6): 数值列不当日期列——pd.to_datetime(512.3) 会把数值按纳秒解释，
                 # 导致浮荷列被认成日期列，多值列长表被整表误判成转置宽表。
                 try:
