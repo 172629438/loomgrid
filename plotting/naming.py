@@ -14,7 +14,6 @@ import logging
 import os
 import re
 
-import pandas as pd
 log = logging.getLogger(__name__)
 
 from core.timegrid import _CLEAN_RE, _clean_plot

@@ -21,7 +21,7 @@ from api.schemas import (
 from core.timegrid import _get_day_type
 from core.ingest import (
     _detect_file_format_type, _looks_yearless, _read_file_full, _safe_excel_sheets,
-    _scan_file_worker, _smart_classify_columns, get_columns_fast,
+    _scan_file_worker, _smart_classify_columns,
 )
 
 log = logging.getLogger(__name__)

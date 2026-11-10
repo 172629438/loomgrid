@@ -266,7 +266,10 @@ def generate_load_profile(config=None, seed=None):
     peak_power = avg_power / max(daily_load_factor, 0.01)
     # 峰谷差率 = (峰值-谷值)/峰值 → 谷值 = 峰值*(1-峰谷差率)
     valley_power = peak_power * (1.0 - peak_valley_ratio)
-    base_power = valley_power  # 基荷=谷值
+    # v2.3.39：删掉 base_power = valley_power。
+    # 它只赋值不用，但注释「基荷=谷值」会让人以为它参与了计算——
+    # 实际基荷是通过下面 day_profile 归一化后，由
+    # L312 的 valley_power + (peak-valley)*profile 重新映射回来的。
 
     # ── 生成日典型曲线(0~1归一化) ──
     t = np.linspace(0, 24, n_points, endpoint=False)

@@ -4,6 +4,75 @@
 
 ---
 
+## v2.3.39 — 静态检查：死变量与误判
+
+用 ruff 扫 core / services / plotting / api（F401 未用导入、F811 重复导入、
+F841 赋值未用），清掉 8 处。
+
+### 一、最有价值的那个：死变量 + 误导性注释
+
+`services/loadsim.py`：
+
+```python
+base_power = valley_power  # 基荷=谷值
+```
+
+赋值后从不使用。但这条注释会让人以为「基荷 = 谷值」参与了计算——
+实际基荷是后面归一化 profile 经
+`valley_power + (peak_power - valley_power) * day_profile` 重新映射回来的。
+
+**死变量加上误导性注释，比单纯死代码更糟。**
+
+### 二、清掉的其余 7 处
+
+```
+core/ingest.py        lru_cache 未用
+plotting/curves.py    re、pandas 未用
+plotting/fonts.py     re 未用
+plotting/naming.py    pandas 未用
+api/routes_ingest.py  get_columns_fast 未用
+services/config.py    SequenceMatcher 模块级 + 两处函数内各导一次
+services/export.py    asset / month 赋值后未用
+```
+
+### 三、一条我误判的，也记下来
+
+扫描报 `services/config.py:488` 用了 `str(c)` 而函数签名是 `(self, tar, cand)`，
+我以为是 NameError 级 bug，写了探针去证。
+
+**查调用方才发现：`_bsim(tar, cand)` 的 `cand` 在 `recommend()` 里传的是
+「列名列表」，`for c in cand` 遍历的是列名，不是字符串的字符。**
+这个函数算的是「整份映射与这组列的总体契合度」，用途是判断历史映射
+是否适用于新文件——逻辑是对的。
+
+是我在探针里传了字符串，才把它变成逐字符比较。
+
+**又一次「从代码形态推断语义，没先看调用方」。**
+
+### 四、没动的 4 类
+
+```
+B904  except 里 raise 没 from   改它会动 traceback 显示
+B905  zip 没 strict             Python 3.10+ 才有，向下不兼容
+B007  循环变量未用               只是可读性
+B008  File(...) 在默认参数      FastAPI 标准写法，误报
+```
+
+收益小、风险不对等，跳过。
+
+---
+
+## 验证
+
+```
+源码测试   PASS 116 / FAIL 0 / ENV 0
+ruff        F401/F811/F841 全清（All checks passed!）
+```
+
+改完全部 10 个模块逐个 import 验证；`Config._bsim` 与 `_sim` 行为与改前一致。
+
+---
+
 ## v2.3.38 — api 层补启动入口
 
 ### 一、2609 行代码没有入口

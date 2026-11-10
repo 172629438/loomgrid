@@ -21,7 +21,6 @@ import os
 import shutil
 import threading
 from datetime import datetime
-from difflib import SequenceMatcher
 
 from core.models import (
     DEFAULT_WEEKDAY_COLOR, DEFAULT_WEEKEND_COLOR, DEFAULT_HOLIDAY_COLOR,
@@ -469,7 +468,6 @@ class Config:
         return True
 
     def _sim(self,m,col):
-        from difflib import SequenceMatcher
         ds = self._bsim(m['date_col'],col)
         lc = m['load_col']
         if isinstance(lc, str):

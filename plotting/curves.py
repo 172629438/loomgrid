@@ -13,7 +13,6 @@ from __future__ import annotations
 import logging
 import gc
 import os
-import re
 import threading
 
 import matplotlib
@@ -27,7 +26,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
-import pandas as pd
 log = logging.getLogger(__name__)
 from matplotlib import patches as mpatches
 

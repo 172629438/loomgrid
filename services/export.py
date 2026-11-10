@@ -74,8 +74,9 @@ def plot_group(summary: GroupSummary, data: dict, output_dir: str,
     与界面上的出图走同一个 _plot_curves，只是把参数显式传进来。
     """
     os.makedirs(output_dir, exist_ok=True)
-    asset = summary.asset_value or "未命名"
-    month = summary.month_str or ""
+    # v2.3.39：删掉 asset / month 两个局部变量。
+    # 它们赋值后没用到——下面用的是 ctx 字典里的同名键，
+    # 留着会让人误以为这两行参与了后续计算。
 
     load = np.asarray(data["load_array"], dtype=float)
     if multiplier and multiplier != 1.0:
